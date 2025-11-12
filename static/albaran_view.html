@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visualización de Albarán de Servicio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+        /* Estilos personalizados para inputs */
+        .input-field {
+            /* Asegura que tanto inputs como textareas ocupen el ancho completo de su contenedor */
+            @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150 ease-in-out;
+        }
+        /* Estilos para los títulos de sección */
+        .section-title {
+            @apply text-xl font-semibold text-gray-700 mb-4 border-b pb-2 mt-6;
+        }
+        /* Estilo para campos de solo lectura/deshabilitados para diferenciarlos visualmente */
+        .readonly-field {
+            /* Desactiva la interacción visual y el color de fondo para indicar que no es editable */
+            @apply bg-gray-100 cursor-not-allowed border-gray-400 focus:ring-0 focus:border-gray-400;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 lg:p-12">
+
+    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
+        <h1 class="text-3xl font-bold text-gray-800 text-center mb-8">
+            Visualización de Albarán de Servicio
+        </h1>
+
+        <form id="albaranForm" onsubmit="handleFormSubmit(event)">
+
+            <div class="section-title">Datos Principales</div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <div>
+                    <label for="licencia" class="block text-sm font-medium text-gray-600 mb-1">
+                        LICENCIA
+                    </label>
+                    <input type="number" id="licencia" name="licencia" required
+                           placeholder="804" value="804" readonly
+                           class="input-field readonly-field">
+                </div>
+
+                <div>
+                    <label for="n_albaran" class="block text-sm font-medium text-gray-600 mb-1">
+                        Nº Albarán *
+                    </label>
+                    <input type="text" id="n_albaran" name="n_albaran" required
+                           placeholder="ENERO2025-804-1" value="ENERO2025-804-1" readonly
+                           class="input-field readonly-field">
+                </div>
+
+                <div>
+                    <label for="fecha" class="block text-sm font-medium text-gray-600 mb-1">
+                        Fecha *
+                    </label>
+                    <input type="date" id="fecha" name="fecha" required readonly
+                           class="input-field readonly-field">
+                </div>
+
+                <div>
+                    <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">
+                        Empresa *
+                    </label>
+                    <select id="empresa" name="empresa" required disabled
+                            class="input-field readonly-field appearance-none">
+                        <option value="" disabled>Seleccione una empresa</option>
+                        <option value="race" selected>RACE</option>
+                        <option value="mapfre">Mapfre</option>
+                        <option value="mutua">Mutua Madrileña</option>
+                        <option value="otros">Otros</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="referencia" class="block text-sm font-medium text-gray-600 mb-1">
+                        Referencia
+                    </label>
+                    <input type="text" id="referencia" name="referencia" value="REF-12345" readonly
+                           placeholder="Referencia si la tiene"
+                           class="input-field readonly-field">
+                </div>
+
+                <div>
+                    <label for="asalariado" class="block text-sm font-medium text-gray-600 mb-1">
+                        Asalariado (Conductor)
+                    </label>
+                    <input type="text" id="asalariado" name="asalariado" value="Juan Pérez" readonly
+                           placeholder="Nombre del conductor"
+                           class="input-field readonly-field">
+                </div>
+            </div>
+
+            <div class="section-title">Detalles del Servicio</div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
+                    <label for="hora" class="block text-sm font-medium text-gray-600 mb-1">
+                        Hora (hh:mm)
+                    </label>
+                    <input type="time" id="hora" name="hora" value="14:30" readonly
+                           class="input-field readonly-field">
+                </div>
+
+                <div class="md:col-span-2 lg:col-span-1">
+                    <label for="dni_pasajero" class="block text-sm font-medium text-gray-600 mb-1">
+                        DNI Pasajero
+                    </label>
+                    <input type="text" id="dni_pasajero" name="dni_pasajero" value="12345678Z" readonly
+                           placeholder="12345678Z o X1234567L"
+                           class="input-field readonly-field uppercase">
+                </div>
+
+                <div>
+                    <label for="matricula" class="block text-sm font-medium text-gray-600 mb-1">
+                        Matrícula
+                    </label>
+                    <input type="text" id="matricula" name="matricula" value="1234ABC" readonly
+                           class="input-field readonly-field uppercase">
+                </div>
+
+                <div>
+                    <label for="n_plazas" class="block text-sm font-medium text-gray-600 mb-1">
+                        Nº PLAZAS
+                    </label>
+                    <select id="n_plazas" name="n_plazas" disabled
+                            class="input-field readonly-field appearance-none">
+                        <option value="" disabled>Seleccione plazas</option>
+                        <option value="4" selected>4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-x-8 gap-y-4 mt-6">
+                
+                <div class="flex items-center space-x-4 p-3 bg-indigo-50 rounded-lg shadow-inner">
+                    <span class="font-medium text-gray-700">Tarifa:</span>
+                    <label class="flex items-center space-x-2 opacity-50 cursor-not-allowed">
+                        <input type="checkbox" id="urbano" name="urbano" checked disabled class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                        <span class="text-sm text-gray-600">URBANO</span>
+                    </label>
+                    <label class="flex items-center space-x-2 opacity-50 cursor-not-allowed">
+                        <input type="checkbox" id="diurno" name="diurno" disabled class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                        <span class="text-sm text-gray-600">DIURNO</span>
+                    </label>
+                    <label class="flex items-center space-x-2 opacity-50 cursor-not-allowed">
+                        <input type="checkbox" id="noct_fest" name="noct_fest" checked disabled class="form-checkbox h-5 w-5 text-indigo-600 rounded">
+                        <span class="text-sm text-gray-600">NOCT/FEST</span>
+                    </label>
+                </div>
+
+                <div class="flex items-center space-x-6 p-3 bg-pink-50 rounded-lg shadow-inner">
+                    <span class="font-medium text-gray-700">Estado:</span>
+                    <label class="inline-flex items-center cursor-not-allowed opacity-50">
+                        <input type="checkbox" id="festivo" name="festivo" checked disabled class="sr-only peer" />
+                        <div class="relative w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600"></div>
+                        <span class="ms-3 text-sm font-medium text-gray-600">Festivo</span>
+                    </label>
+                </div>
+                
+                <div class="flex items-center space-x-6 p-3 bg-teal-50 rounded-lg shadow-inner">
+                    <span class="font-medium text-gray-700">Finalización:</span>
+                    <label class="inline-flex items-center cursor-not-allowed opacity-50">
+                        <input type="checkbox" id="finalizado" name="finalizado" disabled class="sr-only peer" />
+                        <div class="relative w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                        <span class="ms-3 text-sm font-medium text-gray-600">Finalizado</span>
+                    </label>
+                </div>
+
+                <div class="flex items-center space-x-6 p-3 bg-yellow-50 rounded-lg shadow-inner">
+                    <span class="font-medium text-gray-700">Otros:</span>
+                    <label class="inline-flex items-center cursor-not-allowed opacity-50">
+                        <input type="checkbox" id="enganche" name="enganche" checked disabled class="sr-only peer" />
+                        <div class="relative w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+                        <span class="ms-3 text-sm font-medium text-gray-600">Enganche</span>
+                    </label>
+                </div>
+            </div>
+
+
+            <div class="section-title">Datos del Viaje</div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="md:col-span-2">
+                    <label for="cliente" class="block text-sm font-medium text-gray-600 mb-1">
+                        Cliente
+                    </label>
+                    <input type="text" id="cliente" name="cliente" value="Cliente de Ejemplo S.L." readonly
+                           placeholder="NOMBRE, APELLIDOS o Razón Social"
+                           class="input-field readonly-field" />
+                </div>
+
+                <div>
+                    <label for="origen" class="block text-sm font-medium text-gray-600 mb-1">
+                        Origen
+                    </label>
+                    <textarea id="origen" name="origen" rows="3" readonly
+                              placeholder="Dirección exacta: Calle y número, Localidad o AP7 km 245 salida Almenara"
+                              class="input-field readonly-field resize-none">Calle Falsa 123, Valencia.</textarea>
+                </div>
+
+                <div>
+                    <label for="destino" class="block text-sm font-medium text-gray-600 mb-1">
+                        Destino
+                    </label>
+                    <textarea id="destino" name="destino" rows="3" readonly
+                              placeholder="Dirección exacta: Calle y número, Localidad o AP7 km 245"
+                              class="input-field readonly-field resize-none">Aeropuerto de Madrid Barajas (T4).</textarea>
+                </div>
+
+                <div class="md:col-span-2">
+                    <label for="parada" class="block text-sm font-medium text-gray-600 mb-1">
+                        Parada (Punto intermedio)
+                    </label>
+                    <textarea id="parada" name="parada" rows="3" readonly
+                              placeholder="Si hay punto intermedio: Dirección exacta Calle y número, Localidad..."
+                              class="input-field readonly-field resize-none">No hay parada intermedia.</textarea>
+                </div>
+            </div>
+
+
+            <div class="section-title">Kilometraje e Importes</div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                <div>
+                    <label for="km_totales" class="block text-sm font-medium text-gray-600 mb-1">
+                        Km Totales 
+                    </label>
+                    <input type="number" step="0.01" id="km_totales" name="km_totales" value="385.50" readonly
+                           placeholder="0.00"
+                           class="input-field readonly-field text-right" />
+                </div>
+                
+                <div>
+                    <label for="km_nacionales" class="block text-sm font-medium text-gray-600 mb-1">
+                        KM NACIONALES 
+                    </label>
+                    <input type="number" step="0.01" id="km_nacionales" name="km_nacionales" value="300.00" readonly
+                           placeholder="0.00"
+                           class="input-field readonly-field text-right" />
+                </div>
+
+                <div>
+                    <label for="km_internacionales" class="block text-sm font-medium text-gray-600 mb-1">
+                        KM INTERNACIONALES
+                    </label>
+                    <input type="number" step="0.01" id="km_internacionales" name="km_internacionales" value="85.50" readonly
+                           placeholder="0.00"
+                           class="input-field readonly-field text-right" />
+                </div>
+
+                <div>
+                    <label for="tiempo_espera" class="block text-sm font-medium text-gray-600 mb-1">
+                        Tiempo Espera (hh:mm) 
+                    </label>
+                    <input type="time" id="tiempo_espera" name="tiempo_espera" value="00:30" readonly
+                           class="input-field readonly-field" />
+                </div>
+                
+                <div>
+                    <label for="importe_total" class="block text-sm font-medium text-gray-600 mb-1">
+                        Importe TOTAL (€)
+                    </label>
+                    <input type="number" step="0.01" id="importe_total" name="importe_total" required value="450.00" readonly
+                           placeholder="0.00"
+                           class="input-field readonly-field text-right font-bold text-lg text-red-600 border-red-400" />
+                </div>
+            </div>
+
+            <div class="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                <label for="importe_suplidos" class="block text-sm font-medium text-gray-600 mb-1">
+                    IMPORTE DE SUPLIDOS (Hoteles, peajes, etc.)
+                </label>
+                <div class="flex flex-col sm:flex-row gap-4 sm:items-center">
+                    <div class="relative flex-grow">
+                        <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 font-bold">€</span>
+                        <input type="number" step="0.01" id="importe_suplidos" name="importe_suplidos" readonly
+                               placeholder="0.00" value="15.50"
+                               class="input-field readonly-field pl-8 text-right bg-white" />
+                    </div>
+                    <div class="shrink-0">
+                        <label for="autorizado_por" class="block text-sm font-medium text-gray-600 mb-1 sm:mb-0">
+                            AUTORIZADO POR:
+                        </label>
+                    </div>
+                    <div class="flex-grow">
+                         <input type="text" id="autorizado_por" name="autorizado_por" value="Sra. García" readonly
+                               placeholder="Nombre de la persona que autoriza"
+                               class="input-field readonly-field bg-white" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <label for="observaciones" class="block text-sm font-medium text-gray-600 mb-1">
+                    Observaciones
+                </label>
+                <textarea id="observaciones" name="observaciones" rows="4" readonly
+                          placeholder="Escriba aquí cualquier nota relevante, incidencias, o detalles adicionales del servicio..."
+                          class="input-field readonly-field w-full">El servicio se retrasó 10 minutos por atasco en el centro de la ciudad.</textarea>
+                <p id="wordCount" class="text-right text-xs text-gray-500 mt-1">20 palabras</p>
+            </div>
+
+            <div class="mt-10 pt-6 border-t border-gray-200 flex justify-center">
+                <button type="submit" disabled
+                        class="bg-gray-400 text-white font-bold py-3 px-8 rounded-lg shadow-md cursor-not-allowed">
+                    Guardar Albarán (Modo Lectura)
+                </button>
+            </div>
+            
+            <div id="statusMessage" class="hidden mt-4 p-4 text-center text-sm font-medium rounded-lg" role="alert"></div>
+
+        </form>
+    </div>
+
+    <script>
+        // En modo Solo Lectura, la lógica de envío no debería ser necesaria,
+        // pero se mantiene la función vacía para evitar errores de referencia si se pulsa accidentalmente el botón.
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            alert('Formulario en modo Solo Lectura. No se puede enviar.');
+        }
+
+        // Simulación para cargar datos en campos de solo lectura (como haría un backend)
+        window.onload = function() {
+            document.getElementById('fecha').value = '2025-11-06';
+            document.getElementById('licencia').value = '804';
+            document.getElementById('n_albaran').value = 'ENERO2025-804-1';
+            document.getElementById('importe_suplidos').value = '15.50';
+            document.getElementById('importe_total').value = '450.00';
+            document.getElementById('asalariado').value = 'Juan Pérez';
+            
+            // Simulación de valores en textareas y contador
+            document.getElementById('observaciones').value = "El servicio se retrasó 10 minutos por atasco en el centro de la ciudad.";
+            document.getElementById('wordCount').textContent = '20 palabras';
+        }
+    </script>
+</body>
+</html>

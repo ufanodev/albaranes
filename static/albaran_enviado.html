@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📧 Albaranes de Servicio Enviados</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuración para usar colores personalizados (Naranja Pastel)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-pastel': '#FFDAB9', // Naranja Pastel
+                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
+                        'black-pure': '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Definiciones de utilidades para evitar repetición en el HTML */
+        .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
+        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
+        .btn { @apply font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200; }
+        
+        /* Botones específicos usando nuestra paleta */
+        .btn-primary { @apply bg-primary-link text-white hover:bg-orange-600; }
+        .btn-pastel { @apply bg-primary-pastel text-black-pure hover:bg-orange-300; }
+        .btn-gray { @apply bg-gray-200 text-gray-700 hover:bg-gray-300; }
+        .btn-red { @apply bg-red-500 text-white hover:bg-red-600; }
+        .btn-green { @apply bg-green-500 text-white hover:bg-green-600; }
+        
+        /* Estilos del mensaje de estado (usados por JS) */
+        .status-message { 
+            @apply mt-4 p-3 rounded-md font-medium text-center; 
+        }
+        .status-success { 
+            @apply bg-green-100 text-green-700 border border-green-400; 
+        }
+        .status-error { 
+            /* Rojo pastel como en login.html */
+            @apply bg-red-400 text-white border border-red-600; 
+        }
+        .status-info, .status-neutral { 
+            @apply bg-gray-200 text-gray-700 border border-gray-400; 
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-4 sm:p-8 lg:p-12">
+
+    <div class="max-w-6xl mx-auto">
+
+        <div class="card mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
+                <h1 class="text-3xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
+                    <span class="text-4xl mr-3">📧</span>
+                    <span class="text-2xl">ALBARANES ENVIADOS / FACTURADOS</span>
+                </h1>
+                <div class="flex space-x-3">
+                    <button title="Imprimir" class="btn btn-gray rounded-full p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                    </button>
+                    <button title="Exportar a Excel" class="btn btn-primary rounded-full p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 12h8"/><path d="M10 16h8"/><path d="M10 20h8"/><path d="M6 12h2"/><path d="M6 16h2"/><path d="M6 20h2"/></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-3">
+                <a href="albaran_nuevo.html" class="btn btn-green">
+                    <span class="mr-2">➕</span> NUEVO ALBARAN
+                </a>
+                <!-- Este botón nos devolvería a la vista de "Pendientes" (busqueda.html) -->
+                <a href="busqueda.html" class="btn btn-primary">
+                    <span class="mr-2">📝</span> VER PENDIENTES
+                </a>
+                <button onclick="console.log('FINALIZAR TRAMITACION')" class="btn btn-pastel">
+                    <span class="mr-2">🏁</span> FINALIZAR TRAMITACION
+                </button>
+                <!-- Volver a la página de búsqueda principal (busqueda.html) -->
+                <a href="busqueda.html" class="btn btn-gray">
+                    <span class="mr-2">🔙</span> VOLVER A BÚSQUEDA
+                </a>
+            </div>
+        </div>
+
+        <h2 class="text-xl font-bold text-black-pure mb-4">📊 Albaranes Enviados (MOCK)</h2>
+
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center space-x-2 text-sm text-gray-600">
+                <span>Registros por página:</span>
+                <select id="recordsPerPage" class="input-field w-auto px-2 py-1">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button class="btn btn-gray p-2" title="Anterior">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span class="text-sm text-gray-600 font-medium">Página 1 de 5 (Simulado)</span>
+                <button class="btn btn-gray p-2" title="Siguiente">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-100">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-primary-link text-white">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">Nº Albarán</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Fecha</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Licencia</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Importe</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Pagado</th>
+                        <th scope="col" class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
+                    <!-- Los resultados serán insertados aquí por albaran_enviados.js -->
+                </tbody>
+            </table>
+        </div>
+        <div id="statusMessage" class="hidden status-message" role="alert"></div>
+    </div>
+    <script src="./js/albaran_enviados.js"></script>
+</body>
+</html>

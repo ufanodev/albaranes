@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú Principal de Gestión de Albaranes</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de la fuente Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+        .menu-button {
+            /* Estilos base para todos los botones */
+            @apply flex flex-col items-center justify-center p-6 sm:p-8 text-white rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-[1.05] hover:shadow-xl font-semibold text-base sm:text-lg w-full h-32;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl bg-white shadow-2xl rounded-xl p-6 md:p-10">
+        
+        <h1 class="text-3xl font-extrabold text-center text-gray-800 mb-10 border-b pb-4">
+            Gestión de Albaranes y Servicios
+        </h1>
+
+        <!-- CONTENEDOR DE BOTONES CENTRADOS -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-6">
+            
+            <!-- 1. Nuevo albaran (Primary Action) -->
+            <button onclick="console.log('NUEVO ALBARAN')"
+                    class="menu-button bg-sky-600 hover:bg-sky-700">
+                <!-- Icono de Añadir -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nuevo Albarán
+            </button>
+            
+            <!-- 4. Busqueda (Navigation/Utility) -->
+            <button onclick="console.log('BUSQUEDA')"
+                    class="menu-button bg-indigo-600 hover:bg-indigo-700">
+                <!-- Icono de Búsqueda (Lupa) -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Búsqueda
+            </button>
+            
+            <!-- 2. Pendientes de envio (Status List) -->
+            <button onclick="console.log('PENDIENTES DE ENVIO')"
+                    class="menu-button bg-purple-600 hover:bg-purple-700">
+                <!-- Icono de Carga/Envío Pendiente -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.4-6-2"/><path d="M2 12a8 8 0 0 1 8-8h2c2.8 0 4.5.4 6 2"/><path d="M12 4V2"/><path d="M12 22V20"/></svg>
+                Pendientes de Envío
+            </button>
+
+            <!-- 3. Pendientes de finalizar (Status List) -->
+            <button onclick="console.log('PENDIENTES DE FINALIZAR')"
+                    class="menu-button bg-amber-600 hover:bg-amber-700">
+                <!-- Icono de Pausa/Alerta -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h20a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2z"/><path d="M12 9v6"/><path d="M9 12h6"/></svg>
+                Pendientes de Finalizar
+            </button>
+            
+            <!-- 6. Enviados (Status List - Completed) -->
+            <button onclick="console.log('ENVIADOS')"
+                    class="menu-button bg-teal-600 hover:bg-teal-700">
+                <!-- Icono de Confirmación/Hecho -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Enviados
+            </button>
+            
+            <!-- 5. Finalizar todos (Critical Action) -->
+            <button onclick="console.log('FINALIZAR TODOS')"
+                    class="menu-button bg-red-600 hover:bg-red-700">
+                <!-- Icono de Peligro/Advertencia -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Finalizar Todos
+            </button>
+
+            <!-- 7. Precios (Settings/Config) -->
+            <button onclick="console.log('PRECIOS')"
+                    class="menu-button bg-slate-500 hover:bg-slate-600 col-span-2 md:col-span-1 md:col-start-2">
+                <!-- Icono de Moneda/Etiqueta -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 4a2.41 2.41 0 0 0-1.72-.73H5.22a2.41 2.41 0 0 0-1.72.73L2 6l10 16L22 6z"/></svg>
+                Precios
+            </button>
+            
+        </div>
+        
+    </div>
+
+</body>
+</html>

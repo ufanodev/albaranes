@@ -1,0 +1,69 @@
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acceso al Sistema</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuración para usar colores personalizados que simulen el naranja pastel
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-pastel': '#FFDAB9', // Naranja Pastel
+                        'primary-link': '#FF8C00',   // Naranja más vivo para enlaces
+                        'status-success-bg': '#D1FAE5',
+                        'status-error-bg': '#FEE2E2',
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="./js/login.js" defer></script> 
+</head>
+<body class="bg-white min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-sm w-full bg-white p-8 rounded-xl shadow-xl border border-primary-pastel">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-black mb-2">
+                🚕 Iniciar Sesión
+            </h1>
+            <p class="text-gray-500 text-sm">Albaranes Radiotaxi</p>
+        </div>
+        
+        <form id="loginForm">
+            <div class="mb-5">
+                <label for="username" class="block text-sm font-medium text-black mb-1">Usuario / Email</label>
+                <input type="text" id="username" name="username" required
+                       placeholder="Introduce tu usuario o email"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:border-primary-pastel" />
+            </div>
+            <div class="mb-6">
+                <label for="password" class="block text-sm font-medium text-black mb-1">Contraseña</label>
+                <input type="password" id="password" name="password" required
+                       placeholder="**********"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:border-primary-pastel" />
+            </div>
+            
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center">
+                    <input id="remember-me" name="remember-me" type="checkbox"
+                           class="h-4 w-4 text-primary-pastel border-gray-300 rounded focus:ring-primary-pastel" />
+                    <label for="remember-me" class="ml-2 block text-sm text-black">
+                        Recuérdame
+                    </label>
+                </div>
+                <a href="recuerdame.html" class="text-sm font-medium text-primary-link hover:text-orange-500 transition duration-150">
+                    ¿Olvidaste tu contraseña?
+                </a>
+            </div>
+            
+            <button type="submit" 
+                    class="w-full py-3 bg-primary-pastel text-black font-semibold rounded-lg hover:bg-orange-300 transition duration-200 shadow-md">
+                Acceder
+            </button>
+            
+            <div id="statusMessage" class="hidden text-center mt-4 p-3 rounded-md border border-opacity-50 font-medium" role="alert"></div>
+        </form>
+    </div>
+</body>
+</html>

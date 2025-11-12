@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏢 Albaranes de Empresas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configuración para usar colores personalizados (Naranja Pastel)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-pastel': '#FFDAB9', // Naranja Pastel
+                        'primary-link': '#FF8C00',   // Naranja más vivo para botones/links
+                        'black-pure': '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Definiciones de utilidades para evitar repetición en el HTML */
+        .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
+        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
+        .btn { @apply font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200; }
+        
+        /* Botones específicos usando nuestra paleta */
+        .btn-primary { @apply bg-primary-link text-white hover:bg-orange-600; }
+        .btn-pastel { @apply bg-primary-pastel text-black-pure hover:bg-orange-300; }
+        .btn-gray { @apply bg-gray-200 text-gray-700 hover:bg-gray-300; }
+        .btn-red { @apply bg-red-500 text-white hover:bg-red-600; }
+        .btn-green { @apply bg-green-500 text-white hover:bg-green-600; }
+        
+        /* Estilos del mensaje de estado (usados por JS) */
+        .status-message { 
+            @apply mt-4 p-3 rounded-md font-medium text-center; 
+        }
+        .status-success { 
+            @apply bg-green-100 text-green-700 border border-green-400; 
+        }
+        .status-error { 
+            /* Rojo pastel como en login.html */
+            @apply bg-red-400 text-white border border-red-600; 
+        }
+        .status-info, .status-neutral { 
+            @apply bg-gray-200 text-gray-700 border border-gray-400; 
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-4 sm:p-8 lg:p-12">
+
+	<header class="bg-black-pure text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div class="text-xl font-bold flex items-center">
+                ⚙️ Panel de Administración
+            </div>
+            <nav>
+			    <a href="admin_pago_tit.html" class="px-4 py-2 rounded-md text-sm font-medium bg-primary-link text-white hover:bg-orange-600 transition duration-150">
+                    🚕 Pago Titulares
+                </a>
+				<a href="admin_pago_emp.html" class="px-4 py-2 rounded-md text-sm font-medium bg-primary-link text-white hover:bg-orange-600 transition duration-150">
+                    🏢 Cobro Empresas
+                </a>
+                 <a href="admin.html" class="px-4 py-2 rounded-md text-sm font-medium bg-primary-link text-white hover:bg-orange-600 transition duration-150">
+                    🔙Volver
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="max-w-6xl mx-auto">
+
+        <div class="card mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
+                <h1 class="text-3xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
+                    <span class="text-4xl mr-3">🏢</span>
+                    <span class="text-2xl">ALBARANES / Empresas</span>
+                </h1>
+                <div class="flex space-x-3">
+                    <button title="Imprimir" class="btn btn-gray rounded-full p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                    </button>
+                    <button title="Exportar a Excel" class="btn btn-primary rounded-full p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 12h8"/><path d="M10 16h8"/><path d="M10 20h8"/><path d="M6 12h2"/><path d="M6 16h2"/><path d="M6 20h2"/></svg>
+                    </button>
+                </div>
+            </div>
+
+        <div class="card mb-8">
+            <h2 class="text-xl font-bold text-black-pure mb-4">🔍 Filtros de Búsqueda</h2>
+            <form id="searchForm" onsubmit="handleSearch(event)">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label for="licencia" class="block text-xs font-medium text-gray-700 mb-1">LICENCIA</label>
+                        <input type="text" id="licencia" name="licencia" placeholder="Ej: 77 CESAR" class="input-field">
+                    </div>
+                    <div>
+                        <label for="empresa" class="block text-xs font-medium text-gray-700 mb-1">Empresa</label>
+                        <select id="empresa" name="empresa" class="input-field appearance-none">
+                            <option value="">Por favor Seleccione</option>
+                            <option value="race">RACE</option>
+                            <option value="mapfre">Mapfre</option>
+                            <option value="mutua">Mutua Madrileña</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="pagado" class="block text-xs font-medium text-gray-700 mb-1">Pagado</label>
+                        <select id="pagado" name="pagado" class="input-field appearance-none">
+                            <option value="">Por favor Seleccione</option>
+                            <option value="si">Sí</option>
+                            <option value="no">No</option>
+                            <option value="todos">Todos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="referencia" class="block text-xs font-medium text-gray-700 mb-1">Referencia</label>
+                        <input type="text" id="referencia" name="referencia" placeholder="Si la tiene" class="input-field">
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label for="fecha_desde" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Desde)</label>
+                        <input type="date" id="fecha_desde" name="fecha_desde" class="input-field">
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label for="fecha_hasta" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Hasta)</label>
+                        <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field">
+                    </div>
+                </div>
+                <div class="mt-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="flex flex-wrap gap-x-6 text-sm text-gray-700">
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link" checked>
+                            <span class="ml-2">Frase Exacta</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
+                            <span class="ml-2">Todas las palabras</span>
+                        </label>
+                        <label class="inline-flex items-center">
+                            <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
+                            <span class="ml-2">Cualquier palabra</span>
+                        </label>
+                    </div>
+					
+					<div class="flex flex-wrap gap-3">
+						<!-- Botón Limpiar - Blanco con borde azul -->
+						<button type="button" onclick="document.getElementById('searchForm').reset();" 
+								class="group relative inline-flex items-center justify-center px-5 py-2.5 font-semibold text-blue-600 transition-all duration-300 ease-in-out bg-white border-2 border-blue-500 rounded-lg shadow-md hover:bg-blue-50 hover:border-blue-600 hover:shadow-lg hover:shadow-blue-500/20 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 transition-transform group-hover:rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M3 6h18"/>
+								<path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+								<path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+								<line x1="10" y1="11" x2="10" y2="17"/>
+								<line x1="14" y1="11" x2="14" y2="17"/>
+							</svg>
+							<span class="relative">Limpiar</span>
+						</button>
+
+						<!-- Botón Buscar - Azul con letras blancas -->
+						<button type="submit" 
+								class="group relative inline-flex items-center justify-center px-5 py-2.5 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-blue-500/50 hover:from-blue-600 hover:to-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="11" cy="11" r="8"/>
+								<line x1="21" y1="21" x2="16.65" y2="16.65"/>
+							</svg>
+							<span class="relative">Buscar / Mostrar Todos</span>
+							<span class="absolute inset-0 rounded-lg bg-white opacity-0 group-hover:opacity-10 transition-opacity"></span>
+						</button>
+					</div>
+                </div>
+            </form>
+        </div>
+
+		<button type="submit" class="group relative inline-flex items-center justify-center px-6 py-3 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-green-500/50 hover:from-green-600 hover:to-green-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M18.5 6C17.4 4.7 15.8 4 14 4c-3.9 0-7 3.1-7 7s3.1 7 7 7c1.8 0 3.4-0.7 4.5-2"/>
+				<line x1="3" y1="9" x2="11" y2="9"/>
+				<line x1="3" y1="13" x2="11" y2="13"/>
+			</svg>
+			<span class="relative">Cobrar Todos</span>
+			<span class="absolute inset-0 rounded-lg bg-white opacity-0 group-hover:opacity-10 transition-opacity"></span>
+		</button>
+
+        <h2 class="text-xl font-bold text-black-pure mb-4">📊 Últimos Albaranes</h2>
+
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex items-center space-x-2 text-sm text-gray-600">
+                <span>Registros por página:</span>
+                <select id="recordsPerPage" class="input-field w-auto px-2 py-1">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button class="btn btn-gray p-2" title="Anterior">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span class="text-sm text-gray-600 font-medium">Página 1 de 5 (Simulado)</span>
+                <button class="btn btn-gray p-2" title="Siguiente">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </div>
+        </div>
+
+		<div class="overflow-x-auto shadow-lg rounded-xl border border-gray-100">
+		  <table class="min-w-full divide-y divide-gray-200">
+			<thead class="bg-primary-link text-white">
+			  <tr>
+				<th class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tl-xl">Acciones</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Nº Pago</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Nº Albarán</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Licencia</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Fecha</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Referencia</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Importe TOTAL</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Cobrado</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Fecha Cobro</th>
+				<th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tr-xl">Observaciones</th>
+			  </tr>
+			</thead>
+			<tbody id="albaranResults" class="bg-white divide-y divide-gray-200"></tbody>
+		  </table>
+		</div>
+
+        <div id="statusMessage" class="hidden status-message" role="alert"></div>
+    </div>
+    <script src="./js/admin_pago_emp.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_HOST=mysql
+      - PMA_USER=ufano
+      - PMA_PASSWORD=ufano
+      - MYSQL_ROOT_PASSWORD=ufano_root_password
+      - UPLOAD_LIMIT=300M
+    ports:
+      - "8090:80"
+    networks:
+      - phpmyadmin_network
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=ufano_root_password
+      - MYSQL_USER=ufano
+      - MYSQL_PASSWORD=ufano
+      - MYSQL_DATABASE=ufano_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - phpmyadmin_network
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+networks:
+  phpmyadmin_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
