@@ -1,0 +1,226 @@
+APP ALBARANES RADIOTAXI
+
+*** Negocio ***
+
+Realizar una WebApp para gestionar los albaranes de Radio Taxi
+    
+    X Liecencia
+
+    - rellenará sus albaranes indicando cada mes ENERO2025-804-1 ... ENERO2025-804-2 si tiene conductor ENERO2025-804b-1 dos conductores ENERO2025-804c-2
+
+    - Dispondra de un sistema de CREAR, MODIFICAR y FINALIZAR una vez FINALIZADO tendra que hablar con ADMINISTRACION para cambios (Multa, jeje)
+
+    - Los campos son * Obligatorios:
+
+        LICENCIA        -> Licencia en RT, EJ: 804	
+
+        NºAlbaran *	    -> Según modelo elegido por RT, EJ:ENERO2025-804-1
+        Fecha *	        -> Fecha del Albaran    EJ: 05-11-2025 - Dispondra selector fecha = Seleccione una fecha
+        Empresa *	    -> Selector de empresa  EJ: RACE       - Dispondra selector empresa = Seleccione una empresa     
+        Referencia      -> Si la tiene	
+        Asalariado	    -> Conductor hace el albaran si no tiene es el titular licencia  
+        Hora (hh:mm)    -> Selector hora  HH:mm 	           - Dispondra selector hora = Seleccione hora
+        Festivo	        -> Si/No	                           - Dispondra checkbox Si o No 	 	 
+        Finalizado	    -> Si/No	                           - Dispondra checkbox Si o No  	 	 
+        DNI Pasajero	-> DNI Pasajero  12345678Z o  X1234567L                          
+        Matricula	    -> Matricula
+        Cliente	        -> NOMBRE, APELLIDOS
+        Origen          -> Direccion exacta Calle y numero, Localidad o AP7 km 245 salida Almenara	
+        Parada          -> Si hay punto intermedio	Direccion exacta Calle y numero, Localidad o AP7 km 245 salida Almenara
+        Destino	
+        URBANO:    -> Si/No	                           - Dispondra checkbox Si o No 	
+        DIURNO:    -> Si/No	                           - Dispondra checkbox Si o No 	
+        NOCT/FEST: -> Si/No	                           - Dispondra checkbox Si o No 
+        Km Totales	    -> kms totales formato 123,45
+        KM NACIONALES:  -> kms totales formato 123,45
+        KM INTERNACIONALES: -> kms totales formato 123,45
+        Tiempo Espera (hh:mm)	-> Selector hora  HH:mm 	           - Dispondra selector hora = Seleccione hora  
+        IMPORTE DE SUPLIDOS  -> (hoteles, peajes, etc): $\quad \quad \quad \quad \quad$ € AUTORIZADO POR:
+        ENGANCHE:   -> Si/No	                           - Dispondra checkbox Si o No  
+        Nº PLAZAS:   -> Selector hora 4-9           - Dispondra selector plazas = Seleccione plazas
+        Importe TOTAL	-> importe total formato 123,45
+        Observaciones	200 palabras
+        Num Factura 
+		Enviado
+        Cobrado
+        Fecha Cobro
+        Pagado          -> Si/No	                           - Dispondra checkbox Si o No 
+        Fecha Pago
+		Observaciones Admin	 200 palabras
+
+    Estado albaranes enviado,finalizado,pagado
+
+--- Conductores
+
+    LICENCIA 007
+
+    SOCIO SI
+
+    CHOFER NO
+
+    NOMBRE Y APELLIDOS CESAR…………
+
+    DNI 24.XXXXX-L
+
+    ACTIVO SI
+
+    ### CHOFER
+    
+        LICENCIA 007
+
+        SOCIO NO
+
+        CHOFER SI
+
+        NOMBRE Y APELLIDOS ISABEL…………
+
+        DNI 24.XXXXX-L
+
+        ACTIVO SI
+    
+
+----- TITULARES OLD
+
+        Campo	Valor
+        LICENCIA	N107
+        SOCIO	NO
+        CHOFER	NO
+        NOMBRE Y APELLIDOS	MIÑARRO.........
+        DNI	24.XXXXX-L
+        ACTIVO	NO
+
+
+
+---
+
+Pagina de inicio
+
+    Nuevo albaran
+    Pendientes de envio
+    Pendientes de finalizar
+    Busqueda
+    Finalizar todos
+    Enviados
+    Precios
+
+Pagina  Nuevo albaran 
+        albaran.html
+    Pendientes de envio
+        pendientes.html
+    Pendientes de finalizar
+        finalizar.html
+    Busqueda
+        busqueda.html
+
+        ALBARANES/RECIBOS SERVICIOS   icono para imprimir   icono Excel
+        
+        LICENCIA 77 CESAR
+        Fecha	 =   Seleccione una fecha	y   Seleccione una fecha
+  	    Empresa	 =	Por favor Seleccione
+        Pagado	 =	Por favor Seleccione
+        Referencia =	 Referencia      -> Si la tiene	
+        TEST FIELD       Limpiar campos  Mostrar Todos
+        radio Button Frase Exacta  radio Button Todas las palabras radio Button Cualquier palabra
+
+        NUEVO ALBARAN   VER ENVIADOS FINALIZAR VOLVER A MENU COMBOX Registros por pagina 10,20,50,100 paginados
+
+PAgina ADMIN
+
+    Conductores
+
+    Titulares
+
+    Albaranes
+
+    Usuarios
+
+    Backup
+
+PAgina ADMIN - Conductores
+
+PAgina ADMIN - Titulares
+
+PAgina ADMIN - Albaranes
+
+	Empresas
+	
+		Busqueda
+		
+			Nombre del Campo (Español)	Descripción / Tipo de Entrada
+			Licencia	Menú desplegable para seleccionar una licencia.
+			Fecha	Rango de fechas con dos campos de texto ("entre" [From] y [To]).
+			Empresa	Campo de texto para ingresar el nombre de la empresa.
+			Referencia	Campo de texto con opción "Contiene" (Contains).
+			Cobrado	Menú desplegable para filtrar por estado "Cobrado" (Collected) con opción predeterminada "No" y un botón con la leyenda "Poner cobrado a NO para poder cobrar todos".
+			Fecha Cobro	Rango de fechas para filtrar por la fecha de cobro con dos campos de texto ("entre" [From] y [To]).
+			Frase Exacta	Opción de radio para buscar la frase exacta.
+			Todas las palabras	Opción de radio para buscar todas las palabras.
+			Cualquier Palabra	Opción de radio para buscar cualquier palabra.
+
+		Tabla
+		
+			Nombre de la Columna (Español)	Descripción
+			Nº Pago	Número de pago.
+			Nº Albarán	Número de albarán (o factura).
+			Licencia	Licencia asociada al cobro.
+			Fecha	Fecha del cobro.
+			Empresa	Nombre de la empresa a la que se cobra.
+			Referencia	Referencia asociada al cobro.
+			Importe TOTAL	Cantidad total del cobro.
+			Cobrado	Estado del cobro (muestra No en todos los registros visibles).
+			Fecha Cobro	Fecha en la que se realizó el cobro (está vacío en los registros visibles).
+			Observaciones	Notas o comentarios sobre el cobro.
+			
+	Titulares 
+	
+		Busqueda
+		
+			Nombre del Campo (Español)	Descripción / Tipo de Entrada / Valor Predeterminado
+			Pagado	Menú desplegable para filtrar por estado "Pagado" (Paid). Valor predeterminado: No.
+			Fecha Pago	Rango de fechas con dos campos de texto ("entre" [From] y [To]). Nota: Selecciona las dos fechas para sacar listado de pagos y pulsa BUSCAR.
+			Licencia	Campo de texto para ingresar o filtrar por licencia. Valor visible: 3 MARIO BERNARDO SAIZ PEREZ, 3.
+			Fecha	Rango de fechas con dos campos de texto ("entre" [From] y [To]).
+			Empresa	Menú desplegable para seleccionar una empresa. Valor predeterminado: Por Favor Seleccione.
+			Referencia	Campo de texto con opción "Contiene" (Contains).
+			Cobrado	Menú desplegable para filtrar por estado "Cobrado" (Collected). Valor predeterminado: Por Favor Seleccione.
+			Fecha Cobro	Rango de fechas para filtrar por la fecha de cobro con dos campos de texto ("entre" [From] y [To]).
+			Frase Exacta	Opción de radio para buscar la frase exacta (marcada).
+			Todas las palabras	Opción de radio para buscar todas las palabras.
+			Cualquier Palabra	Opción de radio para buscar cualquier palabra.
+			
+		Tabla
+		
+			Nombre de la Columna (Español)	Descripción	Ejemplo de Datos
+			Nº Pago	Número de pago.	118967
+			Pagado	Estado de pago (muestra No o vacío).	No
+			Fecha Pago	Fecha en que se realizó o se debe realizar el pago.	(Vacío)
+			Nº Albarán	Número de albarán (o factura).	N4061
+			Licencia	Licencia asociada al pago.	3 MARIO BERNARDO SAIZ PEREZ, 3
+			Fecha	Fecha del registro/transacción.	7/10/2025
+			Empresa	Nombre de la empresa.	LLUSAR TORRES
+			Referencia	Referencia asociada al pago.	(Vacío)
+			Importe TOTAL	Cantidad total a pagar.	20,00€
+			Observaciones	Notas o comentarios sobre el pago.	RTS 2025 10 008
+			Cobrado	Estado de cobro (muestra No o Sí).	No / Sí
+			Fecha Cobro	Fecha en que se cobró.	10/11/2025
+
+PAgina ADMIN - Usuarios
+
+PAgina ADMIN - Backup
+
+
+
+
+    
+    
+
+    
+    
+
+
+      
+
+
+
+        
+

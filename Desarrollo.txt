@@ -1,0 +1,85 @@
+Backend (API)	Go (Golang)	Alto rendimiento, concurrencia, base del servidor.
+Framework Web	Gin Gonic	Manejo de rutas, middleware (JWT), y servicio de respuestas RESTful JSON.
+Persistencia	GORM (ORM)	Interfaz ORM para interactuar con la Base de Datos.
+Base de Datos	MySQL	Base de datos relacional robusta para datos transaccionales (Albaranes, Usuarios, Clientes).
+Frontend (UI)	HTML5 & Vanilla JavaScript	Estructura y l¨®gica de la interfaz de usuario (Interact¨²a con la API de Go).
+Estilos	Tailwind CSS	Framework CSS utility-first para un dise?o r¨¢pido y responsivo.
+
+****
+
+albaranes/
+¢u¢w¢w main.go                  # Punto de entrada del servidor (Gin + GORM + rutas)
+¢x
+¢u¢w¢w config/
+¢x   ¢|¢w¢w config.go            # Configuracion de MySQL, carga de variables de entorno y AutoMigrate
+¢x
+¢u¢w¢w controllers/             # Controladores HTTP (logica de negocio + acceso GORM)
+¢x   ¢u¢w¢w user.go              # Login, gestion de usuarios, roles
+¢x   ¢u¢w¢w albaran.go           # CRUD de Albaranes (servicios), asignacion y estados
+¢x   ¢|¢w¢w empresa.go           # CRUD de Empresas y Clientes (o separar cliente.go aqui)
+¢x
+¢u¢w¢w models/                  # Modelos de datos (estructuras GORM)
+¢x   ¢u¢w¢w user.go              # Modelo de usuarios (conductores, operadores, admins)
+¢x   ¢u¢w¢w albaran.go           # Modelo de albaranes (servicios de taxi)
+¢x   ¢u¢w¢w empresa.go           # Modelo de empresas (clientes corporativos)
+¢x   ¢|¢w¢w cliente.go           # Modelo de clientes (pasajeros/solicitantes)
+¢x
+¢u¢w¢w routes/
+¢x   ¢|¢w¢w routes.go            # Definicion de rutas y asignacion de controladores. Middleware JWT
+¢x
+¢u¢w¢w utils/
+¢x   ¢|¢w¢w auth.go              # Hashing (bcrypt), generacion/validacion JWT y middleware de autenticacion
+¢x
+¢|¢w¢w web/                     # Frontend estatico servido por Gin
+    ¢u¢w¢w index.html           # Dashboard principal
+    ¢u¢w¢w login.html           # Pagina de login
+    ¢u¢w¢w css/                 # Estilos (Tailwind compilado u otros)
+    ¢|¢w¢w js/                  # Logica del frontend, consumos API con JWT, DOM
+	
+***
+? Resumen Tecnico: Estado de ImplementacionFASE 1: Configuracion e Infraestructura (Cimientos)PuntoTareaEstadoObservacionesPunto 1.0Inicializacion del Proyecto Go? COMPLETADOEstructura de carpetas lista. Dependencias clave instaladas (gin, gorm, bcrypt, jwt/v5, godotenv).Punto 1.1Configuracion de la Base de Datos? COMPLETADOconfig/config.go implementado. Conexion a MySQL funcional (.env cargado en main.go).Punto 1.2Definicion de Modelos?? PARCIALEl modelo models/user.go esta definido y funcional. Faltan las definiciones completas y relaciones para licencia, albaran, y empresa.Punto 1.3Migracion Inicial? COMPLETADOAutoMigrate en config.ConnectDatabase() asegura que la tabla usuarios se crea automaticamente.FASE 2: Autenticacion y Seguridad (Base del Acceso)PuntoTareaEstadoObservacionesPunto 2.1Utilitarios de Seguridad (utils/security.go)? COMPLETADOFunciones GenerateHashPassword, CheckPasswordHash, y GenerateJWT implementadas y 100% funcionales.Punto 2.2Controlador de Autenticacion (controllers/user.go)? COMPLETADOFunciones Register (protegida por llave) y Login (emision de token) estan listas.Punto 2.3Middleware de JWT (utils/security.go y controllers/user.go)? COMPLETADOJWTAuthMiddleware() valida el token, extrae el user_id y userRole. RequireRole() implementado y funcionando para restringir el acceso a admin en rutas especificas.FASE 3: API RESTful (Logica de Negocio)Punto 3.1: Definicion de Rutas (routes/routes.go)TareaEstadoObservacionesLogin/Register Publico? LISTORutas /login y /register (protegida) definidas.Grupo Protegido (JWT)? LISTOGrupo api/v1 con JWTAuthMiddleware() aplicado.CRUD de Usuarios? LISTORutas GET/PUT/DELETE /users definidas y protegidas con RequireRole("admin").CRUD de Licencias/Albaranes?? PENDIENTELas rutas y handlers para la logica de negocio principal aun no estan definidas.Punto 3.2: Implementacion de Controladores CRUDModuloEstadoObservacionescontrollers/user.go? LISTOCRUD completo de usuarios implementado.controllers/licencia.go?? PENDIENTEEl controlador existe pero esta vacio, listo para la logica de Licencias.controllers/albaran.go?? PENDIENTELogica de Albaranes pendiente de implementacion.?? Proxima Etapa de ImplementacionEl enfoque se mueve a la Logica de Negocio (FASE 3). El paso mas logico para continuar es definir la estructura de datos para el modulo principal:?? META ACTUAL: Implementar el Modulo Licencia1. Modelo: models/licencia.goDefinir la estructura de la tabla de licencias, incluyendo campos clave y relaciones.2. Rutas: routes/routes.goAnadir rutas (POST, GET) para Licencias, aplicando RequireRole donde sea necesario (ej: GET /licencias para listar todas, solo para admin).3. Controlador: controllers/licencia.goImplementar las funciones CreateLicencia, GetLicencias, etc.?Empezamos definiendo la estructura para models/licencia.go?
+---
+
+	Carpeta,Componente Principal,Estado & Funcionalidad Lograda
+main.go,Arranque / Inicializacion,"? Funcionalidad clave: Carga el archivo .env (godotenv.Load()) antes de inicializar cualquier componente, asegurando que las variables de entorno (DB, JWT Secret) esten disponibles. Inicializa la conexion a MySQL (GORM) y arranca el router Gin."
+config,Configuracion de DB,? Funcionalidad clave: Contiene la logica para la conexion a la base de datos MySQL usando GORM. Tambien contiene utilidades para obtener claves de entorno (como REGISTER_KEY_USER).
+utils,Seguridad (security.go),"? Funcionalidad clave: Implementacion completa de la seguridad: Hashing (bcrypt), Generacion/Validacion de JWT (tokeniza el user_id y el role), y el middleware JWTAuthMiddleware para proteger rutas. Incluye el middleware RegisterKeyAuth para proteger la ruta de registro."
+controllers,Logica de Negocio/Auth,"? Funcionalidad clave: Implementacion completa de la Autenticacion (Register, Login). CRUD completo para Usuarios (GetUsers, GetUser, UpdateUser, DeleteUser). Incluye el middleware RequireRole(""admin"") para proteger el CRUD de usuarios."
+routes,Definicion de Rutas,? Funcionalidad clave: Define las rutas del frontend y las rutas de la API (/api/v1). La arquitectura de rutas aplica un doble nivel de seguridad: 1. Acceso general (JWT valido) y 2. Restriccion de rol (solo admin para /api/v1/users).
+models,Estructuras de Datos,"? Funcionalidad clave: Contiene la definicion de la estructura User (albaranes/models/user.go) con sus campos necesarios para GORM (ID, Email, Password, Role). Los otros modelos (licencia, albaran, empresa) estan definidos pero en espera de implementacion logica."
+
+!Excelente iniciativa! Un resumen tecnico basado en la estructura de carpetas es perfecto para consolidar lo que hemos logrado.
+
+Aqui tienes un resumen tecnico completo del estado actual de tu aplicacion Go, con el enfoque en la arquitectura **MVC/Clean Architecture** y las funcionalidades de seguridad implementadas:
+
+---
+
+## ?? Resumen Tecnico del Proyecto (Estado Actual)
+
+Tu proyecto es una API RESTful construida en Go usando el *framework* **Gin**, enfocada en la gestion de **Albaranes y Licencias**, con un robusto sistema de **Autenticacion y Autorizacion por Roles (JWT)**.
+
+| Carpeta | Componente Principal | Estado & Funcionalidad Lograda |
+| :--- | :--- | :--- |
+| **`main.go`** | Arranque / Inicializacion | ? **Funcionalidad clave:** Carga el archivo `.env` (`godotenv.Load()`) antes de inicializar cualquier componente, asegurando que las variables de entorno (DB, JWT Secret) esten disponibles. Inicializa la conexion a MySQL (GORM) y arranca el router Gin. |
+| **`config`** | Configuracion de DB | ? **Funcionalidad clave:** Contiene la logica para la conexion a la base de datos MySQL usando **GORM**. Tambien contiene utilidades para obtener claves de entorno (como `REGISTER_KEY_USER`). |
+| **`utils`** | Seguridad (`security.go`) | ? **Funcionalidad clave:** Implementacion completa de la seguridad: **Hashing** (`bcrypt`), **Generacion/Validacion de JWT** (tokeniza el `user_id` y el `role`), y el *middleware* **`JWTAuthMiddleware`** para proteger rutas. Incluye el *middleware* **`RegisterKeyAuth`** para proteger la ruta de registro. |
+| **`controllers`** | Logica de Negocio/Auth | ? **Funcionalidad clave:** Implementacion completa de la Autenticacion (`Register`, `Login`). **CRUD completo para Usuarios** (`GetUsers`, `GetUser`, `UpdateUser`, `DeleteUser`). Incluye el *middleware* **`RequireRole("admin")`** para proteger el CRUD de usuarios. |
+| **`routes`** | Definicion de Rutas | ? **Funcionalidad clave:** Define las rutas del *frontend* y las rutas de la API (`/api/v1`). La arquitectura de rutas aplica un **doble nivel de seguridad**: 1. Acceso general (JWT valido) y 2. Restriccion de rol (solo `admin` para `/api/v1/users`). |
+| **`models`** | Estructuras de Datos | ? **Funcionalidad clave:** Contiene la definicion de la estructura **`User`** (`albaranes/models/user.go`) con sus campos necesarios para GORM (ID, Email, Password, Role). Los otros modelos (`licencia`, `albaran`, `empresa`) estan definidos pero en espera de implementacion logica. |
+
+---
+
+## ?? Hitos Tecnicos de Seguridad Logrados
+
+1.  **JWT y Hashing:** El sistema genera tokens JWT que incluyen el `user_id` y el `role` del usuario. Las contrasenas se almacenan de forma segura mediante **Bcrypt**.
+2.  **Autorizacion Fina:** La ruta `GET /api/v1/users` esta estrictamente restringida al rol `admin`, devolviendo un codigo `403 Forbidden` a cualquier usuario que porte un token de rol `user`.
+3.  **Proteccion de Registro:** La ruta `POST /api/v1/register` esta protegida por la llave de administrador (`X-Admin-User` / `X-Admin-Pass`).
+
+### Tareas Pendientes (Proximos Pasos)
+
+Con la base de usuarios y seguridad consolidada, el trabajo restante se centra en la logica de negocio:
+
+* Implementar el modelo `Licencia` y su **CRUD** (`controllers/licencia.go`).
+* Implementar los modelos `Empresa` y `Albaran` y sus **CRUDs**.
+* Definir las **reglas de negocio** (ej: que licencias puede ver un `user` frente a un `admin`).
+
