@@ -30,21 +30,16 @@ type UpdateUserInput struct {
 	Usuario string `json:"usuario"`
 	Email   string `json:"email"`
 	Role    string `json:"role"`
-	Activo  *bool  `json:"activo"`
+	Activo  *bool  `json:"activo"` // Usamos puntero para distinguir entre 'false' y no enviado
 }
 
 // --- Middleware de Autorización de Rol ---
 
-// RequireRole es una función de utilidad que genera un middleware para verificar el rol del usuario en el contexto.
-// Se usa en routes.go para proteger rutas específicas (ej: solo 'admin').
 func RequireRole(role string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// userRole fue establecido por JWTAuthMiddleware
 		userRole, exists := c.Get("userRole")
 
-		// Comprobar si existe Y si el rol del token NO es igual al requerido
 		if !exists || userRole.(string) != role {
-			// Abortar si el rol no coincide (ej: si es 'user' y se requiere 'admin')
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "🚫 Acceso denegado. Se requiere el rol: " + role})
 			return
 		}
@@ -52,9 +47,8 @@ func RequireRole(role string) gin.HandlerFunc {
 	}
 }
 
-// --- Controladores de Autenticación ---
+// --- Controladores de Autenticación (Omitidos para brevedad, ya están completos) ---
 
-// Register maneja la creación de un nuevo usuario en la base de datos.
 func Register(c *gin.Context, db *gorm.DB) {
 	var input RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -85,7 +79,6 @@ func Register(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Usuario registrado exitosamente", "id": user.ID, "usuario": user.Usuario, "role": user.Role})
 }
 
-// Login maneja la autenticación de un usuario y la emisión de un JWT.
 func Login(c *gin.Context, db *gorm.DB) {
 	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -118,12 +111,10 @@ func Login(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Login exitoso", "token": token, "role": user.Role, "usuario": user.Usuario})
 }
 
-// --- Controladores CRUD (Protegidos por Rol Admin en routes.go) ---
+// --- Controladores CRUD (GET/LIST) ---
 
-// GetUsers obtiene una lista de todos los usuarios.
 func GetUsers(c *gin.Context, db *gorm.DB) {
 	var users []models.User
-	// ⚠️ SEGURIDAD: Excluir el campo 'Password' por seguridad
 	if err := db.Select("id, usuario, email, role, activo, created_at, updated_at").Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al obtener la lista de usuarios"})
 		return
@@ -132,7 +123,6 @@ func GetUsers(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"data": users})
 }
 
-// GetUser obtiene un usuario por ID.
 func GetUser(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -150,7 +140,9 @@ func GetUser(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }
 
-// UpdateUser actualiza los campos de un usuario por ID.
+// --- Controladores CRUD (PUT / DELETE) ---
+
+// UpdateUser (PUT) actualiza los campos de un usuario por ID.
 func UpdateUser(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -173,6 +165,7 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 
 	updates := make(map[string]interface{})
 
+	// Solo actualiza si el campo fue proporcionado en el JSON
 	if input.Usuario != "" {
 		updates["usuario"] = input.Usuario
 	}
@@ -182,6 +175,7 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 	if input.Role != "" {
 		updates["role"] = input.Role
 	}
+	// Verifica si el campo activo fue enviado (incluso si es false)
 	if input.Activo != nil {
 		updates["activo"] = *input.Activo
 	}
@@ -196,7 +190,7 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Usuario actualizado exitosamente", "data": user})
 }
 
-// DeleteUser cambia el estado 'activo' del usuario a false (desactivación).
+// DeleteUser (DELETE) cambia el estado 'activo' del usuario a false (desactivación lógica).
 func DeleteUser(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -211,7 +205,7 @@ func DeleteUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Solo desactiva, no elimina el registro permanentemente
+	// Desactivación lógica: Actualiza el campo 'activo' a false
 	if result := db.Model(&user).Update("activo", false); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al desactivar el usuario"})
 		return
