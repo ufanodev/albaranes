@@ -12,7 +12,7 @@
                 extend: {
                     colors: {
                         'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',   // Naranja más vivo para enlaces/botones primarios
+                        'primary-link': '#FF8C00',   // Naranja más vivo para enlaces/botones primarios
                         'black-pure': '#000000',
                     }
                 }
@@ -22,7 +22,7 @@
     
     <script src="/js/security.js"></script> 
     <script src="/js/utils.js"></script> 
-    </head>
+</head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
 
     <header class="bg-black-pure text-white shadow-lg">
@@ -89,13 +89,14 @@
     </main>
 
     <script>
+        // Lógica de Logout
         document.getElementById('logoutButton').addEventListener('click', function(e) {
             e.preventDefault();
-            // Llama a la función de seguridad para limpiar el token y redirigir
-            // Nota: clearTokenAndRedirect está definido en security.js (que está incluido arriba)
+            // Llama a la función global exportada por security.js
             if (typeof clearTokenAndRedirect === 'function') {
                 clearTokenAndRedirect();
             } else {
+                // Fallback si security.js no se cargó correctamente
                 localStorage.removeItem('jwtToken');
                 window.location.href = '/login';
             }
@@ -105,8 +106,7 @@
     <style>
         .admin-button {
             /* Estilos base para todos los botones del menú admin */
-            /* He corregido la clase para usar las URLs de /admin/... */
-            @apply flex flex-col items-center justify-center p-6 sm:p-8 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-[1.03] hover:shadow-xl font-semibold text-base sm:text-lg w-full h-32;
+            @apply flex flex-col items-center justify-center p-6 sm:p-8 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-[1.03] hover:shadow-xl font-semibold text-base sm:text-lg w-full h-32 text-center;
         }
     </style>
 </body>

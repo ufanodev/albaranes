@@ -42,3 +42,22 @@ async function fetchProtected(url, options = {}) {
     
     return response;
 }
+
+// Función para mostrar notificaciones (puedes personalizar según tu UI)
+function showNotification(message, type = 'info') {
+    // Implementación básica - puedes integrar con tu sistema de notificaciones
+    console.log(`${type.toUpperCase()}: ${message}`);
+    alert(`${type.toUpperCase()}: ${message}`); // Reemplaza con tu sistema de UI
+}
+
+// Función para formatear fechas
+function formatDate(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES');
+}
+
+// Exportar funciones para uso global
+window.fetchProtected = fetchProtected;
+window.showNotification = showNotification;
+window.formatDate = formatDate;

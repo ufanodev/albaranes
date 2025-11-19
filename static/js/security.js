@@ -38,7 +38,7 @@ function checkAuthentication() {
     
     // Si no hay token, redirige al login
     if (!token) {
-        // Solo si no estamos ya en /login
+        // Solo si no estamos ya en /login o /recuerdame
         if (currentPath !== '/' && currentPath !== '/login' && currentPath !== '/recuerdame') {
             console.warn("No se encontró token. Redirigiendo a login.");
             window.location.href = '/login';
@@ -64,24 +64,32 @@ function checkAuthentication() {
         return;
     }
 
-    // 2. Comprobar Rol
+    // 2. Comprobar Rol para rutas de administración
     const userRole = payload.role;
 
     // Si la ruta es de administración (/admin/*)
     if (currentPath.startsWith('/admin')) {
         if (userRole !== 'admin') {
             console.warn(`Acceso denegado a ruta de administrador. Rol: ${userRole}. Redirigiendo a /busqueda.`);
-            window.location.href = '/busqueda'; // Redirige al usuario a su vista por defecto
+            window.location.href = '/busqueda';
         }
     } else if (currentPath === '/busqueda') {
         // En la vista /busqueda, si es admin, redirige a su panel
         if (userRole === 'admin') {
-            console.info("Usuario admin en /busqueda. Redirigiendo a /admin/titulares.");
-            window.location.href = '/admin/titulares';
+            console.info("Usuario admin en /busqueda. Redirigiendo a /admin.");
+            window.location.href = '/admin';
         }
     }
     
     // Si la autenticación es exitosa y el rol es correcto, no hacemos nada más.
+}
+
+/**
+ * Función para limpiar el token y redirigir al login
+ */
+function clearTokenAndRedirect() {
+    localStorage.removeItem('jwtToken');
+    window.location.href = '/login';
 }
 
 // Ejecutar la comprobación al cargar el script
@@ -90,3 +98,4 @@ checkAuthentication();
 // Exportar funciones útiles para otros scripts
 window.decodeJwt = decodeJwt;
 window.checkAuthentication = checkAuthentication;
+window.clearTokenAndRedirect = clearTokenAndRedirect;
