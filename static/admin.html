@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚙️ Panel de Administración</title>
+    <title>🏢  Administrador Albaranes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Configuración para usar colores personalizados (Naranja Pastel)
@@ -12,102 +12,856 @@
                 extend: {
                     colors: {
                         'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',   // Naranja más vivo para enlaces/botones primarios
+                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
                         'black-pure': '#000000',
                     }
                 }
             }
         }
     </script>
-    
-    <script src="/js/security.js"></script> 
-    <script src="/js/utils.js"></script> 
-</head>
-<body class="bg-gray-50 min-h-screen flex flex-col">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Clases base */
+        .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
+        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
+        
+        /* Estilos del mensaje de estado (usados por JS) */
+        .status-message { 
+            @apply mt-4 p-3 rounded-md font-medium text-center; 
+        }
+        .status-success { 
+            @apply bg-green-100 text-green-700 border border-green-400; 
+        }
+        .status-error { 
+            /* Rojo pastel */
+            @apply bg-red-400 text-white border border-red-600; 
+        }
+        .status-info, .status-neutral { 
+            @apply bg-gray-200 text-gray-700 border border-gray-400; 
+        }
 
-    <header class="bg-black-pure text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <div class="text-xl font-bold flex items-center">
-                ⚙️ Panel de Administración
+        /* Estilos específicos para la tabla y el pie */
+        .total-row td {
+            @apply bg-primary-pastel/70 font-extrabold text-gray-800 text-lg;
+        }
+        /* Estilo para los encabezados de tabla clickables */
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+        }
+        .sort-icon {
+            margin-left: 0.5rem;
+            width: 1rem;
+            height: 1rem;
+            display: inline-block;
+        }
+
+        /* Estilos para menús desplegables */
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 200px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1000;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .dropdown.active .dropdown-content {
+            display: block;
+        }
+        .dropdown-content a {
+            color: #374151;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.2s;
+        }
+        .dropdown-content a:hover {
+            background-color: #FFDAB9;
+            color: #000;
+        }
+        .dropdown-content a:last-child {
+            border-bottom: none;
+        }
+
+        /* Optimización para tabla sin scroll */
+        .compact-table th,
+        .compact-table td {
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            line-height: 1.2;
+        }
+        .compact-table th {
+            white-space: nowrap;
+        }
+        .compact-table .text-truncate {
+            max-width: 120px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter">
+
+    <!-- Cabecera de Navegación -->
+    <header class="bg-primary-link text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <!-- Logo y Título -->
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">🏢 </span>
+                    <h1 class="text-xl font-bold">Administrador Albaranes</h1>
+                </div>
+
+                <!-- Menú de Navegación -->
+                <nav class="hidden md:flex items-center space-x-6">
+                    <!-- Menú Titulares -->
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Titulares</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/titulares">Titulares Gestión</a>
+                            <a href="/admin/pago_tit">Titulares Pagos</a>
+                        </div>
+                    </div>
+
+                    <!-- Menú Albaranes -->
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Albaranes</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/nuevo_albaran">Albaranes Crear</a>
+                            <a href="/admin/albaran">Albaranes Modificar</a>
+                            <a href="/busqueda">Albaranes Ver</a>
+                        </div>
+                    </div>
+
+                    <!-- Menú Empresas -->
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Empresas</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/empresas">Empresas Gestión</a>
+                            <a href="/admin/pago_emp">Empresas Pagos</a>
+                        </div>
+                    </div>
+
+                    <!-- Menú Sistema -->
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Sistema</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/usuarios">Usuarios Gestión</a>
+                            <a href="/admin/conductor">Conductores</a>
+                            <a href="/admin/backup">Backup</a>
+                        </div>
+                    </div>
+
+                    <!-- Botón Salir -->
+                    <a href="/login" class="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition duration-200 font-medium flex items-center space-x-2">
+                        <span>🔙</span>
+                        <span>Salir</span>
+                    </a>
+                </nav>
+
+                <!-- Botón menú móvil -->
+                <button class="md:hidden p-2 rounded-lg hover:bg-orange-600 transition duration-200" onclick="toggleMobileMenu()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
             </div>
-            <nav>
-                <a href="#" id="logoutButton" class="px-4 py-2 rounded-md text-sm font-medium bg-primary-link text-white hover:bg-orange-600 transition duration-150">
-                    ➡️ Salir
-                </a>
-            </nav>
+
+            <!-- Menú móvil -->
+            <div id="mobileMenu" class="md:hidden hidden py-4 border-t border-orange-300">
+                <div class="space-y-2">
+                    <a href="/admin/titulares" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Titulares Gestión</a>
+                    <a href="/admin/pago_tit" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Titulares Pagos</a>
+                    <a href="/admin/nuevo_albaran" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Crear</a>
+                    <a href="/admin/albaran" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Modificar</a>
+                    <a href="/busqueda" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Ver</a>
+                    <a href="/admin/empresas" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Empresas Gestión</a>
+                    <a href="/admin/pago_emp" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Empresas Pagos</a>
+                    <a href="/admin/usuarios" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Usuarios Gestión</a>
+                    <a href="/admin/conductor" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Conductores</a>
+                    <a href="/admin/backup" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Backup</a>
+                    <a href="/login" class="block px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition duration-200 mt-4">Salir</a>
+                </div>
+            </div>
         </div>
     </header>
 
-    <main class="flex-grow flex items-center justify-center p-4 md:p-8">
-        <div class="w-full max-w-4xl bg-white shadow-2xl rounded-xl p-6 md:p-10 border border-primary-pastel">
-            
-            <h1 class="text-3xl font-extrabold text-center text-black-pure mb-10 border-b-2 border-primary-pastel/50 pb-4">
-                Bienvenido, Administrador
-            </h1>
+    <!-- Modal de Acciones -->
+    <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="showModal(false)">
+        <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
+            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure">Acción Realizada</h3>
+            <p id="modalBody" class="text-gray-700 mb-4"></p>
+            <button onclick="showModal(false)" class="w-full bg-primary-link text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
+        </div>
+    </div>
 
-            <div class="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                
-                <a href="/admin/titulares" 
-                    class="admin-button bg-primary-pastel text-black-pure hover:bg-orange-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6.32v12.36c.64.21 1.34.32 2.05.32 2.76 0 5-2.24 5-5s-2.24-5-5-5c-.71 0-1.41.11-2.05.32zM2 12c0-2.76 2.24-5 5-5s5 2.24 5 5-2.24 5-5 5-5-2.24-5-5z"/><circle cx="7" cy="12" r="5"/><circle cx="17" cy="12" r="5"/></svg>
-                    Gestión de Titulares
-                </a>
-                
-                <a href="/admin/pago_tit"
-                    class="admin-button bg-primary-link text-white hover:bg-orange-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Gestión de Albaranes
-                </a>
-                
-                <a href="/admin/conductor"
-                    class="admin-button bg-gray-700 text-white hover:bg-gray-800">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>
-                    Conductores
-                </a>
+    <!-- Contenido Principal -->
+    <main class="p-4 sm:p-6 lg:p-8">
+        <div class="max-w-[1800px] mx-auto">
 
-                <a href="/admin/usuarios"
-                    class="admin-button bg-violet-700 text-white hover:bg-violet-800">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M10 9h4M10 13h4M10 17h4"/></svg>
-                    Usuarios
-                </a>
+            <!-- Tarjeta Principal -->
+            <div class="card mb-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-4">
+                    <h1 class="text-2xl font-bold text-black-pure mb-3 sm:mb-0 flex items-center">
+                        <span class="text-3xl mr-3">📋</span>
+                        <span class="text-xl">ALBARANES PRINCIPAL</span>
+                    </h1>
+                    
+                    <div class="flex space-x-2">
+                        <button title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Imprimir PDF', 'Todo el listado')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                        </button>
+                        <button title="Exportar a Word" class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Word', 'Todo el listado')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+                        </button>
+                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Excel', 'Todo el listado')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M11 15h6"/><path d="M14 12v6"/><path d="M8 12h2"/><path d="M8 15h2"/><path d="M8 18h2"/></svg>
+                        </button>
+                    </div>
+                </div>
                 
-                <a href="/admin/empresas"
-                    class="admin-button bg-yellow-700 text-white hover:bg-yellow-800">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v13M16 11h-4M8 11h-.01"/><rect x="4" y="17" width="16" height="3" rx="1"/></svg>
-                    Gestión de Empresas
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    <a href="/admin/nuevo_albaran" 
+                        class="group relative inline-flex items-center justify-center px-4 py-2 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-green-500/50 hover:from-green-600 hover:to-green-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        <span class="mr-2 text-lg transition-transform group-hover:scale-110">➕</span>
+                        <span class="relative text-sm">NUEVO ALBARAN</span>
+                    </a>
 
-                <a href="/admin/backup"
-                    class="admin-button bg-emerald-700 text-white hover:bg-emerald-800">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Backup
-                </a>
-                
+                    <a href="/busqueda" 
+                        class="group relative inline-flex items-center justify-center px-3 py-2 font-semibold text-white transition-all duration-300 ease-in-out bg-primary-link rounded-lg shadow-md hover:bg-orange-600 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-link focus:ring-offset-2">
+                        <span class="mr-2 transition-transform group-hover:scale-105">📧</span>
+                        <span class="relative text-sm">VER ENVIADOS</span>
+                    </a>
+
+                    <a href="/busqueda" 
+                        class="group relative inline-flex items-center justify-center px-3 py-2 font-semibold text-black-pure transition-all duration-300 ease-in-out bg-primary-pastel border-2 border-primary-pastel rounded-lg shadow-md hover:bg-orange-300 hover:border-orange-400 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:ring-offset-2">
+                        <span class="mr-2 transition-transform group-hover:rotate-6">🏁</span>
+                        <span class="relative text-sm">FINALIZAR</span>
+                    </a>
+                </div>
             </div>
-            
+
+            <!-- Filtros de Búsqueda -->
+            <div class="card mb-6">
+                <h2 class="text-lg font-bold text-black-pure mb-3">🔍 Filtros de Búsqueda</h2>
+                <form id="searchForm" onsubmit="handleSearch(event)">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div>
+                            <label for="licencia" class="block text-xs font-medium text-gray-700 mb-1">LICENCIA</label>
+                            <input type="text" id="licencia" name="licencia" placeholder="Ej: 001A" class="input-field text-sm">
+                        </div>
+                        <div>
+                            <label for="empresa" class="block text-xs font-medium text-gray-700 mb-1">Empresa</label>
+                            <select id="empresa" name="empresa" class="input-field text-sm appearance-none">
+                                <option value="">Seleccione</option>
+                                <option value="race">RACE</option>
+                                <option value="mapfre">Mapfre</option>
+                                <option value="mutua">Mutua Madrileña</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="state" class="block text-xs font-medium text-gray-700 mb-1">Estado</label>
+                            <select id="state" name="state" class="input-field text-sm appearance-none">
+                                <option value="">Seleccione</option>
+                                <option value="creado">Creado</option>
+                                <option value="enviado">Enviado</option>
+                                <option value="pagado">Pagado</option>
+                                <option value="finalizado">Finalizado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="referencia" class="block text-xs font-medium text-gray-700 mb-1">Referencia</label>
+                            <input type="text" id="referencia" name="referencia" placeholder="Si la tiene" class="input-field text-sm">
+                        </div>
+                        <div class="lg:col-span-2">
+                            <label for="fecha_desde" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Desde)</label>
+                            <input type="date" id="fecha_desde" name="fecha_desde" class="input-field text-sm">
+                        </div>
+                        <div class="lg:col-span-2">
+                            <label for="fecha_hasta" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Hasta)</label>
+                            <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field text-sm">
+                        </div>
+                    </div>
+                    <div class="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="flex flex-wrap gap-x-4 text-xs text-gray-700">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-3 w-3 border-gray-300 focus:ring-primary-link" checked>
+                                <span class="ml-1">Frase Exacta</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-3 w-3 border-gray-300 focus:ring-primary-link">
+                                <span class="ml-1">Todas palabras</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-3 w-3 border-gray-300 focus:ring-primary-link">
+                                <span class="ml-1">Cualquier palabra</span>
+                            </label>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" onclick="document.getElementById('searchForm').reset();" 
+                                class="group relative inline-flex items-center justify-center px-3 py-1.5 font-semibold text-blue-600 transition-all duration-300 ease-in-out bg-white border border-blue-500 rounded-lg shadow-md hover:bg-blue-50 hover:border-blue-600 active:scale-95 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-offset-1 text-xs">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1 transition-transform group-hover:rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 6h18"/>
+                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                </svg>
+                                <span class="relative">Limpiar</span>
+                            </button>
+                            
+                            <button type="submit" 
+                                class="group relative inline-flex items-center justify-center px-3 py-1.5 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg hover:shadow-blue-500/50 hover:from-blue-600 hover:to-blue-700 active:scale-95 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-offset-1 text-xs">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <span class="relative">Buscar / Mostrar Todos</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Resultados -->
+            <h2 class="text-lg font-bold text-black-pure mb-3">📊 Últimos Albaranes</h2>
+
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center space-x-2 text-xs text-gray-600">
+                    <span>Registros por página:</span>
+                    <select id="recordsPerPage" class="input-field w-auto px-2 py-1 text-xs">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-1 rounded-lg transition duration-200 active:scale-95" title="Anterior">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <span class="text-xs text-gray-600 font-medium">Página 1 de 5</span>
+                    <button class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-1 rounded-lg transition duration-200 active:scale-95" title="Siguiente">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla de Resultados - Compacta -->
+            <div class="shadow-lg rounded-xl border border-gray-100 compact-table">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-primary-link text-white">
+                        <tr>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
+                                <div class="sortable" onclick="sortTable('numero_albaran')">Nº Albarán<span class="sort-icon" id="sort-numero_albaran"></span></div>
+                            </th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
+                                <div class="sortable" onclick="sortTable('fecha')">Fecha<span class="sort-icon" id="sort-fecha"></span></div>
+                            </th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Licencia</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
+                                <div class="sortable" onclick="sortTable('referencia')">Ref.<span class="sort-icon" id="sort-referencia"></span></div>
+                            </th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Factura</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Env.</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Cob.</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Pag.</th>
+                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Observaciones</th>
+                            <th scope="col" class="px-3 py-2 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
+                        <!-- Los resultados se cargan aquí mediante JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="statusMessage" class="hidden status-message text-sm" role="alert"></div>
         </div>
     </main>
-
+    
     <script>
-        // Lógica de Logout
-        document.getElementById('logoutButton').addEventListener('click', function(e) {
-            e.preventDefault();
-            // Llama a la función global exportada por security.js
-            if (typeof clearTokenAndRedirect === 'function') {
-                clearTokenAndRedirect();
-            } else {
-                // Fallback si security.js no se cargó correctamente
-                localStorage.removeItem('jwtToken');
-                window.location.href = '/login';
+        // Mocks de datos ACTUALIZADOS con 10 elementos y campos específicos de la BD
+        let mockAlbaranes = [
+            { 
+                id: 1,
+                numero_albaran: 'ENERO2025-804-1',
+                fecha: '2024-01-15', 
+                licencia_ref: 1,
+                empresa_ref: 1,
+                licencia: '001A', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'R45678', 
+                num_factura: 'FAC-2024-001',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-20',
+                pagado: 1,
+                fecha_pago: '2024-01-20',
+                observaciones_admin: 'Cobrado por transferencia',
+                created_at: '2024-01-15 10:30:00',
+                updated_at: '2024-01-20 14:45:00'
+            },
+            { 
+                id: 2,
+                numero_albaran: 'ENERO2025-804-2',
+                fecha: '2024-01-16', 
+                licencia_ref: 2,
+                empresa_ref: 2,
+                licencia: '002B', 
+                empresa_nombre: 'RACE', 
+                referencia: 'E90123', 
+                num_factura: null,
+                enviado: 1,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Pendiente de pago',
+                created_at: '2024-01-16 09:15:00',
+                updated_at: '2024-01-16 09:15:00'
+            },
+            { 
+                id: 3,
+                numero_albaran: 'ENERO2025-804-3',
+                fecha: '2024-01-17', 
+                licencia_ref: 3,
+                empresa_ref: 3,
+                licencia: '003C', 
+                empresa_nombre: 'Mutua Madrileña', 
+                referencia: 'M54321', 
+                num_factura: 'FAC-2024-003',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-25',
+                pagado: 1,
+                fecha_pago: '2024-01-25',
+                observaciones_admin: 'Servicio completado',
+                created_at: '2024-01-17 11:20:00',
+                updated_at: '2024-01-25 16:30:00'
+            },
+            { 
+                id: 4,
+                numero_albaran: 'ENERO2025-804-4',
+                fecha: '2024-01-18', 
+                licencia_ref: 4,
+                empresa_ref: 1,
+                licencia: '004D', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'R99887', 
+                num_factura: null,
+                enviado: 0,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Borrador inicial',
+                created_at: '2024-01-18 14:10:00',
+                updated_at: '2024-01-18 14:10:00'
+            },
+            { 
+                id: 5,
+                numero_albaran: 'ENERO2025-804-5',
+                fecha: '2024-01-19', 
+                licencia_ref: 5,
+                empresa_ref: 2,
+                licencia: '005E', 
+                empresa_nombre: 'RACE', 
+                referencia: 'E11223', 
+                num_factura: 'FAC-2024-005',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-22',
+                pagado: 1,
+                fecha_pago: '2024-01-22',
+                observaciones_admin: 'Cobrado en efectivo',
+                created_at: '2024-01-19 08:45:00',
+                updated_at: '2024-01-22 12:15:00'
+            },
+            { 
+                id: 6,
+                numero_albaran: 'ENERO2025-804-6',
+                fecha: '2024-01-14', 
+                licencia_ref: 6,
+                empresa_ref: 3,
+                licencia: '006F', 
+                empresa_nombre: 'Mutua Madrileña', 
+                referencia: 'A00001', 
+                num_factura: null,
+                enviado: 0,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Borrador pendiente de revisión',
+                created_at: '2024-01-14 16:30:00',
+                updated_at: '2024-01-14 16:30:00'
+            },
+            { 
+                id: 7,
+                numero_albaran: 'ENERO2025-804-7',
+                fecha: '2024-01-20', 
+                licencia_ref: 7,
+                empresa_ref: 1,
+                licencia: '007G', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'Z99999', 
+                num_factura: null,
+                enviado: 1,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Pendiente de pago',
+                created_at: '2024-01-20 13:25:00',
+                updated_at: '2024-01-20 13:25:00'
+            },
+            { 
+                id: 8,
+                numero_albaran: 'ENERO2025-804-8',
+                fecha: '2024-01-21', 
+                licencia_ref: 8,
+                empresa_ref: 2,
+                licencia: '008H', 
+                empresa_nombre: 'RACE', 
+                referencia: 'B22222', 
+                num_factura: 'FAC-2024-008',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-28',
+                pagado: 1,
+                fecha_pago: '2024-01-28',
+                observaciones_admin: 'Pagado con tarjeta',
+                created_at: '2024-01-21 10:00:00',
+                updated_at: '2024-01-28 11:30:00'
+            },
+            { 
+                id: 9,
+                numero_albaran: 'ENERO2025-804-9',
+                fecha: '2024-01-22', 
+                licencia_ref: 9,
+                empresa_ref: 3,
+                licencia: '009I', 
+                empresa_nombre: 'Mutua Madrileña', 
+                referencia: 'C33333', 
+                num_factura: null,
+                enviado: 0,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'En proceso de creación',
+                created_at: '2024-01-22 15:45:00',
+                updated_at: '2024-01-22 15:45:00'
+            },
+            { 
+                id: 10,
+                numero_albaran: 'ENERO2025-804-10',
+                fecha: '2024-01-23', 
+                licencia_ref: 10,
+                empresa_ref: 1,
+                licencia: '010J', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'D44444', 
+                num_factura: 'FAC-2024-010',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-30',
+                pagado: 1,
+                fecha_pago: '2024-01-30',
+                observaciones_admin: 'Procesado correctamente',
+                created_at: '2024-01-23 09:20:00',
+                updated_at: '2024-01-30 17:00:00'
+            }
+        ];
+        
+        // Objeto para mantener el estado de la ordenación
+        let sortState = {
+            column: 'numero_albaran',
+            direction: 'asc' // 'asc' o 'desc'
+        };
+
+        /**
+         * Alterna el menú desplegable
+         */
+        function toggleDropdown(button) {
+            // Cerrar todos los demás menús
+            document.querySelectorAll('.dropdown').forEach(dropdown => {
+                if (dropdown !== button.parentElement) {
+                    dropdown.classList.remove('active');
+                }
+            });
+            
+            // Alternar el menú actual
+            button.parentElement.classList.toggle('active');
+        }
+
+        /**
+         * Cierra todos los menús desplegables
+         */
+        function closeAllDropdowns() {
+            document.querySelectorAll('.dropdown').forEach(dropdown => {
+                dropdown.classList.remove('active');
+            });
+        }
+
+        /**
+         * Alterna el menú móvil
+         */
+        function toggleMobileMenu() {
+            const mobileMenu = document.getElementById('mobileMenu');
+            mobileMenu.classList.toggle('hidden');
+        }
+
+        // Cerrar menús al hacer clic fuera de ellos
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.dropdown')) {
+                closeAllDropdowns();
             }
         });
-    </script>
-    
-    <style>
-        .admin-button {
-            /* Estilos base para todos los botones del menú admin */
-            @apply flex flex-col items-center justify-center p-6 sm:p-8 rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-[1.03] hover:shadow-xl font-semibold text-base sm:text-lg w-full h-32 text-center;
+
+        /**
+         * Muestra/oculta el modal de mensajes
+         */
+        function showModal(show, title = '', body = '') {
+            const modal = document.getElementById('actionModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = body;
+            modal.classList.toggle('hidden', !show);
+            if (show) {
+                setTimeout(() => {
+                    modal.querySelector('div').classList.remove('scale-90');
+                }, 10);
+            } else {
+                modal.querySelector('div').classList.add('scale-90');
+            }
         }
-    </style>
+
+        /**
+         * Simula una acción y muestra el resultado en un modal.
+         */
+        function handleAction(action, itemId) {
+            let title = `${action} de Albarán`;
+            let message = `Se ha solicitado la acción "${action}" para el albarán/listado: ${itemId}.`;
+
+            if (action === 'Eliminar') {
+                 title = 'Confirmación de Eliminación';
+                 message = `ATENCIÓN: Se ha simulado la eliminación del albarán ${itemId}. En un entorno real, se requeriría una confirmación adicional.`;
+            } else if (action.includes('Exportar') || action.includes('Imprimir')) {
+                 title = 'Exportación Simulada';
+                 message = `El documento para "${itemId}" ha sido generado para ${action}.`;
+            }
+            
+            showModal(true, title, message);
+        }
+        
+        /**
+         * Devuelve la representación HTML del estado booleano.
+         */
+        function getBooleanHtml(value) {
+            if (value === 1 || value === true) {
+                return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-green-100 text-green-800">Sí</span>`;
+            } else {
+                return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-red-100 text-red-800">No</span>`;
+            }
+        }
+
+        /**
+         * Función principal de ordenación.
+         */
+        function sortTable(column) {
+            if (sortState.column === column) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.column = column;
+                sortState.direction = 'asc';
+            }
+
+            const sortedData = [...mockAlbaranes].sort((a, b) => {
+                let comparison = 0;
+                let aValue = a[column];
+                let bValue = b[column];
+
+                if (column === 'numero_albaran' || column === 'referencia' || column === 'num_factura') {
+                    if (aValue < bValue) {
+                        comparison = -1;
+                    } else if (aValue > bValue) {
+                        comparison = 1;
+                    }
+                } else if (column === 'fecha') {
+                    if (aValue < bValue) {
+                        comparison = -1;
+                    } else if (aValue > bValue) {
+                        comparison = 1;
+                    }
+                } else if (column === 'enviado' || column === 'cobrado' || column === 'pagado') {
+                    comparison = (aValue === bValue) ? 0 : aValue ? -1 : 1;
+                }
+
+                return sortState.direction === 'asc' ? comparison : comparison * -1;
+            });
+
+            mockAlbaranes = sortedData;
+            renderAlbaranes(mockAlbaranes);
+        }
+
+        /**
+         * Renderiza los iconos de ordenación en la tabla.
+         */
+        function renderSortIcons() {
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                icon.innerHTML = '';
+            });
+
+            const activeIconElement = document.getElementById(`sort-${sortState.column}`);
+            if (activeIconElement) {
+                if (sortState.direction === 'asc') {
+                    activeIconElement.innerHTML = `<svg data-lucide="chevron-up" class="h-3 w-3"></svg>`;
+                } else {
+                    activeIconElement.innerHTML = `<svg data-lucide="chevron-down" class="h-3 w-3"></svg>`;
+                }
+                lucide.createIcons();
+            }
+        }
+
+        /**
+         * Renderiza la tabla de albaranes.
+         */
+        function renderAlbaranes(data = mockAlbaranes) {
+            const resultsBody = document.getElementById('albaranResults');
+            resultsBody.innerHTML = '';
+
+            if (data.length === 0) {
+                resultsBody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron resultados que coincidan con los filtros.</td></tr>`;
+            } else {
+                data.forEach(albaran => {
+                    const row = `
+                        <tr class="hover:bg-primary-pastel/30 ${albaran.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                            <td class="px-3 py-2 whitespace-nowrap text-xs font-medium text-gray-900">${albaran.numero_albaran}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${albaran.fecha}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700">${albaran.licencia}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${albaran.empresa_nombre}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500 text-truncate">${albaran.referencia || '-'}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500 text-truncate">${albaran.num_factura || '-'}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${getBooleanHtml(albaran.enviado)}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${getBooleanHtml(albaran.cobrado)}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${getBooleanHtml(albaran.pagado)}</td>
+                            <td class="px-3 py-2 text-xs text-gray-600 text-truncate max-w-[120px]">${albaran.observaciones_admin || ''}</td>
+                            <td class="px-3 py-2 whitespace-nowrap text-center text-xs font-medium">
+                                <div class="flex justify-center space-x-1">
+                                    <button onclick="handleAction('Ver', '${albaran.numero_albaran}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-0.5 rounded-full hover:bg-blue-100 transition active:scale-90">
+                                        <i data-lucide="eye" class="h-3 w-3"></i>
+                                    </button>
+                                    <button onclick="handleAction('Editar', '${albaran.numero_albaran}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
+                                        <i data-lucide="pencil" class="h-3 w-3"></i>
+                                    </button>
+                                    <button onclick="handleAction('Copiar', '${albaran.numero_albaran}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-0.5 rounded-full hover:bg-purple-100 transition active:scale-90">
+                                        <i data-lucide="copy" class="h-3 w-3"></i>
+                                    </button>
+                                    <button onclick="handleAction('Eliminar', '${albaran.numero_albaran}')" title="Eliminar albarán" class="text-red-500 hover:text-red-700 p-0.5 rounded-full hover:bg-red-100 transition active:scale-90">
+                                        <i data-lucide="trash-2" class="h-3 w-3"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    resultsBody.insertAdjacentHTML('beforeend', row);
+                });
+            }
+
+            lucide.createIcons();
+            renderSortIcons();
+        }
+
+        /**
+         * Maneja el envío del formulario de búsqueda (simulado).
+         */
+        function handleSearch(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const searchParams = Object.fromEntries(formData.entries());
+
+            const statusMessage = document.getElementById('statusMessage');
+            
+            console.log("Parámetros de búsqueda:", searchParams);
+
+            const filteredResults = mockAlbaranes.filter(albaran => {
+                const matchCompany = !searchParams.empresa || albaran.empresa_nombre.toLowerCase() === searchParams.empresa;
+                const matchState = !searchParams.state || albaran.state === searchParams.state;
+                const matchLicencia = !searchParams.licencia || albaran.licencia.toLowerCase().includes(searchParams.licencia.toLowerCase());
+                const matchReferencia = !searchParams.referencia || (albaran.referencia && albaran.referencia.toLowerCase().includes(searchParams.referencia.toLowerCase()));
+                
+                return matchCompany && matchState && matchLicencia && matchReferencia;
+            });
+            
+            mockAlbaranes = filteredResults; 
+            renderAlbaranes(mockAlbaranes);
+
+            statusMessage.textContent = `Búsqueda realizada con éxito. Mostrando ${filteredResults.length} resultados.`;
+            statusMessage.className = 'status-message status-success';
+            statusMessage.classList.remove('hidden');
+
+            setTimeout(() => {
+                statusMessage.classList.add('hidden');
+            }, 3000);
+        }
+
+        /**
+         * Muestra un mensaje de alerta en la parte inferior de la tabla.
+         */
+        function alertMessage(message, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            
+            statusMessage.className = 'hidden status-message'; 
+
+            const alertClasses = {
+                success: 'status-success',
+                error: 'status-error',
+                info: 'status-info',
+                neutral: 'status-neutral',
+            };
+
+            const chosenClass = alertClasses[type] || alertClasses.info;
+
+            statusMessage.classList.add(chosenClass);
+            statusMessage.classList.remove('hidden');
+
+            let icon = '';
+            if (type === 'success') icon = '✅ ';
+            else if (type === 'error') icon = '❌ ';
+            else if (type === 'info') icon = 'ℹ️ ';
+            
+            statusMessage.textContent = icon + message;
+        }
+
+        // Inicialización al cargar la página
+        window.onload = function() {
+            sortTable('numero_albaran'); 
+        };
+    </script>
 </body>
 </html>

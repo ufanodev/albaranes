@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// NoCacheMiddleware desactiva la caché del navegador
+// NoCacheMiddleware desactiva la caché del navegador para las rutas de las vistas.
 func NoCacheMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate, value")
@@ -20,52 +20,41 @@ func NoCacheMiddleware() gin.HandlerFunc {
 	}
 }
 
-// SetupRouter configura todas las rutas del servidor
+// SetupRouter configura todas las rutas del servidor.
 func SetupRouter(db *gorm.DB) *gin.Engine {
 	r := gin.Default()
 
-	// Configuración de archivos estáticos - SOLO desde static/
+	// 1. Archivos Estáticos
 	r.Static("/css", "./static/css")
 	r.Static("/js", "./static/js")
-	r.Static("/Imagenes", "./static/Imagenes")
-
-	// Cargar plantillas HTML SOLO desde static/
 	r.LoadHTMLGlob("static/*.html")
 
-	// --- Rutas del Frontend Públicas ---
+	// 2. Vistas Públicas (Frontend)
 	publicViews := r.Group("/")
 	publicViews.Use(NoCacheMiddleware())
 	{
-		publicViews.GET("/", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "login.html", nil)
-		})
-		publicViews.GET("/login", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "login.html", nil)
-		})
-		publicViews.GET("/recuerdame", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "recuerdame.html", nil)
-		})
-		publicViews.GET("/busqueda", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "busqueda.html", nil)
+		publicViews.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
+		publicViews.GET("/login", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
+		publicViews.GET("/recuerdame", func(c *gin.Context) { c.HTML(http.StatusOK, "recuerdame.html", nil) })
+		publicViews.GET("/busqueda", func(c *gin.Context) { c.HTML(http.StatusOK, "busqueda.html", nil) })
+
+		publicViews.GET("/titulares/nuevo_albaran", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "albaran_nuevo.html", nil)
 		})
 	}
 
-	// --- Rutas de la API ---
+	// 3. API REST (Backend Datos - Protegido por Token JWT)
 	api := r.Group("/api/v1")
 	{
-		// Rutas Públicas (Auth)
-		api.POST("/register", utils.RegisterKeyAuth(), func(c *gin.Context) {
-			controllers.Register(c, db)
-		})
-		api.POST("/login", func(c *gin.Context) {
-			controllers.Login(c, db)
-		})
+		// Autenticación
+		api.POST("/register", utils.RegisterKeyAuth(), func(c *gin.Context) { controllers.Register(c, db) })
+		api.POST("/login", func(c *gin.Context) { controllers.Login(c, db) })
 
-		// 🔒 Rutas Protegidas por JWT
+		// Rutas Protegidas
 		protected := api.Group("/")
 		protected.Use(utils.JWTAuthMiddleware())
 		{
-			// --- Rutas CRUD de USUARIOS (Solo Admin) ---
+			// --- CRUD USUARIOS (Solo Admin) ---
 			userGroup := protected.Group("/users")
 			userGroup.Use(controllers.RequireRole("admin"))
 			{
@@ -75,7 +64,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				userGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
 			}
 
-			// --- Rutas CRUD de LICENCIAS (Solo Admin) ---
+			// --- CRUD LICENCIAS (Solo Admin) ---
 			licenciaGroup := protected.Group("/licencias")
 			licenciaGroup.Use(controllers.RequireRole("admin"))
 			{
@@ -87,7 +76,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				licenciaGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
 			}
 
-			// --- Rutas CRUD de EMPRESAS (Solo Admin) ---
+			// --- CRUD EMPRESAS (Solo Admin) ---
 			empresaGroup := protected.Group("/empresas")
 			empresaGroup.Use(controllers.RequireRole("admin"))
 			{
@@ -100,49 +89,38 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				empresaGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteEmpresa(c, db) })
 			}
 
+			// --- CRUD ALBARANES (Accesible por User y Admin) ---
+			albaranGroup := protected.Group("/albaranes")
+			{
+				albaranGroup.POST("/", func(c *gin.Context) { controllers.CreateAlbaran(c, db) })
+				albaranGroup.GET("/byempresa/:id", func(c *gin.Context) { controllers.GetAlbaranesByEmpresa(c, db) })
+				// ✅ NUEVA RUTA: Búsqueda general por licencia, fechas, etc.
+				// Ejemplo: /api/v1/albaranes/search?licencia_ref=1&fecha_ini=2025-01-01&fecha_fin=2025-01-31
+				albaranGroup.GET("/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
+				// Rutas existentes
+				albaranGroup.GET("/", func(c *gin.Context) { controllers.GetAlbaranes(c, db) })
+				albaranGroup.GET("/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
+				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
+				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
+			}
 		}
 	}
 
-	// 🔒 RUTAS DE ADMINISTRACIÓN (Frontend) - SOLO desde static/
+	// 4. Vistas de Administración (Frontend Protegido por JS)
 	adminViews := r.Group("/admin")
 	adminViews.Use(NoCacheMiddleware())
 	{
-		// Panel principal de administración
-		adminViews.GET("/", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin.html", nil)
-		})
-
-		// Sub-rutas de administración
-		adminViews.GET("/titulares", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_titular.html", nil)
-		})
-		adminViews.GET("/usuarios", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_usuarios.html", nil)
-		})
-		adminViews.GET("/empresas", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_empresas.html", nil)
-		})
-		adminViews.GET("/backup", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_backup.html", nil)
-		})
-		adminViews.GET("/conductor", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_conductor.html", nil)
-		})
-		adminViews.GET("/pago_emp", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_pago_emp.html", nil)
-		})
-		adminViews.GET("/pago_tit", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_pago_tit.html", nil)
-		})
-		adminViews.GET("/albaran", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_albaran.html", nil)
-		})
+		adminViews.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "admin.html", nil) })
+		adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
+		adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
+		adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
+		adminViews.GET("/albaranes", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_busqueda.html", nil) })
+		adminViews.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
+		adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
+		adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) })
+		adminViews.GET("/pago_emp", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_emp.html", nil) })
+		adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
 	}
-
-	// Manejo de rutas no encontradas
-	r.NoRoute(func(c *gin.Context) {
-		c.JSON(404, gin.H{"error": "Ruta no encontrada"})
-	})
 
 	return r
 }

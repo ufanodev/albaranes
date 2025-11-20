@@ -68,7 +68,7 @@
             <button onclick="showModal(false)" class="w-full bg-primary-link text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
         </div>
     </div>
-    <div class="max-w-6xl mx-auto">
+    <div class="max-w-7xl mx-auto">
 
         <div class="card mb-6">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
@@ -225,48 +225,229 @@
                 <thead class="bg-primary-link text-white">
                     <tr>
                         <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
-                            <div class="sortable" onclick="sortTable('id')">Nº Albarán<span class="sort-icon" id="sort-id"></span></div>
+                            <div class="sortable" onclick="sortTable('numero_albaran')">Nº Albarán<span class="sort-icon" id="sort-numero_albaran"></span></div>
                         </th>
                         <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                            <div class="sortable" onclick="sortTable('date')">Fecha<span class="sort-icon" id="sort-date"></span></div>
+                            <div class="sortable" onclick="sortTable('fecha')">Fecha<span class="sort-icon" id="sort-fecha"></span></div>
                         </th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Socio/Conductor</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Licencia</th>
                         <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
                         <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                            <div class="sortable" onclick="sortTable('ref')">Referencia<span class="sort-icon" id="sort-ref"></span></div>
+                            <div class="sortable" onclick="sortTable('referencia')">Referencia<span class="sort-icon" id="sort-referencia"></span></div>
                         </th>
-                        <th scope="col" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Importe</th>
-                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                             <div class="sortable" onclick="sortTable('state')">Estado<span class="sort-icon" id="sort-state"></span></div>
-                        </th>
-						<th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Observaciones</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Factura</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Enviado</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Cobrado</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Pagado</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Observaciones</th>
                         <th scope="col" class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
                     </tbody>
-                <tfoot id="albaranTotal">
-                    </tfoot>
             </table>
         </div>
         <div id="statusMessage" class="hidden status-message" role="alert"></div>
     </div>
     
     <script>
-        // Mocks de datos ACTUALIZADOS con 'state' y 'obs'
+        // Mocks de datos ACTUALIZADOS con 10 elementos y campos específicos de la BD
         let mockAlbaranes = [
-            { id: '2023-0001', date: '2023-11-15', driver: '001A', company: 'Mapfre', ref: 'R45678', amount: 45.00, state: 'pagado', obs: 'Cobrado por transferencia' },
-            { id: '2023-0002', date: '2023-11-16', driver: '002', company: 'RACE', ref: 'E90123', amount: 80.50, state: 'enviado', obs: 'Pendiente de pago' },
-            { id: '2023-0003', date: '2023-11-17', driver: '003B', company: 'Mutua Madrileña', ref: 'M54321', amount: 120.90, state: 'finalizado', obs: 'Servicio completado' },
-            { id: '2023-0004', date: '2023-11-18', driver: '004', company: 'Mapfre', ref: 'R99887', amount: 55.00, state: 'creado', obs: 'Borrador inicial' },
-            { id: '2023-0005', date: '2023-11-19', driver: '005C', company: 'RACE', ref: 'E11223', amount: 99.95, state: 'pagado', obs: 'Cobrado en efectivo' },
-            { id: '2023-0006', date: '2023-11-14', driver: '006D', company: 'Mutua Madrileña', ref: 'A00001', amount: 15.00, state: 'creado', obs: 'Borrador' },
-            { id: '2023-0007', date: '2023-11-20', driver: '007', company: 'Mapfre', ref: 'Z99999', amount: 115.00, state: 'enviado', obs: 'Pendiente de pago' },
+            { 
+                id: 1,
+                numero_albaran: 'ENERO2025-804-1',
+                fecha: '2024-01-15', 
+                licencia_ref: 1,
+                empresa_ref: 1,
+                licencia: '001A', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'R45678', 
+                num_factura: 'FAC-2024-001',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-20',
+                pagado: 1,
+                fecha_pago: '2024-01-20',
+                observaciones_admin: 'Cobrado por transferencia',
+                created_at: '2024-01-15 10:30:00',
+                updated_at: '2024-01-20 14:45:00'
+            },
+            { 
+                id: 2,
+                numero_albaran: 'ENERO2025-804-2',
+                fecha: '2024-01-16', 
+                licencia_ref: 2,
+                empresa_ref: 2,
+                licencia: '002B', 
+                empresa_nombre: 'RACE', 
+                referencia: 'E90123', 
+                num_factura: null,
+                enviado: 1,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Pendiente de pago',
+                created_at: '2024-01-16 09:15:00',
+                updated_at: '2024-01-16 09:15:00'
+            },
+            { 
+                id: 3,
+                numero_albaran: 'ENERO2025-804-3',
+                fecha: '2024-01-17', 
+                licencia_ref: 3,
+                empresa_ref: 3,
+                licencia: '003C', 
+                empresa_nombre: 'Mutua Madrileña', 
+                referencia: 'M54321', 
+                num_factura: 'FAC-2024-003',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-25',
+                pagado: 1,
+                fecha_pago: '2024-01-25',
+                observaciones_admin: 'Servicio completado',
+                created_at: '2024-01-17 11:20:00',
+                updated_at: '2024-01-25 16:30:00'
+            },
+            { 
+                id: 4,
+                numero_albaran: 'ENERO2025-804-4',
+                fecha: '2024-01-18', 
+                licencia_ref: 4,
+                empresa_ref: 1,
+                licencia: '004D', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'R99887', 
+                num_factura: null,
+                enviado: 0,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Borrador inicial',
+                created_at: '2024-01-18 14:10:00',
+                updated_at: '2024-01-18 14:10:00'
+            },
+            { 
+                id: 5,
+                numero_albaran: 'ENERO2025-804-5',
+                fecha: '2024-01-19', 
+                licencia_ref: 5,
+                empresa_ref: 2,
+                licencia: '005E', 
+                empresa_nombre: 'RACE', 
+                referencia: 'E11223', 
+                num_factura: 'FAC-2024-005',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-22',
+                pagado: 1,
+                fecha_pago: '2024-01-22',
+                observaciones_admin: 'Cobrado en efectivo',
+                created_at: '2024-01-19 08:45:00',
+                updated_at: '2024-01-22 12:15:00'
+            },
+            { 
+                id: 6,
+                numero_albaran: 'ENERO2025-804-6',
+                fecha: '2024-01-14', 
+                licencia_ref: 6,
+                empresa_ref: 3,
+                licencia: '006F', 
+                empresa_nombre: 'Mutua Madrileña', 
+                referencia: 'A00001', 
+                num_factura: null,
+                enviado: 0,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Borrador pendiente de revisión',
+                created_at: '2024-01-14 16:30:00',
+                updated_at: '2024-01-14 16:30:00'
+            },
+            { 
+                id: 7,
+                numero_albaran: 'ENERO2025-804-7',
+                fecha: '2024-01-20', 
+                licencia_ref: 7,
+                empresa_ref: 1,
+                licencia: '007G', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'Z99999', 
+                num_factura: null,
+                enviado: 1,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'Pendiente de pago',
+                created_at: '2024-01-20 13:25:00',
+                updated_at: '2024-01-20 13:25:00'
+            },
+            { 
+                id: 8,
+                numero_albaran: 'ENERO2025-804-8',
+                fecha: '2024-01-21', 
+                licencia_ref: 8,
+                empresa_ref: 2,
+                licencia: '008H', 
+                empresa_nombre: 'RACE', 
+                referencia: 'B22222', 
+                num_factura: 'FAC-2024-008',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-28',
+                pagado: 1,
+                fecha_pago: '2024-01-28',
+                observaciones_admin: 'Pagado con tarjeta',
+                created_at: '2024-01-21 10:00:00',
+                updated_at: '2024-01-28 11:30:00'
+            },
+            { 
+                id: 9,
+                numero_albaran: 'ENERO2025-804-9',
+                fecha: '2024-01-22', 
+                licencia_ref: 9,
+                empresa_ref: 3,
+                licencia: '009I', 
+                empresa_nombre: 'Mutua Madrileña', 
+                referencia: 'C33333', 
+                num_factura: null,
+                enviado: 0,
+                cobrado: 0,
+                fecha_cobro: null,
+                pagado: 0,
+                fecha_pago: null,
+                observaciones_admin: 'En proceso de creación',
+                created_at: '2024-01-22 15:45:00',
+                updated_at: '2024-01-22 15:45:00'
+            },
+            { 
+                id: 10,
+                numero_albaran: 'ENERO2025-804-10',
+                fecha: '2024-01-23', 
+                licencia_ref: 10,
+                empresa_ref: 1,
+                licencia: '010J', 
+                empresa_nombre: 'Mapfre', 
+                referencia: 'D44444', 
+                num_factura: 'FAC-2024-010',
+                enviado: 1,
+                cobrado: 1,
+                fecha_cobro: '2024-01-30',
+                pagado: 1,
+                fecha_pago: '2024-01-30',
+                observaciones_admin: 'Procesado correctamente',
+                created_at: '2024-01-23 09:20:00',
+                updated_at: '2024-01-30 17:00:00'
+            }
         ];
         
         // Objeto para mantener el estado de la ordenación
         let sortState = {
-            column: 'id',
+            column: 'numero_albaran',
             direction: 'asc' // 'asc' o 'desc'
         };
 
@@ -311,25 +492,19 @@
         }
         
         /**
-         * Devuelve la representación HTML del estado del albarán.
+         * Devuelve la representación HTML del estado booleano.
          */
-        function getStateHtml(state) {
-            switch (state) {
-                case 'pagado':
-                    return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Pagado</span>`;
-                case 'enviado':
-                    return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Enviado</span>`;
-                case 'finalizado':
-                    return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-link/20 text-primary-link">Finalizado</span>`;
-                case 'creado':
-                default:
-                    return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-700">Creado</span>`;
+        function getBooleanHtml(value) {
+            if (value === 1 || value === true) {
+                return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Sí</span>`;
+            } else {
+                return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">No</span>`;
             }
         }
 
         /**
          * Función principal de ordenación.
-         * @param {string} column La clave de la columna por la que ordenar ('id', 'date', 'ref', 'state').
+         * @param {string} column La clave de la columna por la que ordenar.
          */
         function sortTable(column) {
             // Determinar la dirección de la ordenación
@@ -346,20 +521,23 @@
                 let aValue = a[column];
                 let bValue = b[column];
 
-                if (column === 'id' || column === 'ref' || column === 'state') {
+                if (column === 'numero_albaran' || column === 'referencia' || column === 'num_factura') {
                     // Ordenación alfabética/string
                     if (aValue < bValue) {
                         comparison = -1;
                     } else if (aValue > bValue) {
                         comparison = 1;
                     }
-                } else if (column === 'date') {
+                } else if (column === 'fecha') {
                     // Ordenación por fecha (comparando strings de fecha ISO)
                     if (aValue < bValue) {
                         comparison = -1;
                     } else if (aValue > bValue) {
                         comparison = 1;
                     }
+                } else if (column === 'enviado' || column === 'cobrado' || column === 'pagado') {
+                    // Ordenación por valores booleanos
+                    comparison = (aValue === bValue) ? 0 : aValue ? -1 : 1;
                 }
 
                 // Aplicar la dirección
@@ -398,44 +576,40 @@
         }
 
         /**
-         * Renderiza la tabla de albaranes y el total.
+         * Renderiza la tabla de albaranes.
          */
         function renderAlbaranes(data = mockAlbaranes) {
             const resultsBody = document.getElementById('albaranResults');
-            const totalFooter = document.getElementById('albaranTotal');
             resultsBody.innerHTML = '';
-            
-            let totalImporte = 0;
 
             if (data.length === 0) {
-                resultsBody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-gray-500 italic">No se encontraron resultados que coincidan con los filtros.</td></tr>`;
-                totalFooter.innerHTML = '';
+                resultsBody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-gray-500 italic">No se encontraron resultados que coincidan con los filtros.</td></tr>`;
             } else {
                 data.forEach(albaran => {
-                    totalImporte += albaran.amount;
-
                     const row = `
-                        <tr>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${albaran.id}</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.date}</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${albaran.driver}</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.company}</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.ref}</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">€${albaran.amount.toFixed(2)}</td>
-                            <td class="px-4 py-3 whitespace-nowrap text-sm">${getStateHtml(albaran.state)}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600 max-w-xs overflow-hidden text-ellipsis">${albaran.obs || ''}</td>
+                        <tr class="hover:bg-primary-pastel/30 ${albaran.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${albaran.numero_albaran}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.fecha}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${albaran.licencia}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.empresa_nombre}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.referencia || '-'}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.num_factura || '-'}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm">${getBooleanHtml(albaran.enviado)}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm">${getBooleanHtml(albaran.cobrado)}</td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm">${getBooleanHtml(albaran.pagado)}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600 max-w-xs overflow-hidden text-ellipsis">${albaran.observaciones_admin || ''}</td>
                             <td class="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                                 <div class="flex justify-center space-x-2">
-                                    <button onclick="handleAction('Ver', '${albaran.id}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 transition active:scale-90">
+                                    <button onclick="handleAction('Ver', '${albaran.numero_albaran}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 transition active:scale-90">
                                         <i data-lucide="eye" class="h-5 w-5"></i>
                                     </button>
-                                    <button onclick="handleAction('Editar', '${albaran.id}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-1 rounded-full hover:bg-orange-100 transition active:scale-90">
+                                    <button onclick="handleAction('Editar', '${albaran.numero_albaran}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-1 rounded-full hover:bg-orange-100 transition active:scale-90">
                                         <i data-lucide="pencil" class="h-5 w-5"></i>
                                     </button>
-                                    <button onclick="handleAction('Copiar', '${albaran.id}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-1 rounded-full hover:bg-purple-100 transition active:scale-90">
+                                    <button onclick="handleAction('Copiar', '${albaran.numero_albaran}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-1 rounded-full hover:bg-purple-100 transition active:scale-90">
                                         <i data-lucide="copy" class="h-5 w-5"></i>
                                     </button>
-                                    <button onclick="handleAction('Eliminar', '${albaran.id}')" title="Eliminar albarán" class="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition active:scale-90">
+                                    <button onclick="handleAction('Eliminar', '${albaran.numero_albaran}')" title="Eliminar albarán" class="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition active:scale-90">
                                         <i data-lucide="trash-2" class="h-5 w-5"></i>
                                     </button>
                                 </div>
@@ -445,15 +619,6 @@
                     resultsBody.insertAdjacentHTML('beforeend', row);
                 });
             }
-
-            // Renderizar el pie de tabla con el total
-            totalFooter.innerHTML = `
-                <tr class="total-row">
-                    <td colspan="5" class="px-4 py-3 text-right">TOTAL</td>
-                    <td class="px-4 py-3 text-right">€${totalImporte.toFixed(2)}</td>
-                    <td colspan="3" class="px-4 py-3"></td>
-                </tr>
-            `;
 
             // Ejecutar Lucide para convertir los tags <i> en iconos SVG
             lucide.createIcons();
@@ -477,16 +642,15 @@
 
             // Simulación de filtro: Filtramos una copia de los datos
             const filteredResults = mockAlbaranes.filter(albaran => {
-                const matchCompany = !searchParams.empresa || albaran.company.toLowerCase() === searchParams.empresa;
-                const matchState = !searchParams.state || albaran.state.toLowerCase() === searchParams.state;
-                const matchLicencia = !searchParams.licencia || albaran.driver.toLowerCase().includes(searchParams.licencia.toLowerCase());
-                const matchReferencia = !searchParams.referencia || albaran.ref.toLowerCase().includes(searchParams.referencia.toLowerCase());
+                const matchCompany = !searchParams.empresa || albaran.empresa_nombre.toLowerCase() === searchParams.empresa;
+                const matchState = !searchParams.state || albaran.state === searchParams.state;
+                const matchLicencia = !searchParams.licencia || albaran.licencia.toLowerCase().includes(searchParams.licencia.toLowerCase());
+                const matchReferencia = !searchParams.referencia || (albaran.referencia && albaran.referencia.toLowerCase().includes(searchParams.referencia.toLowerCase()));
                 
                 return matchCompany && matchState && matchLicencia && matchReferencia;
             });
             
             // Reemplazar el mock actual con los resultados filtrados para que la ordenación actúe sobre ellos
-            // NOTA: En una aplicación real, se cargaría la data del servidor.
             mockAlbaranes = filteredResults; 
 
             renderAlbaranes(mockAlbaranes); // Renderizar los resultados filtrados
@@ -501,10 +665,43 @@
             }, 3000);
         }
 
+        /**
+         * Muestra un mensaje de alerta en la parte inferior de la tabla.
+         * @param {string} message - El texto a mostrar.
+         * @param {'success'|'error'|'info'|'neutral'} type - Tipo de mensaje para aplicar la clase CSS semántica.
+         */
+        function alertMessage(message, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Resetear las clases para ocultar y limpiar el estado
+            statusMessage.className = 'hidden status-message'; 
+
+            const alertClasses = {
+                // Usamos las clases semánticas definidas en el <style> incrustado
+                success: 'status-success',
+                error: 'status-error',
+                info: 'status-info',
+                neutral: 'status-neutral',
+            };
+
+            const chosenClass = alertClasses[type] || alertClasses.info;
+
+            // Aplicar la clase de estado y hacerlo visible
+            statusMessage.classList.add(chosenClass);
+            statusMessage.classList.remove('hidden');
+
+            let icon = '';
+            if (type === 'success') icon = '✅ ';
+            else if (type === 'error') icon = '❌ ';
+            else if (type === 'info') icon = 'ℹ️ ';
+            
+            statusMessage.textContent = icon + message;
+        }
+
         // Inicialización al cargar la página
         window.onload = function() {
-            // Aplicar la ordenación inicial (por ID ascendente) y renderizar
-            sortTable('id'); 
+            // Aplicar la ordenación inicial (por numero_albaran ascendente) y renderizar
+            sortTable('numero_albaran'); 
         };
     </script>
 </body>
