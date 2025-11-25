@@ -18,30 +18,29 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
-// CreateAlbaran maneja la creación de un nuevo albarán.
-func CreateAlbaran(c *gin.Context, db *gorm.DB) {
-	var input models.Albaran
+// ---------------------------------------------------------------------
+// --- Controladores de Consulta (GET)
+// ---------------------------------------------------------------------
 
-	// Binding del JSON al modelo
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de entrada inválidos", "details": err.Error()})
+// GetLicenciaRefFromSession devuelve la referencia de la licencia del usuario logueado.
+// Utiliza el "userID" establecido en el contexto por JWTAuthMiddleware.
+func GetLicenciaRefFromSession(c *gin.Context) {
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión no iniciada o ID de usuario no disponible."})
 		return
 	}
 
-	// Validaciones básicas (Referencias obligatorias)
-	if input.LicenciaRef == 0 || input.EmpresaRef == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Es obligatorio asignar una Licencia y una Empresa válida."})
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error interno al procesar el ID de usuario."})
 		return
 	}
 
-	// Crear registro
-	if result := db.Create(&input); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear el albarán", "details": result.Error.Error()})
-		return
-	}
-
-	// Devolver el objeto creado
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado exitosamente", "data": input})
+	// Se asume que el userID del token es directamente la LicenciaRef (Licencia ID)
+	c.JSON(http.StatusOK, gin.H{
+		"licencia_ref": userID,
+	})
 }
 
 // GetAlbaranes obtiene la lista de albaranes con paginación (sin filtros específicos).
@@ -221,6 +220,36 @@ func GetAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": albaran})
+}
+
+// ---------------------------------------------------------------------
+// --- Controladores CRUD (POST/PUT/DELETE)
+// ---------------------------------------------------------------------
+
+// CreateAlbaran maneja la creación de un nuevo albarán.
+func CreateAlbaran(c *gin.Context, db *gorm.DB) {
+	var input models.Albaran
+
+	// Binding del JSON al modelo
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de entrada inválidos", "details": err.Error()})
+		return
+	}
+
+	// Validaciones básicas (Referencias obligatorias)
+	if input.LicenciaRef == 0 || input.EmpresaRef == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Es obligatorio asignar una Licencia y una Empresa válida."})
+		return
+	}
+
+	// Crear registro
+	if result := db.Create(&input); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear el albarán", "details": result.Error.Error()})
+		return
+	}
+
+	// Devolver el objeto creado
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado exitosamente", "data": input})
 }
 
 // UpdateAlbaran actualiza un albarán existente.

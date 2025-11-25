@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"albaranes/models"
 	"albaranes/utils"
@@ -30,7 +31,7 @@ type UpdateUserInput struct {
 	Usuario string `json:"usuario"`
 	Email   string `json:"email"`
 	Role    string `json:"role"`
-	Activo  *bool  `json:"activo"` // Usamos puntero para distinguir entre 'false' y no enviado
+	Activo  *bool  `json:"activo"`
 }
 
 // --- Middleware de Autorización de Rol ---
@@ -39,7 +40,12 @@ func RequireRole(role string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userRole, exists := c.Get("userRole")
 
-		if !exists || userRole.(string) != role {
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "❌ Sesión no válida o token ausente."})
+			return
+		}
+
+		if userRole.(string) != role {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "🚫 Acceso denegado. Se requiere el rol: " + role})
 			return
 		}
@@ -47,7 +53,7 @@ func RequireRole(role string) gin.HandlerFunc {
 	}
 }
 
-// --- Controladores de Autenticación (Omitidos para brevedad, ya están completos) ---
+// --- Controladores de Autenticación ---
 
 func Register(c *gin.Context, db *gorm.DB) {
 	var input RegisterInput
@@ -79,6 +85,7 @@ func Register(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Usuario registrado exitosamente", "id": user.ID, "usuario": user.Usuario, "role": user.Role})
 }
 
+// Login: Verifica credenciales y establece el token JWT en una Cookie HttpOnly.
 func Login(c *gin.Context, db *gorm.DB) {
 	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -102,13 +109,33 @@ func Login(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	token, err := utils.GenerateJWT(user.ID, user.Role)
+	// 1. Generar la Cookie HttpOnly con el token JWT
+	authCookie, err := utils.GenerateAuthCookie(user.ID, user.Role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al generar el token"})
+		log.Printf("ERROR al generar la cookie JWT: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error interno al iniciar sesión"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Login exitoso", "token": token, "role": user.Role, "usuario": user.Usuario})
+	// 2. Establecer la cookie en la respuesta HTTP
+	maxAge := int(time.Until(authCookie.Expires).Seconds())
+
+	c.SetCookie(
+		authCookie.Name,
+		authCookie.Value,
+		maxAge,
+		authCookie.Path,
+		"", // Domain. Cadena vacía
+		authCookie.Secure,
+		authCookie.HttpOnly,
+	)
+
+	// 3. Devolver solo el rol y el mensaje de éxito (SIN el token en el cuerpo)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "✅ Login exitoso",
+		"role":    user.Role,
+		"usuario": user.Usuario,
+	})
 }
 
 // --- Controladores CRUD (GET/LIST) ---
@@ -142,7 +169,6 @@ func GetUser(c *gin.Context, db *gorm.DB) {
 
 // --- Controladores CRUD (PUT / DELETE) ---
 
-// UpdateUser (PUT) actualiza los campos de un usuario por ID.
 func UpdateUser(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -165,7 +191,6 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 
 	updates := make(map[string]interface{})
 
-	// Solo actualiza si el campo fue proporcionado en el JSON
 	if input.Usuario != "" {
 		updates["usuario"] = input.Usuario
 	}
@@ -175,7 +200,6 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 	if input.Role != "" {
 		updates["role"] = input.Role
 	}
-	// Verifica si el campo activo fue enviado (incluso si es false)
 	if input.Activo != nil {
 		updates["activo"] = *input.Activo
 	}
@@ -190,7 +214,6 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Usuario actualizado exitosamente", "data": user})
 }
 
-// DeleteUser (DELETE) cambia el estado 'activo' del usuario a false (desactivación lógica).
 func DeleteUser(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

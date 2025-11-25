@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,43 +13,132 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// --- Utilidades de Hashing (bcrypt) ---
+// Nombre de la cookie que contendrá el token JWT.
+const AuthCookieName = "authToken"
+
+// ---------------------------------------------------------------------
+// --- Utilidades de Hashing (bcrypt)
+// ---------------------------------------------------------------------
 
 // GenerateHashPassword toma una contraseña en texto plano y devuelve su hash con bcrypt.
 func GenerateHashPassword(password string) (string, error) {
-	// Usa bcrypt.DefaultCost para un nivel de seguridad estándar.
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
 
 // CheckPasswordHash compara una contraseña con su hash bcrypt.
 func CheckPasswordHash(password, hash string) bool {
-	// Compara la contraseña de entrada con el hash guardado.
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
 
-// --- Utilidades de Generación y Validación JWT ---
+// ---------------------------------------------------------------------
+// --- Utilidades de Gestión de Cookies JWT
+// ---------------------------------------------------------------------
 
-// GenerateJWT crea un token JWT para un usuario, incluyendo su ID y rol.
-func GenerateJWT(userID uint, role string) (string, error) {
+// GenerateAuthCookie crea y devuelve una cookie HttpOnly con el token JWT.
+func GenerateAuthCookie(userID uint, role string) (*http.Cookie, error) {
 	secretKey := os.Getenv("JWT_SECRET_KEY")
 	if secretKey == "" {
-		return "", fmt.Errorf("clave secreta JWT no configurada")
+		return nil, fmt.Errorf("clave secreta JWT no configurada")
 	}
+
+	// Expiración para el token (3 horas)
+	expirationTime := time.Now().Add(time.Hour * 3)
 
 	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": userID,
 		"role":    role,
-		// Expiración en 24 horas
-		"exp": time.Now().Add(time.Hour * 24).Unix(),
+		"exp":     expirationTime.Unix(),
 	})
 
-	token, err := claims.SignedString([]byte(secretKey))
-	return token, err
+	tokenString, err := claims.SignedString([]byte(secretKey))
+	if err != nil {
+		return nil, err
+	}
+
+	// Crea la cookie HttpOnly
+	cookie := &http.Cookie{
+		Name:     AuthCookieName,
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,  // CLAVE: No accesible desde JS
+		Secure:   false, // Usar 'true' en producción con HTTPS
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	}
+
+	return cookie, nil
 }
 
-// JWTAuthMiddleware es el middleware que verifica la validez del token JWT en cada solicitud protegida.
+// ClearAuthCookie devuelve una cookie configurada para ser eliminada inmediatamente.
+func ClearAuthCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:     AuthCookieName,
+		Value:    "",
+		MaxAge:   -1,              // Borrado inmediato por el navegador
+		Expires:  time.Unix(0, 0), // Expira inmediatamente
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	}
+}
+
+// ClearAndSetAuthCookie es un helper para eliminar la cookie de autenticación de la respuesta.
+func ClearAndSetAuthCookie(c *gin.Context) {
+	clearCookie := ClearAuthCookie()
+	c.SetCookie(
+		clearCookie.Name,
+		clearCookie.Value,
+		clearCookie.MaxAge,
+		clearCookie.Path,
+		clearCookie.Domain,
+		clearCookie.Secure,
+		clearCookie.HttpOnly,
+	)
+}
+
+// ---------------------------------------------------------------------
+// --- Middlewares y Validación de Sesión
+// ---------------------------------------------------------------------
+
+// CheckSessionForView valida el token JWT de la cookie.
+// Si la cookie existe pero el token es inválido o expirado, la borra de la respuesta y devuelve false.
+// Es utilizada por el middleware de redirección (routes.go).
+func CheckSessionForView(c *gin.Context) bool {
+	secretKey := os.Getenv("JWT_SECRET_KEY")
+	if secretKey == "" {
+		log.Println("ERROR: Clave JWT no configurada en el servidor")
+		return false
+	}
+
+	cookie, err := c.Request.Cookie(AuthCookieName)
+	if err != nil {
+		// Cookie no encontrada, no hay sesión.
+		return false
+	}
+
+	tokenString := cookie.Value
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("método de firma inesperado")
+		}
+		return []byte(secretKey), nil
+	})
+
+	if err != nil || !token.Valid {
+		// Token inválido o expirado. Limpiar la cookie en la respuesta para evitar bucles.
+		ClearAndSetAuthCookie(c)
+		return false
+	}
+
+	// Token válido.
+	return true
+}
+
+// JWTAuthMiddleware es el middleware principal para las rutas API.
 func JWTAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		secretKey := os.Getenv("JWT_SECRET_KEY")
@@ -59,16 +147,16 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 1. Obtener y verificar el encabezado "Authorization: Bearer <token>"
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token no proporcionado o formato inválido"})
+		// 1. Obtener la cookie
+		cookie, err := c.Request.Cookie(AuthCookieName)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Acceso no autorizado: no hay sesión activa"})
 			return
 		}
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		tokenString := cookie.Value
 
-		// 2. Parsear y validar el token usando la clave secreta
+		// 2. Parsear y validar el token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("método de firma inesperado")
@@ -77,18 +165,27 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token inválido o expirado"})
+			// Limpiar cookie inválida o expirada
+			ClearAndSetAuthCookie(c)
+
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token de sesión inválido o expirado"})
 			return
 		}
 
 		// 3. Extraer y pasar los claims (ID y Rol) al contexto de Gin
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			// Convertir el user_id de float64 a uint
-			c.Set("userID", uint(claims["user_id"].(float64)))
-			// Establecer el rol para que RequireRole pueda verificarlo
-			c.Set("userRole", claims["role"])
+			userIDFloat, okID := claims["user_id"].(float64)
+			userRole, okRole := claims["role"].(string)
 
-			c.Next() // Continuar con la ejecución de la ruta
+			if !okID || !okRole {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Claims de usuario faltantes o inválidos en el token."})
+				return
+			}
+
+			c.Set("userID", uint(userIDFloat))
+			c.Set("userRole", userRole)
+
+			c.Next()
 		} else {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token claims inválidos"})
 			return
@@ -98,11 +195,9 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 
 // --- Middleware de Llave de Registro (RegisterKeyAuth) ---
 
-// RegisterKeyAuth Middleware verifica las credenciales de la cabecera X-Admin-User y X-Admin-Pass.
 func RegisterKeyAuth() gin.HandlerFunc {
 	expectedUser, expectedPass := config.GetRegisterKeys()
 
-	// Control de seguridad si no se configura la llave
 	if expectedUser == "" || expectedPass == "" {
 		log.Println("⚠️ [Security] Llave de registro no configurada. La ruta /register está desprotegida.")
 		return func(c *gin.Context) {
@@ -114,7 +209,6 @@ func RegisterKeyAuth() gin.HandlerFunc {
 		providedUser := c.GetHeader("X-Admin-User")
 		providedPass := c.GetHeader("X-Admin-Pass")
 
-		// Compara las credenciales de la cabecera con las esperadas
 		if providedUser == expectedUser && providedPass == expectedPass {
 			c.Next()
 		} else {
