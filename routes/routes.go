@@ -22,7 +22,6 @@ func NoCacheMiddleware() gin.HandlerFunc {
 }
 
 // AuthRedirectMiddleware asegura que solo las rutas protegidas requieran una sesión válida.
-// No intenta forzar la redirección de /login a /admin, solucionando el bucle.
 func AuthRedirectMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
@@ -35,15 +34,11 @@ func AuthRedirectMiddleware() gin.HandlerFunc {
 
 		// A. Si NO hay sesión válida Y se accede a una vista protegida, redirigir al login.
 		if !isSessionValid && isProtectedView {
-			// Si la cookie estaba expirada, ya fue limpiada por CheckSessionForView.
+			// La cookie ya ha sido limpiada por CheckSessionForView.
 			c.Redirect(http.StatusTemporaryRedirect, "/login")
 			c.Abort()
 			return
 		}
-
-		// B. Si el usuario está logueado y accede a / o /login, permitimos el paso.
-		// La lógica de redirección a /admin después del login ocurre en JavaScript,
-		// y no debe ser forzada en el middleware aquí para evitar el bucle de logout.
 
 		c.Next()
 	}
@@ -65,14 +60,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	// 2. Vistas Públicas y Protegidas (Frontend)
 	{
-		// Vistas Públicas (Permiten el paso a logueados, pero el JS de login redirigirá si el login es exitoso)
+		// Vistas Públicas
 		viewGroup.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
 		viewGroup.GET("/login", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
 		viewGroup.GET("/recuerdame", func(c *gin.Context) { c.HTML(http.StatusOK, "recuerdame.html", nil) })
 		viewGroup.GET("/busqueda", func(c *gin.Context) { c.HTML(http.StatusOK, "busqueda.html", nil) })
 
 		// Vistas de Usuario Titular (Protegidas)
-		// NOTA: Para el usuario titular, /titulares y /titulares/albaranes son la misma cosa
 		viewGroup.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "busqueda.html", nil) })
 		viewGroup.GET("/titulares/nuevo_albaran", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_nuevo.html", nil) })
 		viewGroup.GET("/titulares/enviados", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_enviado.html", nil) })
@@ -113,6 +107,16 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		protected := api.Group("/")
 		protected.Use(utils.JWTAuthMiddleware())
 		{
+
+			// routes.go (Fragmento dentro de protected := api.Group("/"))
+
+			// --- Rutas de Identidad y Mapeo ---
+			// 1. Obtener email del usuario logueado (por user_id del token)
+			protected.GET("/user/email_by_session", func(c *gin.Context) { controllers.GetUserEmailBySessionID(c, db) })
+
+			// 2. Obtener LicenciaRef por email (usando el email obtenido arriba)
+			protected.GET("/user/licencia_ref", func(c *gin.Context) { controllers.GetLicenciaRefFromSession(c, db) })
+
 			// --- CRUD USUARIOS (Solo Admin) ---
 			userGroup := protected.Group("/users")
 			userGroup.Use(controllers.RequireRole("admin"))

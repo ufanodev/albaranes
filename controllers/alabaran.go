@@ -22,27 +22,6 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 // --- Controladores de Consulta (GET)
 // ---------------------------------------------------------------------
 
-// GetLicenciaRefFromSession devuelve la referencia de la licencia del usuario logueado.
-// Utiliza el "userID" establecido en el contexto por JWTAuthMiddleware.
-func GetLicenciaRefFromSession(c *gin.Context) {
-	userIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión no iniciada o ID de usuario no disponible."})
-		return
-	}
-
-	userID, ok := userIDVal.(uint)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error interno al procesar el ID de usuario."})
-		return
-	}
-
-	// Se asume que el userID del token es directamente la LicenciaRef (Licencia ID)
-	c.JSON(http.StatusOK, gin.H{
-		"licencia_ref": userID,
-	})
-}
-
 // GetAlbaranes obtiene la lista de albaranes con paginación (sin filtros específicos).
 // Parámetros query: ?page=1&pageSize=10
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {

@@ -53,6 +53,79 @@ func RequireRole(role string) gin.HandlerFunc {
 	}
 }
 
+// ---------------------------------------------------------------------
+// --- Funciones de Mapeo de Identidad
+// ---------------------------------------------------------------------
+
+// GetUserEmailBySessionID obtiene el email del usuario logueado usando su user_id del token.
+// (Paso 1 del mapeo)
+func GetUserEmailBySessionID(c *gin.Context, db *gorm.DB) (string, error) {
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		return "", gorm.ErrRecordNotFound
+	}
+
+	userID, _ := userIDVal.(uint)
+
+	var user models.User
+	// Buscamos solo el campo Email
+	if err := db.Select("email").First(&user, userID).Error; err != nil {
+		return "", err
+	}
+	return user.Email, nil
+}
+
+// GetLicenciaByEmail busca una Licencia por email y devuelve su ID (LicenciaRef).
+// (Paso 2 del mapeo)
+func GetLicenciaByEmail(db *gorm.DB, email string) (uint, error) {
+	if email == "" {
+		return 0, gorm.ErrRecordNotFound
+	}
+
+	var licencia models.Licencia
+	// Buscamos la licencia por el email
+	if err := db.Select("id").Where("email = ?", email).First(&licencia).Error; err != nil {
+		return 0, err
+	}
+
+	return licencia.ID, nil
+}
+
+// GetLicenciaRefFromSession implementa el flujo de 3 pasos para el frontend:
+// 1. Obtener User Email (usando user_id del token).
+// 2. Obtener Licencia ID (usando el email).
+// 3. Devolver la Licencia ID como LicenciaRef.
+// Endpoint: /api/v1/user/licencia_ref
+func GetLicenciaRefFromSession(c *gin.Context, db *gorm.DB) {
+	// 1. Obtener Email del usuario logueado
+	userEmail, err := GetUserEmailBySessionID(c, db)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Usuario de sesión no encontrado."})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al buscar email."})
+		return
+	}
+
+	// 2. Obtener ID de Licencia usando el Email
+	licenciaID, err := GetLicenciaByEmail(db, userEmail)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Si la licencia no está mapeada, devolvemos 0, que es lo que el frontend espera manejar.
+			c.JSON(http.StatusOK, gin.H{"licencia_ref": 0, "error": "❌ Licencia no encontrada con ese email."})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al buscar la Licencia por email."})
+		return
+	}
+
+	// 3. Devolver la Licencia ID (LicenciaRef)
+	c.JSON(http.StatusOK, gin.H{
+		"licencia_ref": licenciaID,
+	})
+}
+
 // --- Controladores de Autenticación ---
 
 func Register(c *gin.Context, db *gorm.DB) {
@@ -74,6 +147,7 @@ func Register(c *gin.Context, db *gorm.DB) {
 		Email:    input.Email,
 		Role:     input.Role,
 		Activo:   true,
+		// LicenciaRef se mantendrá en 0 por defecto si no se proporciona.
 	}
 
 	if result := db.Create(&user); result.Error != nil {
