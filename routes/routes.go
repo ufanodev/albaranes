@@ -34,7 +34,6 @@ func AuthRedirectMiddleware() gin.HandlerFunc {
 
 		// A. Si NO hay sesión válida Y se accede a una vista protegida, redirigir al login.
 		if !isSessionValid && isProtectedView {
-			// La cookie ya ha sido limpiada por CheckSessionForView.
 			c.Redirect(http.StatusTemporaryRedirect, "/login")
 			c.Abort()
 			return
@@ -107,15 +106,20 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		protected := api.Group("/")
 		protected.Use(utils.JWTAuthMiddleware())
 		{
-
-			// routes.go (Fragmento dentro de protected := api.Group("/"))
-
 			// --- Rutas de Identidad y Mapeo ---
-			// 1. Obtener email del usuario logueado (por user_id del token)
-			protected.GET("/user/email_by_session", func(c *gin.Context) { controllers.GetUserEmailBySessionID(c, db) })
-
-			// 2. Obtener LicenciaRef por email (usando el email obtenido arriba)
+			// 1. Obtener LicenciaRef (usa el flujo user_id -> email -> licencia ID)
 			protected.GET("/user/licencia_ref", func(c *gin.Context) { controllers.GetLicenciaRefFromSession(c, db) })
+
+			// --- CRUD CONDUCTORES (NUEVO - Solo Admin) ---
+			conductorGroup := protected.Group("/conductores")
+			conductorGroup.Use(controllers.RequireRole("admin"))
+			{
+				conductorGroup.POST("/", func(c *gin.Context) { controllers.CreateConductor(c, db) })
+				conductorGroup.GET("/", func(c *gin.Context) { controllers.GetConductores(c, db) })
+				conductorGroup.GET("/:licencia", func(c *gin.Context) { controllers.GetConductor(c, db) })
+				conductorGroup.PUT("/:licencia", func(c *gin.Context) { controllers.UpdateConductor(c, db) })
+				conductorGroup.DELETE("/:licencia", func(c *gin.Context) { controllers.DeleteConductor(c, db) })
+			}
 
 			// --- CRUD USUARIOS (Solo Admin) ---
 			userGroup := protected.Group("/users")

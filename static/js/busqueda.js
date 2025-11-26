@@ -50,7 +50,6 @@ function alertMessage(message, type) {
  * Actualiza los iconos de flecha para reflejar la columna y dirección de ordenación.
  */
 function updateSortIcons() {
-    // Restablecer todos los iconos
     document.querySelectorAll('.sortable i').forEach(icon => {
         icon.setAttribute('data-lucide', 'chevrons-up-down');
         icon.classList.remove('text-blue-300'); 
@@ -74,7 +73,6 @@ function updateSortIcons() {
 function sortTable(column) {
     if (currentData.length === 0) return;
 
-    // 1. Determinar la dirección de ordenación
     if (currentSortColumn === column) {
         currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
     } else {
@@ -82,16 +80,18 @@ function sortTable(column) {
         currentSortColumn = column;
     }
 
-    // 2. Lógica de ordenación
     currentData.sort((a, b) => {
         let valA, valB;
 
         // Mapeo de campos anidados/especiales a ordenar
-        if (column === 'licencia') {
+        if (column === 'conductor') {
+             valA = a.asalariado && a.asalariado.trim() !== '' ? a.asalariado : (a.LicenciaData ? a.LicenciaData.nombre : '');
+             valB = b.asalariado && b.asalariado.trim() !== '' ? b.asalariado : (b.LicenciaData ? b.LicenciaData.nombre : '');
+        } else if (column === 'licencia') {
             valA = a.LicenciaData ? a.LicenciaData.licencia : '';
             valB = b.LicenciaData ? b.LicenciaData.licencia : '';
         } else {
-            // Campos directos (ej: 'importe_total', 'fecha')
+            // Campos directos (snake_case)
             valA = a[column];
             valB = b[column];
         }
@@ -101,7 +101,6 @@ function sortTable(column) {
             valA = parseFloat(valA);
             valB = parseFloat(valB);
         } else if (column === 'fecha') {
-            // Comparación de fechas ISO
             valA = new Date(valA).getTime();
             valB = new Date(valB).getTime();
         } else if (column === 'enviado') {
@@ -138,23 +137,27 @@ function renderAlbaranes(data) {
     RESULTS_BODY.innerHTML = '';
     
     let totalImporte = 0;
+    const TOTAL_COLUMNS = 10; // Corresponde a los 9 campos de datos + 1 de Acciones
 
     if (data.length === 0) {
-        RESULTS_BODY.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-gray-500 italic">No se encontraron albaranes asociados a esta licencia.</td></tr>`;
+        RESULTS_BODY.innerHTML = `<tr><td colspan="${TOTAL_COLUMNS}" class="text-center py-6 text-gray-500 italic">No se encontraron albaranes asociados a esta licencia.</td></tr>`;
         if (ALBARAN_TOTAL) ALBARAN_TOTAL.innerHTML = '';
     } else {
         data.forEach(albaran => {
             
-            // 🛑 CLAVES JSON EXACTAS (snake_case y PascalCase anidado)
+            // 🛑 CLAVES JSON EXACTAS
             const importe = albaran.importe_total || 0; 
             totalImporte += importe;
 
-            // Mapeo de datos para la tabla:
+            // Mapeo de datos:
             const albaranID = albaran.ID; 
             const numAlbaran = albaran.numero_albaran;
             const licenciaCode = albaran.LicenciaData ? albaran.LicenciaData.licencia : 'N/A';
             const empresaNombre = albaran.EmpresaData ? albaran.EmpresaData.nombre : 'N/A';
-
+            const conductor = albaran.asalariado && albaran.asalariado.trim() !== '' 
+                                ? albaran.asalariado 
+                                : (albaran.LicenciaData ? albaran.LicenciaData.nombre : 'Titular'); 
+            
             const row = `
                 <tr class="hover:bg-gray-100">
                     <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${numAlbaran}</td>
@@ -162,6 +165,7 @@ function renderAlbaranes(data) {
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${licenciaCode}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${empresaNombre}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.referencia || '-'}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${conductor}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">€${importe.toFixed(2)}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm">${getStateHtml(albaran.enviado, albaran.cobrado, albaran.pagado)}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">${albaran.observaciones || '-'}</td>
@@ -180,7 +184,7 @@ function renderAlbaranes(data) {
         
         if (ALBARAN_TOTAL) ALBARAN_TOTAL.innerHTML = `
             <tr class="total-row">
-                <td colspan="6" class="px-4 py-3 text-right">TOTAL</td>
+                <td colspan="7" class="px-4 py-3 text-right">TOTAL</td>
                 <td class="px-4 py-3 text-right">€${totalImporte.toFixed(2)}</td>
                 <td colspan="2" class="px-4 py-3"></td>
             </tr>
@@ -191,7 +195,7 @@ function renderAlbaranes(data) {
 
 
 // =================================================================================
-// 🧠 LÓGICA DE CARGA Y CONSULTA API
+// 🧠 LÓGICA DE CARGA Y CONSULTA API (Se mantiene igual)
 // =================================================================================
 
 /**
@@ -200,11 +204,11 @@ function renderAlbaranes(data) {
 async function loadAlbaranes(filters = {}, pageSize = 10, page = 1) {
     if (currentLicenciaRef === 0) {
          alertMessage("❌ Error: Licencia de usuario no asignada. No se puede buscar.", 'error');
-         if (RESULTS_BODY) RESULTS_BODY.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-red-500 font-bold">Licencia no asignada.</td></tr>';
+         if (RESULTS_BODY) RESULTS_BODY.innerHTML = '<tr><td colspan="10" class="text-center py-6 text-red-500 font-bold">Licencia no asignada.</td></tr>';
          return;
     }
 
-    if (RESULTS_BODY) RESULTS_BODY.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-gray-500 italic">Buscando albaranes...</td></tr>';
+    if (RESULTS_BODY) RESULTS_BODY.innerHTML = '<tr><td colspan="10" class="text-center py-6 text-gray-500 italic">Buscando albaranes...</td></tr>';
     
     try {
         let apiPath = `/api/v1/albaranes/search?licencia_ref=${currentLicenciaRef}&pageSize=${pageSize}&page=${page}`;
@@ -243,7 +247,7 @@ async function loadAlbaranes(filters = {}, pageSize = 10, page = 1) {
  * Lógica principal de carga inicial: Obtiene la LicenciaRef y activa la carga.
  */
 async function cargarDatosIniciales() {
-    if (RESULTS_BODY) RESULTS_BODY.innerHTML = '<tr><td colspan="9" class="text-center py-6 text-gray-500 italic">Inicializando sesión...</td></tr>';
+    if (RESULTS_BODY) RESULTS_BODY.innerHTML = '<tr><td colspan="10" class="text-center py-6 text-gray-500 italic">Inicializando sesión...</td></tr>';
     
     try {
         // 1. Obtener la Licencia Ref (llama a /api/v1/user/licencia_ref)
@@ -266,7 +270,7 @@ async function cargarDatosIniciales() {
              // Cargar y ordenar por la columna inicial
              loadAlbaranes({}, initialPageSize, 1);
         } else {
-             if (RESULTS_BODY) RESULTS_BODY.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-red-500 font-bold">❌ Su usuario no tiene una Licencia de Referencia válida asignada (ID: 0).</td></tr>`;
+             if (RESULTS_BODY) RESULTS_BODY.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-red-500 font-bold">❌ Su usuario no tiene una Licencia de Referencia válida asignada (ID: 0).</td></tr>`;
         }
         
     } catch (error) {
@@ -298,12 +302,11 @@ function handleSearch(event) {
 
 // Exportar funciones globales necesarias para onclick en el HTML
 window.handleSearch = handleSearch;
-window.sortTable = sortTable; // Exportamos la función de ordenamiento
+window.sortTable = sortTable; 
 
 document.addEventListener('DOMContentLoaded', () => {
     cargarDatosIniciales();
     
-    // Listener para cambiar el número de registros por página
     if (RECORDS_PER_PAGE_SELECT) {
         RECORDS_PER_PAGE_SELECT.addEventListener('change', () => {
             const pageSize = parseInt(RECORDS_PER_PAGE_SELECT.value);
@@ -313,7 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Asignación de listener al formulario de búsqueda
     if (document.getElementById('searchForm')) {
          document.getElementById('searchForm').addEventListener('submit', handleSearch);
     }

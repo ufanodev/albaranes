@@ -94,23 +94,23 @@
             </div>
             
             <div class="flex flex-wrap gap-3">
-                <a href="albaran_nuevo.html" 
+                <a href="/titulares/nuevo_albaran" 
                     class="group relative inline-flex items-center justify-center px-6 py-3 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-green-500/50 hover:from-green-600 hover:to-green-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
                     <span class="mr-2 text-xl transition-transform group-hover:scale-110">➕</span>
                     <span class="relative">NUEVO ALBARAN</span>
                     <span class="absolute inset-0 rounded-lg bg-white opacity-0 group-hover:opacity-10 transition-opacity"></span>
                 </a>
 
-                <a href="albaran_enviado.html" 
+                <a href="/titulares/enviados" 
                     class="group relative inline-flex items-center justify-center px-4 py-2.5 font-semibold text-white transition-all duration-300 ease-in-out bg-primary-link rounded-lg shadow-md hover:bg-orange-600 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-link focus:ring-offset-2">
                     <span class="mr-2 transition-transform group-hover:scale-105">📧</span>
                     <span class="relative">VER ENVIADOS</span>
                 </a>
 
-                <a href="albaran_pendiente.html" 
+                <a href="/titulares/pendientes" 
                     class="group relative inline-flex items-center justify-center px-4 py-2.5 font-semibold text-black-pure transition-all duration-300 ease-in-out bg-primary-pastel border-2 border-primary-pastel rounded-lg shadow-md hover:bg-orange-300 hover:border-orange-400 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:ring-offset-2">
                     <span class="mr-2 transition-transform group-hover:rotate-6">🏁</span>
-                    <span class="relative">FINALIZAR</span>
+                    <span class="relative">VER PENDIENTES</span>
                 </a>
                 
                 <button onclick="handleLogout()" 
@@ -118,7 +118,6 @@
                     <span class="mr-2 transition-transform group-hover:-translate-x-1">🔙</span>
                     <span class="relative">SALIR (LOGOUT)</span>
                 </button>
-            </div>
         </div>
 
         <div class="card mb-8">
@@ -225,39 +224,40 @@
 
         <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-100">
             <table class="min-w-full divide-y divide-gray-200">
-<thead class="bg-primary-link text-white">
-    <tr>
-        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
-            <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('numero_albaran')">
-                Nº Albarán <i id="sort-numero_albaran" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-            </div>
-        </th>
-        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-            <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('fecha')">
-                Fecha <i id="sort-fecha" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-            </div>
-        </th>
-        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-             <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('licencia')">
-                Licencia <i id="sort-licencia" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-            </div>
-        </th>
-        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
-        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Referencia</th>
-        <th scope="col" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">
-             <div class="sortable flex justify-end items-center cursor-pointer" onclick="sortTable('importe_total')">
-                Importe Total <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-            </div>
-        </th>
-        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-             <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('enviado')">
-                Estado <i id="sort-enviado" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-            </div>
-        </th>
-        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Observaciones</th>
-        <th scope="col" class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
-    </tr>
-</thead>
+                <thead class="bg-primary-link text-white">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
+                            <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('numero_albaran')">
+                                Nº Albarán <i id="sort-numero_albaran" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
+                            </div>
+                        </th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                            <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('fecha')">
+                                Fecha <i id="sort-fecha" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
+                            </div>
+                        </th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                            <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('licencia')">
+                                Licencia <i id="sort-licencia" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
+                            </div>
+                        </th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Referencia</th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Conductor</th>
+                        <th scope="col" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">
+                            <div class="sortable flex justify-end items-center cursor-pointer" onclick="sortTable('importe_total')">
+                                Importe Total <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
+                            </div>
+                        </th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                            <div class="sortable flex justify-between items-center cursor-pointer" onclick="sortTable('enviado')">
+                                Estado <i id="sort-enviado" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
+                            </div>
+                        </th>
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Observaciones</th>
+                        <th scope="col" class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
+                    </tr>
+                </thead>
                 <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
                     <tr><td colspan="8" class="text-center py-6 text-gray-500 italic">Cargando datos de la API...</td></tr>
                 </tbody>
