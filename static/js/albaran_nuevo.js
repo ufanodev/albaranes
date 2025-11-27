@@ -1,128 +1,189 @@
 // Archivo: static/js/albaran_nuevo.js
-// Lógica para la creación, modificación y gestión de formularios de albaranes (Para usuarios Titulares/Admin).
 
-document.addEventListener('DOMContentLoaded', function() {
+// Variable global para la licencia
+let userLicenciaRef = 0;
+
+// ============================================================================
+// 1. FUNCIÓN DE ACCIONES (Global y accesible inmediatamente)
+// ============================================================================
+window.handleAction = async function(actionType, event = null) {
+    const statusMessage = document.getElementById('statusMessage');
+    const form = document.getElementById('albaranForm');
     
-    // Función central para manejar todas las acciones de los botones
-    window.handleAction = function(actionType, event = null) {
-        const statusMessage = document.getElementById('statusMessage');
-        const form = document.getElementById('albaranForm');
-        
-        // Ocultar y limpiar mensaje de estado anterior
+    // Limpiar mensajes previos
+    if (statusMessage) {
         statusMessage.classList.add('hidden');
-        statusMessage.classList.remove('status-success', 'status-error', 'status-info');
+        statusMessage.className = 'hidden mt-4 p-4 text-center text-sm font-medium rounded-lg';
+    }
 
-        switch (actionType) {
-            case 'crear':
-                if (event) {
-                    event.preventDefault(); // Previene el envío por defecto
-                }
-                const data = {};
+    switch (actionType) {
+        case 'crear':
+            if (event) event.preventDefault();
 
-                // Recoger datos del formulario
-                new FormData(form).forEach((value, key) => {
-                    data[key] = value;
-                });
-                
-                // Mapeo y Conversión de Checkboxes a BOOLEANOS
-                data['urbano'] = document.getElementById('urbano').checked;
-                data['diurno'] = document.getElementById('diurno').checked;
-                data['noct_fest'] = document.getElementById('noct_fest').checked;
-                data['festivo'] = document.getElementById('festivo').checked;
-                data['finalizado'] = document.getElementById('finalizado').checked;
-                data['enganche'] = document.getElementById('enganche').checked;
-                data['cobrado'] = document.getElementById('cobrado').checked;
-                data['pagado'] = document.getElementById('pagado').checked;
-
-                // Conversión de números (para que el backend Go los reciba correctamente)
-                data['km_totales'] = parseFloat(data['km_totales']) || 0.0;
-                data['km_nacionales'] = parseFloat(data['km_nacionales']) || 0.0;
-                data['km_internacionales'] = parseFloat(data['km_internacionales']) || 0.0;
-                data['importe_total'] = parseFloat(data['importe_total']) || 0.0;
-                data['importe_suplidos'] = parseFloat(data['importe_suplidos']) || 0.0;
-                data['licencia_ref'] = parseInt(data['licencia_ref']) || 0;
-                data['empresa_ref'] = parseInt(data['empresa_ref']) || 0;
-                data['num_plazas'] = parseInt(data['num_plazas']) || 4; // Asumir 4 si no se selecciona
-
-                // --- VALIDACIÓN DE DATOS MÍNIMOS ---
-                if (data.licencia_ref === 0 || data.empresa_ref === 0 || data.importe_total <= 0) {
-                    statusMessage.textContent = '❌ Error: LICENCIA, EMPRESA e IMPORTE TOTAL son obligatorios y válidos.';
-                    statusMessage.classList.add('status-error');
-                    statusMessage.classList.remove('hidden');
-                    return;
-                }
-                
-                // Aquí iría la llamada fetch(POST /api/v1/albaranes, JSON.stringify(data))
-                
-                // Simulación de envío (Reemplazar con la llamada fetch real)
-                statusMessage.textContent = '✅ ¡CREACIÓN exitosa simulada! El albarán se guardaría.';
-                statusMessage.classList.add('status-success');
-                statusMessage.classList.remove('hidden');
-                console.log("--- DATOS DEL ALBARÁN A ENVIAR ---");
-                console.log(JSON.stringify(data, null, 2));
-                break;
-            
-            case 'modificar':
-            case 'borrar':
-                // Estas acciones son para la vista de UPDATE. Aquí solo simulamos.
-                const confirmMessage = (actionType === 'borrar') ? 
-                                       '⚠️ ¿Está seguro que desea borrar este Albarán? Esta acción es irreversible.' :
-                                       '✏️ ¿Confirmar modificación?';
-                
-                if (actionType === 'modificar' || confirm(confirmMessage)) {
-                    const msg = (actionType === 'modificar') ? 'Modificación simulada.' : 'Borrado simulado.';
-                    const type = (actionType === 'modificar') ? 'status-info' : 'status-error';
-                    statusMessage.textContent = msg;
-                    statusMessage.classList.add(type);
-                    statusMessage.classList.remove('hidden');
-                    // Aquí iría la llamada fetch(PUT/DELETE /api/v1/albaranes/{id})
-                }
-                break;
-            
-            case 'volver':
-                // Redirige al usuario a la página de búsqueda/dashboard de titulares
-                window.location.href = '/titulares'; 
-                return; 
-            default:
+            // Validación de seguridad: ¿Tenemos licencia?
+            if (userLicenciaRef === 0) {
+                showStatus('❌ Error: No se ha cargado la licencia del usuario. Recargue la página.', 'error');
                 return;
+            }
+
+            const data = {};
+            new FormData(form).forEach((value, key) => {
+                data[key] = value;
+            });
+            
+            // Mapeo de Checkboxes
+            const checkboxes = ['urbano', 'diurno', 'noct_fest', 'festivo', 'finalizado', 'enganche', 'cobrado', 'pagado'];
+            checkboxes.forEach(id => {
+                const el = document.getElementById(id);
+                data[id] = el ? el.checked : false;
+            });
+
+            // Conversión de Tipos Numéricos
+            data['km_totales'] = parseFloat(data['km_totales']) || 0.0;
+            data['km_nacionales'] = parseFloat(data['km_nacionales']) || 0.0;
+            data['km_internacionales'] = parseFloat(data['km_internacionales']) || 0.0;
+            data['importe_total'] = parseFloat(data['importe_total']) || 0.0;
+            data['importe_suplidos'] = parseFloat(data['importe_suplidos']) || 0.0;
+            data['empresa_ref'] = parseInt(data['empresa_ref']) || 0;
+            data['num_plazas'] = parseInt(data['num_plazas']) || 4;
+            
+            // 🛑 FORZAR LA LICENCIA DEL USUARIO (Seguridad)
+            data['licencia_ref'] = userLicenciaRef;
+
+            // Validación Básica
+            if (data.empresa_ref === 0 || data.importe_total <= 0) {
+                showStatus('❌ Error: EMPRESA e IMPORTE TOTAL son obligatorios.', 'error');
+                return;
+            }
+            
+            // ENVÍO A LA API
+            try {
+                const response = await fetch('/api/v1/albaranes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    showStatus('✅ ¡Albarán creado exitosamente!', 'success');
+                    // Redirigir tras 1.5 segundos a la lista (/titulares -> busqueda.html)
+                    setTimeout(() => window.location.href = '/titulares', 1500);
+                } else {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Error al guardar.');
+                }
+            } catch (error) {
+                console.error(error);
+                showStatus(`❌ Error: ${error.message}`, 'error');
+            }
+            break;
+        
+        case 'modificar':
+        case 'borrar':
+            showStatus('⚠️ Esta acción no está disponible en la pantalla de creación.', 'info');
+            break;
+        
+        case 'volver':
+            console.log("Navegando a /titulares");
+            // REDIRECCIÓN CORRECTA A BUSQUEDA.HTML (Mapeada en routes.go)
+            window.location.href = '/titulares'; 
+            return; 
+    }
+};
+
+// ============================================================================
+// 2. LÓGICA DE CARGA DE DATOS
+// ============================================================================
+
+async function loadUserIdentity() {
+    const licenciaInput = document.getElementById('licencia');
+    if (licenciaInput) licenciaInput.placeholder = "Cargando...";
+
+    try {
+        console.log("🔍 Solicitando licencia del usuario...");
+        const response = await fetch('/api/v1/user/licencia_ref');
+        
+        if (response.status === 401) {
+            console.warn("Sesión expirada, redirigiendo a login.");
+            window.location.href = '/login';
+            return;
         }
-    };
+
+        if (!response.ok) throw new Error('Error en la respuesta del servidor');
+
+        const data = await response.json();
+        console.log("✅ Datos recibidos:", data);
+        
+        if (data.licencia_ref && data.licencia_ref > 0) {
+            userLicenciaRef = data.licencia_ref;
+            
+            // Rellenar el input
+            if (licenciaInput) {
+                licenciaInput.value = userLicenciaRef;
+                licenciaInput.classList.add('bg-gray-200', 'text-gray-600', 'cursor-not-allowed'); // Estilo visual de bloqueado
+                licenciaInput.readOnly = true;
+            }
+        } else {
+            showStatus('❌ Error: Su usuario no tiene una licencia válida asignada.', 'error');
+            if (licenciaInput) licenciaInput.value = "Sin Asignar";
+        }
+
+    } catch (error) {
+        console.error('Error cargando identidad:', error);
+        showStatus('Error de conexión al cargar licencia.', 'error');
+    }
+}
+
+// ============================================================================
+// 3. UTILIDADES DE UI
+// ============================================================================
+
+function showStatus(msg, type) {
+    const el = document.getElementById('statusMessage');
+    if (!el) return;
     
-    // 3. Lógica de inicialización del DOM
-    setupWordCounter();
-    setDefaultDateTime();
+    el.textContent = msg;
+    el.className = 'status-message block mt-4 p-4 text-center text-sm font-medium rounded-lg'; // Reset base classes
+    
+    if (type === 'success') el.classList.add('bg-green-100', 'text-green-800', 'border', 'border-green-300');
+    else if (type === 'error') el.classList.add('bg-red-100', 'text-red-800', 'border', 'border-red-300');
+    else el.classList.add('bg-blue-100', 'text-blue-800', 'border', 'border-blue-300');
+    
+    el.classList.remove('hidden');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
-});
-
-// Contador de palabras para Observaciones
 function setupWordCounter() {
     const observaciones = document.getElementById('observaciones');
     if (!observaciones) return;
-    
     observaciones.addEventListener('input', function() {
         const text = this.value.trim();
-        const wordCount = text ? text.split(/\s+/).filter(word => word.length > 0).length : 0;
-        
-        const wordCountElement = document.getElementById('wordCount');
-        if (wordCountElement) {
-            wordCountElement.textContent = `${wordCount} palabras`;
-        }
+        const count = text ? text.split(/\s+/).filter(w => w.length > 0).length : 0;
+        const counter = document.getElementById('wordCount');
+        if (counter) counter.textContent = `${count} palabras`;
     });
 }
 
-// Establecer la fecha y hora actuales por defecto
 function setDefaultDateTime() {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const currentTime = `${hours}:${minutes}`;
-
     const fechaInput = document.getElementById('fecha');
     const horaInput = document.getElementById('hora');
+
+    if (fechaInput && !fechaInput.value) fechaInput.value = now.toISOString().split('T')[0];
     
-    if (fechaInput && !fechaInput.value) fechaInput.value = today;
-    // Si la hora aún no tiene valor (para no sobrescribir en edición)
-    if (horaInput && !horaInput.value) horaInput.value = currentTime;
+    if (horaInput && !horaInput.value) {
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        horaInput.value = `${hours}:${minutes}`;
+    }
 }
+
+// ============================================================================
+// 4. INICIALIZACIÓN
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadUserIdentity();
+    setupWordCounter();
+    setDefaultDateTime();
+});

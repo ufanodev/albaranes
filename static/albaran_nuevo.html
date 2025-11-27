@@ -6,9 +6,7 @@
     <title>Nuevo Albarán de Servicio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
-    <script src="/js/utils.js"></script>
-    
-    <script src="/js/admin_albaran_nuevo.js" defer></script> 
+    <script src="/js/albaran_nuevo.js" defer></script>
     
     <style>
         /* 🎨 Configuración de Fuente y Estilos Base */
@@ -79,24 +77,31 @@
 <body class="p-4 sm:p-8 lg:p-12">
 
     <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 class="text-3xl font-extrabold text-sky-800 text-center mb-8 border-b pb-3">
-            Nuevo Albarán de Servicio 📝
-        </h1>
-
+        
+        <div class="flex justify-between items-center mb-8 border-b pb-3">
+            <h1 class="text-3xl font-extrabold text-indigo-800">
+                Nuevo Albarán  📝
+            </h1>
+            <button type="submit" class="action-button btn-guardar">
+                <span class="mr-2">💾</span> Guardar Albaran
+            </button>
+            <button type="button" onclick="handleAction('volver')" class="action-button btn-volver">
+                <span class="mr-2">🔙</span> Volver
+            </button>
+        </div>
         <form id="albaranForm" onsubmit="handleAction('crear', event)">
 
             <div class="section-title !mt-0">Datos Principales</div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                <div>
-                    <label for="licencia" class="block text-sm font-medium text-gray-600 mb-1">
-                        LICENCIA * <span class="text-xs text-gray-400">(Ej: 804)</span>
-                    </label>
-                    <input type="number" id="licencia" name="licencia_ref" required
-                               placeholder="804"
-                               class="input-field">
-                </div>
+            <div>
+                <label for="licencia" class="block text-sm font-medium text-gray-600 mb-1">
+                    LICENCIA * <span class="text-xs text-gray-400">(Automático)</span>
+                </label>
+                <input type="number" id="licencia" name="licencia_ref" required readonly 
+                    placeholder="Cargando..."
+                    class="input-field bg-gray-100 cursor-not-allowed">
+            </div>
 
                 <div>
                     <label for="n_albaran" class="block text-sm font-medium text-gray-600 mb-1">
@@ -367,29 +372,6 @@
                                placeholder="Escriba aquí cualquier nota relevante, incidencias, o detalles adicionales del servicio..."
                                class="input-field w-full"></textarea>
                 <p id="wordCount" class="text-right text-xs text-gray-500 mt-1">0 palabras</p>
-            </div>
-            
-            <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
-                
-                <button type="submit"
-                        class="action-button btn-crear">
-                    <span class="mr-2">💾</span> Guardar Albarán (Crear)
-                </button>
-
-                <button type="button" onclick="handleAction('modificar')"
-                        class="action-button btn-modificar">
-                    <span class="mr-2">✏️</span> Modificar
-                </button>
-
-                <button type="button" onclick="handleAction('borrar')"
-                        class="action-button btn-borrar">
-                    <span class="mr-2">🗑️</span> Borrar
-                </button>
-                
-                <button type="button" onclick="handleAction('volver')"
-                        class="action-button btn-volver">
-                    <span class="mr-2">🔙</span> Volver
-                </button>
             </div>
             
             <div id="statusMessage" class="hidden status-message" role="alert"></div>
