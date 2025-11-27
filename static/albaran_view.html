@@ -49,6 +49,9 @@
                 Visualizar Albarán 👁️
             </h1>
             <span id="loadingIndicator" class="text-sm text-blue-600 font-semibold animate-pulse">Cargando datos...</span>
+            <a href="/titulares" class="btn-volver">
+                <span class="mr-2">🔙</span> Volver al Listado
+            </a>
         </div>
 
         <form id="viewForm">
@@ -187,12 +190,6 @@
                      <span>Factura: <span id="num_factura" class="font-semibold text-gray-700">-</span></span>
                      <span>Fecha Cobro: <span id="fecha_cobro" class="font-semibold text-gray-700">-</span></span>
                 </div>
-            </div>
-
-            <div class="mt-10 pt-6 border-t border-gray-200 flex justify-center">
-                <a href="/titulares" class="btn-volver">
-                    <span class="mr-2">🔙</span> Volver al Listado
-                </a>
             </div>
             
             <div id="errorMessage" class="hidden mt-4 p-4 bg-red-100 text-red-700 text-center rounded-lg"></div>
