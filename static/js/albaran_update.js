@@ -1,42 +1,130 @@
 // Archivo: static/js/albaran_update.js
-// Lógica para la actualización de albaranes (Vista Usuario/Titular).
+// Lógica para la MODIFICACIÓN de albaranes existentes.
 
 document.addEventListener('DOMContentLoaded', async function() {
+    
+    // 1. Obtener ID de la URL (/titulares/update/32 -> 32)
     const albaranID = getAlbaranIDFromURL();
+
     if (!albaranID) {
-        showStatus('❌ Error: No se especificó un ID de albarán válido.', 'error');
+        showStatus('❌ Error: ID de albarán no válido.', 'error');
+        disableForm();
         return;
     }
 
-    // 1. Cargar datos existentes
+    // 2. Cargar datos existentes
     await loadAlbaranData(albaranID);
 
-    // 2. Configurar manejador de envío
-    const form = document.getElementById('albaranForm');
-    if (form) {
-        form.addEventListener('submit', (e) => handleUpdate(e, albaranID));
-    }
-
-    // 3. Configurar botón Volver
-    const btnVolver = document.getElementById('btn-volver');
-    if (btnVolver) {
-        btnVolver.addEventListener('click', () => window.location.href = '/titulares');
-    }
-
+    // 3. Inicializar utilidades
     setupWordCounter();
+
+    // 4. Función de Acciones (Global)
+    window.handleAction = async function(actionType, event = null) {
+        const statusMessage = document.getElementById('statusMessage');
+        const form = document.getElementById('albaranForm');
+        
+        // Limpiar mensajes
+        if (statusMessage) {
+            statusMessage.classList.add('hidden');
+            statusMessage.classList.remove('status-success', 'status-error', 'status-info');
+        }
+
+        switch (actionType) {
+            case 'modificar': // Guardar Cambios
+                if (event) event.preventDefault();
+                
+                // Recoger datos básicos
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+
+                // --- SANITIZACIÓN Y CONVERSIÓN DE TIPOS ---
+
+                // 1. Checkboxes (FormData no los envía si están desmarcados, hay que forzarlos)
+                const checkboxes = ['urbano', 'diurno', 'noct_fest', 'festivo', 'finalizado', 'enganche'];
+                checkboxes.forEach(id => {
+                    const el = document.getElementById(id);
+                    data[id] = el ? el.checked : false;
+                });
+
+                // 2. Números (Convertir strings a float/int)
+                data['km_totales'] = parseFloat(data['km_totales']) || 0.0;
+                data['km_nacionales'] = parseFloat(data['km_nacionales']) || 0.0;
+                data['km_internacionales'] = parseFloat(data['km_internacionales']) || 0.0;
+                data['importe_total'] = parseFloat(data['importe_total']) || 0.0;
+                data['importe_suplidos'] = parseFloat(data['importe_suplidos']) || 0.0;
+                data['num_plazas'] = parseInt(data['num_plazas']) || 4;
+                
+                // El select de empresa devuelve el ID como string, lo pasamos a int
+                data['empresa_ref'] = parseInt(data['empresa_ref']) || 0;
+
+                // 3. Campos Readonly/Fijos (Asegurar que no se envíen vacíos o incorrectos)
+                // Nota: El backend suele ignorar updates en campos que no deberían cambiar, 
+                // pero enviamos la referencia de licencia original por consistencia.
+                // data['licencia_ref'] = ... (generalmente no se toca en update)
+
+                // --- VALIDACIÓN ---
+                if (data.importe_total <= 0) {
+                    showStatus('❌ El importe total es obligatorio.', 'error');
+                    return;
+                }
+
+                showStatus('⏳ Guardando cambios...', 'info');
+
+                try {
+                    const response = await fetch(`/api/v1/albaranes/${albaranID}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (response.ok) {
+                        showStatus('✅ Albarán actualizado correctamente.', 'success');
+                        setTimeout(() => window.location.href = '/titulares', 1000);
+                    } else {
+                        const err = await response.json();
+                        throw new Error(err.error || 'Error al actualizar.');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    showStatus(`❌ Error: ${error.message}`, 'error');
+                }
+                break;
+            
+            case 'borrar':
+                if (confirm('⚠️ ¿Está seguro que desea borrar este Albarán?')) {
+                    try {
+                        const response = await fetch(`/api/v1/albaranes/${albaranID}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (response.ok) {
+                            showStatus('✅ Albarán eliminado.', 'success');
+                            setTimeout(() => window.location.href = '/titulares', 1000);
+                        } else {
+                            throw new Error('Error al eliminar.');
+                        }
+                    } catch (error) {
+                        showStatus(`❌ Error: ${error.message}`, 'error');
+                    }
+                }
+                break;
+
+            case 'volver':
+                window.location.href = '/titulares';
+                break;
+        }
+    };
 });
 
-/**
- * Obtiene el ID del albarán desde la URL (ej: /titulares/update/32 -> 32)
- */
+// ============================================================================
+// 🛠️ FUNCIONES AUXILIARES
+// ============================================================================
+
 function getAlbaranIDFromURL() {
     const pathParts = window.location.pathname.split('/');
     return pathParts[pathParts.length - 1];
 }
 
-/**
- * Carga los datos del albarán desde la API y rellena el formulario.
- */
 async function loadAlbaranData(id) {
     try {
         const response = await fetch(`/api/v1/albaranes/${id}`);
@@ -45,153 +133,96 @@ async function loadAlbaranData(id) {
             window.location.href = '/login';
             return;
         }
-
-        if (!response.ok) throw new Error('Error al cargar el albarán.');
+        if (!response.ok) throw new Error('No se pudo cargar el albarán.');
 
         const json = await response.json();
-        const data = json.data;
-
-        populateForm(data);
+        populateForm(json.data);
 
     } catch (error) {
         console.error(error);
-        showStatus('❌ No se pudieron cargar los datos del albarán.', 'error');
-        // Deshabilitar formulario si no hay datos
-        const inputs = document.querySelectorAll('input, select, textarea, button[type="submit"]');
-        inputs.forEach(el => el.disabled = true);
+        showStatus('❌ Error al cargar los datos.', 'error');
+        disableForm();
     }
 }
 
-/**
- * Rellena el formulario con los datos recibidos.
- */
 function populateForm(data) {
-    // Helper para asignar valor
     const setVal = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.value = (val !== null && val !== undefined) ? val : '';
     };
-    
-    // Helper para checkbox
     const setCheck = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.checked = (val === true || val === 1);
     };
-
-    // Helper para fecha (YYYY-MM-DD)
     const setDate = (id, val) => {
         const el = document.getElementById(id);
-        if (el && val) el.value = val.substring(0, 10);
+        if (el && val && val.length >= 10) el.value = val.substring(0, 10);
     };
 
-    // Campos principales
-    setVal('licencia', data.LicenciaData?.Licencia || data.licencia_ref); // Mostrar código visual si existe
-    setVal('n_albaran', data.Numero_albaran || data.numero_albaran);
-    setDate('fecha', data.Fecha || data.fecha);
-    setVal('empresa', data.EmpresaRef || data.empresa_ref); // Select usa el ID
-    setVal('referencia', data.Referencia || data.referencia);
-    setVal('asalariado', data.Asalariado || data.asalariado);
+    // 1. Datos Principales
+    // Mostrar código de licencia si está disponible, sino el ID
+    const licCode = data.LicenciaData ? data.LicenciaData.Licencia : (data.licencia_ref || '');
+    setVal('licencia_display', licCode); 
 
-    // Detalles
-    setVal('hora', data.Hora || data.hora);
-    setVal('dni_pasajero', data.Dni_pasajero || data.dni_pasajero);
-    setVal('matricula', data.Matricula || data.matricula);
-    setVal('num_plazas', data.Num_plazas || data.num_plazas);
+    setVal('n_albaran', data.numero_albaran || data.NumeroAlbaran);
+    setDate('fecha', data.fecha || data.Fecha);
+    setVal('empresa', data.empresa_ref || data.EmpresaRef);
+    setVal('referencia', data.referencia || data.Referencia);
+    setVal('asalariado', data.asalariado || data.Asalariado);
 
-    // Viaje
-    setVal('cliente', data.Cliente || data.cliente);
-    setVal('origen', data.Origen || data.origen);
-    setVal('destino', data.Destino || data.destino);
-    setVal('parada', data.Parada || data.parada);
+    // 2. Detalles
+    setVal('hora', data.hora || data.Hora);
+    setVal('dni_pasajero', data.dni_pasajero || data.DniPasajero);
+    setVal('matricula', data.matricula || data.Matricula);
+    setVal('num_plazas', data.num_plazas || data.NumPlazas);
 
-    // Importes
-    setVal('km_totales', data.Km_totales || data.km_totales);
-    setVal('km_nacionales', data.Km_nacionales || data.km_nacionales);
-    setVal('km_internacionales', data.Km_internacionales || data.km_internacionales);
-    setVal('tiempo_espera', data.Tiempo_espera || data.tiempo_espera);
-    setVal('importe_total', data.Importe_total || data.importe_total);
-    setVal('importe_suplidos', data.Importe_suplidos || data.importe_suplidos);
-    setVal('autorizado_por', data.Autorizado_por || data.autorizado_por);
-    setVal('observaciones', data.Observaciones || data.observaciones);
+    // 3. Estado (Checkboxes)
+    setCheck('urbano', data.urbano || data.Urbano);
+    setCheck('diurno', data.diurno || data.Diurno);
+    setCheck('noct_fest', data.noct_fest || data.NoctFest);
+    setCheck('festivo', data.festivo || data.Festivo);
+    setCheck('finalizado', data.finalizado || data.Finalizado);
+    setCheck('enganche', data.enganche || data.Enganche);
 
-    // Checkboxes
-    setCheck('urbano', data.Urbano || data.urbano);
-    setCheck('diurno', data.Diurno || data.diurno);
-    setCheck('noct_fest', data.Noct_fest || data.noct_fest);
-    setCheck('festivo', data.Festivo || data.festivo);
-    setCheck('finalizado', data.Finalizado || data.finalizado);
-    setCheck('enganche', data.Enganche || data.enganche);
-    setCheck('cobrado', data.Cobrado || data.cobrado);
-    setCheck('pagado', data.Pagado || data.pagado);
-    
-    // Disparar evento input para actualizar contador de palabras
-    document.getElementById('observaciones')?.dispatchEvent(new Event('input'));
-}
+    // 4. Trayecto
+    setVal('cliente', data.cliente || data.Cliente);
+    setVal('origen', data.origen || data.Origen);
+    setVal('destino', data.destino || data.Destino);
+    setVal('parada', data.parada || data.Parada);
 
-/**
- * Maneja el envío del formulario de actualización (PUT).
- */
-async function handleUpdate(event, id) {
-    event.preventDefault();
-    const form = event.target;
-    const statusMessage = document.getElementById('statusMessage');
-    
-    showStatus('Guardando cambios...', 'info');
+    // 5. Importes
+    setVal('km_totales', data.km_totales || data.KmTotales);
+    setVal('km_nacionales', data.km_nacionales || data.KmNacionales);
+    setVal('km_internacionales', data.km_internacionales || data.KmInternacionales);
+    setVal('tiempo_espera', data.tiempo_espera || data.TiempoEspera);
+    setVal('importe_total', data.importe_total || data.ImporteTotal);
+    setVal('importe_suplidos', data.importe_suplidos || data.ImporteSuplidos);
+    setVal('autorizado_por', data.autorizado_por || data.AutorizadoPor);
 
-    const data = {};
-    new FormData(form).forEach((value, key) => {
-        data[key] = value;
-    });
-
-    // Mapeo de Checkboxes
-    const checkboxes = ['urbano', 'diurno', 'noct_fest', 'festivo', 'finalizado', 'enganche', 'cobrado', 'pagado'];
-    checkboxes.forEach(id => {
-        const el = document.getElementById(id);
-        data[id] = el ? el.checked : false;
-    });
-
-    // Conversión de tipos numéricos
-    data['km_totales'] = parseFloat(data['km_totales']) || 0;
-    data['importe_total'] = parseFloat(data['importe_total']) || 0;
-    data['empresa_ref'] = parseInt(data['empresa_ref']) || 0;
-    // ... (convertir otros si necesario)
-
-    try {
-        const response = await fetch(`/api/v1/albaranes/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        if (response.ok) {
-            showStatus('✅ Albarán actualizado correctamente.', 'success');
-            // Opcional: Redirigir tras éxito
-            // setTimeout(() => window.location.href = '/titulares', 1500);
-        } else {
-            const err = await response.json();
-            throw new Error(err.error || 'Error al actualizar.');
-        }
-    } catch (error) {
-        console.error(error);
-        showStatus(`❌ Error: ${error.message}`, 'error');
-    }
+    // 6. Observaciones
+    setVal('observaciones', data.observaciones || data.Observaciones);
+    document.getElementById('observaciones')?.dispatchEvent(new Event('input')); // Actualizar contador
 }
 
 function showStatus(msg, type) {
     const el = document.getElementById('statusMessage');
     if (!el) return;
     el.textContent = msg;
-    el.className = `status-message ${type === 'error' ? 'status-error' : (type === 'success' ? 'status-success' : 'status-info')}`;
+    el.className = `status-message block mt-4 p-4 text-center text-sm font-medium rounded-lg ${type === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`;
+    if (type === 'success') el.className = 'status-message block mt-4 p-4 text-center text-sm font-medium rounded-lg bg-green-100 text-green-800';
     el.classList.remove('hidden');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function disableForm() {
+    document.querySelectorAll('input, select, textarea, button:not(.btn-volver)').forEach(el => el.disabled = true);
 }
 
 function setupWordCounter() {
     const obs = document.getElementById('observaciones');
     if (!obs) return;
     obs.addEventListener('input', function() {
-        const text = this.value.trim();
-        const count = text ? text.split(/\s+/).length : 0;
-        const counter = document.getElementById('wordCount');
-        if (counter) counter.textContent = `${count} palabras`;
+        const count = this.value.trim() ? this.value.trim().split(/\s+/).length : 0;
+        document.getElementById('wordCount').textContent = `${count} palabras`;
     });
 }
