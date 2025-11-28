@@ -4,7 +4,6 @@ import (
 	"albaranes/models"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -12,6 +11,11 @@ import (
 
 // Constante para el formato de fecha esperado en la URL
 const dateFormat = "2006-01-02"
+
+// Estructura para recibir IDs en acciones masivas
+type BulkIDsInput struct {
+	IDs []uint `json:"ids" binding:"required"`
+}
 
 // preloadAlbaran ayuda a cargar las relaciones necesarias (Licencia y Empresa)
 func preloadAlbaran(db *gorm.DB) *gorm.DB {
@@ -22,26 +26,17 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 // --- Controladores de Consulta (GET)
 // ---------------------------------------------------------------------
 
-// GetAlbaranes obtiene la lista de albaranes con paginación (sin filtros específicos).
+// GetAlbaranes obtiene la lista de albaranes con paginación.
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
-	// Paginación
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
 	offset := (page - 1) * pageSize
 
 	var albaranes []models.Albaran
 	var total int64
 
-	// Contar total de registros
 	db.Model(&models.Albaran{}).Count(&total)
 
-	// Consultar con precarga y paginación
 	if result := preloadAlbaran(db).Limit(pageSize).Offset(offset).Order("id desc").Find(&albaranes); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener la lista de albaranes"})
 		return
@@ -56,7 +51,7 @@ func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	})
 }
 
-// GetAlbaranesByEmpresa obtiene la lista de albaranes filtrada por Empresa ID.
+// GetAlbaranesByEmpresa obtiene la lista filtrada por Empresa.
 func GetAlbaranesByEmpresa(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	empresaID, err := strconv.ParseUint(idStr, 10, 32)
@@ -67,12 +62,6 @@ func GetAlbaranesByEmpresa(c *gin.Context, db *gorm.DB) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
 	offset := (page - 1) * pageSize
 
 	var albaranes []models.Albaran
@@ -96,176 +85,129 @@ func GetAlbaranesByEmpresa(c *gin.Context, db *gorm.DB) {
 	})
 }
 
-// SearchAlbaranes permite buscar por licencia, fechas, referencia, estado y nombre de empresa.
-// Esta es la función principal usada por el buscador avanzado.
+// SearchAlbaranes permite buscar con filtros.
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 10
-	}
 	offset := (page - 1) * pageSize
 
 	var albaranes []models.Albaran
 	var total int64
 
-	// Iniciar query base con Preloads para que el JSON final tenga los datos anidados
-	query := db.Model(&models.Albaran{}).
-		Preload("LicenciaData").
-		Preload("EmpresaData")
+	query := db.Model(&models.Albaran{})
 
-	// 1. Filtro: Licencia (Obligatorio según tu lógica de sesión)
+	// Filtros
 	if licenciaRefStr := c.Query("licencia_ref"); licenciaRefStr != "" {
-		query = query.Where("albaranes.licencia_ref = ?", licenciaRefStr)
+		query = query.Where("licencia_ref = ?", licenciaRefStr)
 	}
 
-	// 2. Filtro: Referencia (Búsqueda parcial)
-	if ref := c.Query("referencia"); ref != "" {
-		query = query.Where("albaranes.referencia LIKE ?", "%"+ref+"%")
+	// Filtro de fechas
+	fechaIniStr := c.Query("fecha_ini")
+	fechaFinStr := c.Query("fecha_fin")
+	if fechaIniStr != "" && fechaFinStr != "" {
+		query = query.Where("fecha BETWEEN ? AND ?", fechaIniStr, fechaFinStr+" 23:59:59")
 	}
 
-	// 3. Filtro: Empresa por Nombre (Requiere JOIN)
-	// Si el frontend envía "empresa_nombre=race", hacemos un JOIN con la tabla empresas.
-	if empresaNombre := c.Query("empresa_nombre"); empresaNombre != "" {
-		// Usamos un JOIN explícito para filtrar por el nombre en la tabla relacionada
-		// Asumimos que la tabla se llama 'empresas' y la columna 'nombre'
-		query = query.Joins("JOIN empresas ON empresas.id = albaranes.empresa_ref").
-			Where("empresas.nombre LIKE ?", "%"+empresaNombre+"%")
-	}
-
-	// 4. Filtro: Estado (Mapeo de string del select a booleanos de la BD)
+	// Filtro State (CRÍTICO para la vista de pendientes)
 	if state := c.Query("state"); state != "" {
-		state = strings.ToLower(state)
-		switch state {
-		case "creado":
-			// Ni enviado ni cobrado
-			query = query.Where("albaranes.enviado = ? AND albaranes.cobrado = ?", false, false)
-		case "enviado":
-			// Enviado pero no cobrado
-			query = query.Where("albaranes.enviado = ? AND albaranes.cobrado = ?", true, false)
-		case "pagado":
-			// Filtramos por el campo 'pagado' (al conductor)
-			query = query.Where("albaranes.pagado = ?", true)
-		case "finalizado":
-			// Todo completado (o la lógica que definas para finalizado)
-			query = query.Where("albaranes.enviado = ? AND albaranes.cobrado = ?", true, true)
+		if state == "creado" {
+			// Pendientes: No enviado Y No cobrado
+			query = query.Where("enviado = ? AND cobrado = ?", false, false)
+		} else if state == "enviado" {
+			query = query.Where("enviado = ?", true)
 		}
 	}
 
-	// 5. Filtro: Fechas
-	fechaIniStr := c.Query("fecha_ini")
-	fechaFinStr := c.Query("fecha_fin")
+	query.Count(&total)
 
-	if fechaIniStr != "" && fechaFinStr != "" {
-		// Añadimos hora final al rango para incluir todo el día
-		query = query.Where("albaranes.fecha BETWEEN ? AND ?", fechaIniStr, fechaFinStr+" 23:59:59")
-	}
-
-	// Contar total (sobre la query filtrada)
-	// Nota: Gorm Count infiere la tabla base correctamente incluso con Joins
-	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al contar registros"})
-		return
-	}
-
-	// Ejecutar consulta paginada
-	// Especificamos "albaranes.id" en el Order para evitar ambigüedad si hay Joins
-	if result := query.Limit(pageSize).Offset(offset).Order("albaranes.fecha desc, albaranes.id desc").Find(&albaranes); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener la lista de albaranes filtrada", "details": result.Error.Error()})
+	if result := preloadAlbaran(query).Limit(pageSize).Offset(offset).Order("id desc").Find(&albaranes); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener la lista filtrada"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":       albaranes,
-		"total":      total,
 		"page":       page,
 		"pageSize":   pageSize,
+		"total":      total,
 		"totalPages": (total + int64(pageSize) - 1) / int64(pageSize),
 	})
 }
 
-// GetAlbaran obtiene un albarán por su ID.
+// GetAlbaran obtiene un albarán por ID.
 func GetAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
 
 	if result := preloadAlbaran(db).First(&albaran, id); result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "❌ Albarán no encontrado"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al buscar el albarán"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Albarán no encontrado"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": albaran})
 }
 
 // ---------------------------------------------------------------------
-// --- Controladores CRUD (POST/PUT/DELETE)
+// --- Controladores CRUD y ACCIONES MASIVAS
 // ---------------------------------------------------------------------
 
-// CreateAlbaran maneja la creación de un nuevo albarán.
-func CreateAlbaran(c *gin.Context, db *gorm.DB) {
-	var input models.Albaran
-
+// BulkSendAlbaranes actualiza el estado 'enviado' a true para una lista de IDs.
+func BulkSendAlbaranes(c *gin.Context, db *gorm.DB) {
+	var input BulkIDsInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de entrada inválidos", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Lista de IDs inválida", "details": err.Error()})
 		return
 	}
 
-	if input.LicenciaRef == 0 || input.EmpresaRef == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Es obligatorio asignar una Licencia y una Empresa válida."})
+	if len(input.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No se proporcionaron IDs"})
 		return
 	}
 
-	if result := db.Create(&input); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear el albarán", "details": result.Error.Error()})
+	// Actualización masiva: UPDATE albaranes SET enviado = 1 WHERE id IN (...)
+	result := db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Update("enviado", true)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar los albaranes"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado exitosamente", "data": input})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "✅ Albaranes enviados exitosamente",
+		"updated": result.RowsAffected,
+	})
 }
 
-// UpdateAlbaran actualiza un albarán existente.
+func CreateAlbaran(c *gin.Context, db *gorm.DB) {
+	var input models.Albaran
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
+		return
+	}
+	if result := db.Create(&input); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Creado", "data": input})
+}
+
 func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
-
 	if err := db.First(&albaran, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Albarán no encontrado"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No encontrado"})
 		return
 	}
-
 	var input map[string]interface{}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos", "details": err.Error()})
-		return
-	}
-
-	if err := db.Model(&albaran).Updates(input).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar el albarán", "details": err.Error()})
-		return
-	}
-
-	preloadAlbaran(db).First(&albaran, id)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Albarán actualizado", "data": albaran})
+	c.ShouldBindJSON(&input)
+	db.Model(&albaran).Updates(input)
+	c.JSON(http.StatusOK, gin.H{"message": "Actualizado", "data": albaran})
 }
 
-// DeleteAlbaran elimina un albarán.
 func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
-
 	if result := db.Delete(&models.Albaran{}, id); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al eliminar el albarán"})
-		return
-	} else if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Albarán no encontrado para eliminar"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al eliminar"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Albarán eliminado exitosamente", "id": id})
+	c.JSON(http.StatusOK, gin.H{"message": "Eliminado"})
 }

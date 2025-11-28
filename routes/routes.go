@@ -160,6 +160,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			albaranGroup := protected.Group("/albaranes")
 			{
 				albaranGroup.POST("/", func(c *gin.Context) { controllers.CreateAlbaran(c, db) })
+
+				// 🆕 NUEVA RUTA DE ENVÍO MASIVO
+				albaranGroup.POST("/bulk-send", func(c *gin.Context) { controllers.BulkSendAlbaranes(c, db) })
+
 				albaranGroup.GET("/byempresa/:id", func(c *gin.Context) { controllers.GetAlbaranesByEmpresa(c, db) })
 				albaranGroup.GET("/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
 				albaranGroup.GET("/", func(c *gin.Context) { controllers.GetAlbaranes(c, db) })
