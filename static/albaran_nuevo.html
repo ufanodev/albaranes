@@ -147,56 +147,10 @@
                 <p id="wordCount" class="text-right text-xs text-gray-500 mt-1">0 palabras</p>
             </div>
             
-            <div class="section-title">Facturación y Estado de Pago</div>
-            <div class="mt-4 p-6 bg-blue-50 rounded-xl border border-blue-200 shadow-md">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div>
-                        <label for="num_factura" class="block text-sm font-medium text-gray-700 mb-1">Nº Factura</label>
-                        <input type="text" id="num_factura" name="num_factura" placeholder="Ej: 2025/001" class="input-field bg-white border-blue-300" />
-                    </div>
-                    <div>
-                        <label for="fecha_cobro" class="block text-sm font-medium text-gray-700 mb-1">Fecha Cobro</label>
-                        <input type="date" id="fecha_cobro" name="fecha_cobro" class="input-field bg-white border-blue-300" />
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap gap-x-8 gap-y-4">
-                    <div class="flex items-center space-x-6 p-3 bg-blue-100 rounded-lg shadow-inner">
-                        <span class="font-medium text-blue-800">Cobrado (Empresa):</span>
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="cobrado" name="cobrado" class="sr-only peer" />
-                            <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-blue-600"></div>
-                            <span class="ms-3 text-sm font-medium text-blue-700">Si/No</span>
-                        </label>
-                    </div>
-                    <div class="flex items-center space-x-6 p-3 bg-green-100 rounded-lg shadow-inner">
-                        <span class="font-medium text-green-800">Pagado (Conductor):</span>
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="pagado" name="pagado" class="sr-only peer" />
-                            <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-green-600"></div>
-                            <span class="ms-3 text-sm font-medium text-green-700">Si/No</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-            
-            
             <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
                 
                 <button type="submit" class="action-button btn-crear">
                     <span class="mr-2">💾</span> Guardar Albarán (Crear)
-                </button>
-
-                <button type="button" onclick="handleAction('modificar')" class="action-button btn-modificar">
-                    <span class="mr-2">✏️</span> Modificar
-                </button>
-
-                <button type="button" onclick="handleAction('borrar')" class="action-button btn-borrar">
-                    <span class="mr-2">🗑️</span> Borrar
-                </button>
-                
-                <button type="button" onclick="handleAction('volver')" class="action-button btn-volver">
-                    <span class="mr-2">🔙</span> Volver
                 </button>
             </div>
             
