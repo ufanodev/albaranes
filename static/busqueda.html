@@ -215,14 +215,14 @@
         <h2 class="text-xl font-bold text-black-pure mb-4">📊 Últimos Albaranes</h2>
 
         <div class="flex justify-between items-center mb-4">
-            <div class="flex items-center space-x-2 text-sm text-gray-600">
-                <span>Registros por página:</span>
-                <select id="recordsPerPage" class="input-field w-auto px-2 py-1">
-                    <option value="10">10</option>
-                    <option value="20" selected>20</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center space-x-2 text-sm text-gray-600">
+                    <span>Registros por página:</span>
+                    <select id="recordsPerPage" class="input-field w-auto px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                        <!-- ✅ JS lo llena dinámicamente -->
+                    </select>
+                    <span id="totalLabel" class="text-xs text-gray-500 ml-2"></span>
+                </div>
             </div>
             <div class="flex items-center space-x-2">
                 <button class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg transition duration-200 active:scale-95" title="Anterior">
