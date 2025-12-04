@@ -64,86 +64,86 @@
 
         <div class="flex flex-col lg:flex-row items-end lg:items-center gap-4 w-full xl:w-auto justify-end">
 
-<!-- Botones de navegación (reducidos) -->
-<div class="flex flex-wrap gap-2">
-  <a href="/titulares/nuevo_albaran"
-     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white
-            bg-gradient-to-r from-green-500 to-green-600 shadow-sm hover:shadow-md
-            hover:from-green-600 hover:to-green-700 active:scale-95 transition">
-    <span class="text-base">➕</span>
-    <span>Nuevo albarán</span>
-  </a>
+    <!-- Botones de navegación (reducidos) -->
+    <div class="flex flex-wrap gap-2">
+      <a href="/titulares/nuevo_albaran"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white
+                bg-gradient-to-r from-green-500 to-green-600 shadow-sm hover:shadow-md
+                hover:from-green-600 hover:to-green-700 active:scale-95 transition">
+        <span class="text-base">➕</span>
+        <span>Nuevo albarán</span>
+      </a>
 
-  <a href="/titulares/enviados"
-     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white
-            bg-primary-link shadow-sm hover:bg-orange-600 active:scale-95 transition">
-    <span class="text-base">📧</span>
-    <span>Ver enviados</span>
-  </a>
+      <a href="/titulares/enviados"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white
+                bg-primary-link shadow-sm hover:bg-orange-600 active:scale-95 transition">
+        <span class="text-base">📧</span>
+        <span>Ver enviados</span>
+      </a>
 
-  <a href="/titulares"
-     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-700
-            bg-white border border-gray-300 shadow-sm hover:bg-gray-100 hover:border-gray-400
-            active:scale-95 transition">
-    <span class="text-base">📋</span>
-    <span>Ver todos</span>
-  </a>
+      <a href="/titulares"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-700
+                bg-white border border-gray-300 shadow-sm hover:bg-gray-100 hover:border-gray-400
+                active:scale-95 transition">
+        <span class="text-base">📋</span>
+        <span>Ver todos</span>
+      </a>
 
-  <a href="/titulares/pendientes"
-     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold
-            text-black-pure bg-primary-pastel border border-primary-pastel shadow-sm
-            hover:bg-orange-300 hover:border-orange-400 active:scale-95 transition">
-    <span class="text-base">🏁</span>
-    <span>Ver pendientes</span>
-  </a>
-</div>
-
-
-          <!-- Botones redondos de acciones -->
-          <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-            <button title="Imprimir PDF"
-                    class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
-                    onclick="handleAction('Imprimir PDF', 'Todo el listado')">
-              <i data-lucide="printer" class="h-5 w-5"></i>
-            </button>
-
-            <button title="Exportar a Word"
-                    class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
-                    onclick="handleAction('Exportar Word', 'Todo el listado')">
-              <i data-lucide="file-text" class="h-5 w-5"></i>
-            </button>
-
-            <button title="Exportar a Excel"
-                    class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
-                    onclick="handleAction('Exportar Excel', 'Todo el listado')">
-              <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
-            </button>
-
-            <button onclick="handleLogout()" title="Salir y cerrar sesión"
-                    class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-              <i data-lucide="log-out" class="h-5 w-5"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- BOTONES DE ACCIÓN SUPERIORES -->
-      <div class="mt-4 bg-white rounded-xl">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div class="flex flex-wrap gap-2">
-            <button type="button"
-                    onclick="window.handleEnviarSeleccionados && window.handleEnviarSeleccionados()"
-                    class="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-white
-                           bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-sm
-                           hover:shadow-md hover:from-green-600 hover:to-green-700 active:scale-95 transition">
-              Enviar seleccionados
-            </button>
-          </div>
-        </div>
-      </div>
+      <a href="/titulares/pendientes"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold
+                text-black-pure bg-primary-pastel border border-primary-pastel shadow-sm
+                hover:bg-orange-300 hover:border-orange-400 active:scale-95 transition">
+        <span class="text-base">🏁</span>
+        <span>Ver pendientes</span>
+      </a>
     </div>
 
-    <!-- TÍTULO DE LA TABLA -->
+
+              <!-- Botones redondos de acciones -->
+              <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                <button title="Imprimir PDF"
+                        class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
+                        onclick="handleAction('Imprimir PDF', 'Todo el listado')">
+                  <i data-lucide="printer" class="h-5 w-5"></i>
+                </button>
+
+                <button title="Exportar a Word"
+                        class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
+                        onclick="handleAction('Exportar Word', 'Todo el listado')">
+                  <i data-lucide="file-text" class="h-5 w-5"></i>
+                </button>
+
+                <button title="Exportar a Excel"
+                        class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
+                        onclick="handleAction('Exportar Excel', 'Todo el listado')">
+                  <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
+                </button>
+
+                <button onclick="handleLogout()" title="Salir y cerrar sesión"
+                        class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                  <i data-lucide="log-out" class="h-5 w-5"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- BOTONES DE ACCIÓN SUPERIORES -->
+          <div class="mt-4 bg-white rounded-xl">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div class="flex flex-wrap gap-2">
+                <button type="button"
+                        onclick="window.handleEnviarSeleccionados && window.handleEnviarSeleccionados()"
+                        class="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-white
+                              bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-sm
+                              hover:shadow-md hover:from-green-600 hover:to-green-700 active:scale-95 transition">
+                  Enviar seleccionados
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+<!-- TÍTULO DE LA TABLA -->
     <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center gap-2">
       <span>📊</span>
       <span>Albaranes pendientes de cobro/pago</span>
@@ -185,16 +185,13 @@
       </div>
     </div>
 
-    <!-- TABLA DE ALBARANES -->
+    <!-- TABLA DE ALBARANES (10 columnas, sin checkbox) -->
     <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-100 bg-white">
       <table class="min-w-full divide-y divide-gray-200 text-sm">
         <thead class="bg-primary-link text-white text-xs uppercase tracking-wider">
           <tr>
-            <th scope="col" class="px-4 py-3 text-center font-bold rounded-tl-xl w-10">
-              <input type="checkbox" id="selectAll"
-                     class="rounded text-primary-link focus:ring-primary-link" />
-            </th>
-            <th scope="col" class="px-4 py-3 text-left font-bold">
+            <!-- 1. Nº albarán -->
+            <th scope="col" class="px-4 py-3 text-left font-bold rounded-tl-xl">
               <button type="button"
                       class="flex items-center gap-1 w-full justify-between"
                       onclick="window.sortTable && window.sortTable('numero_albaran')">
@@ -202,6 +199,7 @@
                 <i id="sort-numero_albaran" data-lucide="chevrons-up-down" class="h-4 w-4"></i>
               </button>
             </th>
+            <!-- 2. Fecha -->
             <th scope="col" class="px-4 py-3 text-left font-bold">
               <button type="button"
                       class="flex items-center gap-1 w-full justify-between"
@@ -210,6 +208,7 @@
                 <i id="sort-fecha" data-lucide="chevrons-up-down" class="h-4 w-4"></i>
               </button>
             </th>
+            <!-- 3. Licencia -->
             <th scope="col" class="px-4 py-3 text-left font-bold">
               <button type="button"
                       class="flex items-center gap-1 w-full justify-between"
@@ -218,9 +217,13 @@
                 <i id="sort-licencia" data-lucide="chevrons-up-down" class="h-4 w-4"></i>
               </button>
             </th>
+            <!-- 4. Empresa -->
             <th scope="col" class="px-4 py-3 text-left font-bold">Empresa</th>
+            <!-- 5. Referencia -->
             <th scope="col" class="px-4 py-3 text-left font-bold">Referencia</th>
+            <!-- 6. Conductor -->
             <th scope="col" class="px-4 py-3 text-left font-bold">Conductor</th>
+            <!-- 7. Importe total -->
             <th scope="col" class="px-4 py-3 text-right font-bold">
               <button type="button"
                       class="flex items-center gap-1 w-full justify-end"
@@ -229,18 +232,23 @@
                 <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-4 w-4"></i>
               </button>
             </th>
+            <!-- 8. Estado -->
             <th scope="col" class="px-4 py-3 text-left font-bold">Estado</th>
+            <!-- 9. Observaciones -->
             <th scope="col" class="px-4 py-3 text-left font-bold">Observaciones</th>
+            <!-- 10. Acciones -->
             <th scope="col" class="px-4 py-3 text-center font-bold rounded-tr-xl">Acciones</th>
           </tr>
         </thead>
-        <tbody id="albaranResults" class="bg-white divide-y divide-gray-100">
-          <tr>
-            <td colspan="11" class="text-center py-6 text-gray-500 italic">
-              Cargando datos de la API...
-            </td>
-          </tr>
-        </tbody>
+        
+          <tbody id="albaranResults" class="bg-white divide-y divide-gray-100">
+            <tr>
+              <td colspan="10" class="text-center py-6 text-gray-500 italic">
+                No tiene albaranes pendientes.
+              </td>
+            </tr>
+          </tbody>
+
         <tfoot id="albaranTotal" class="bg-gray-50 font-semibold text-gray-800"></tfoot>
       </table>
     </div>
