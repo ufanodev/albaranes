@@ -200,16 +200,16 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 		query = query.Where("empresa_ref = ?", empresaRef)
 	}
 
-	// 3. FILTRO POR ESTADO (CORREGIDO: Robustez contra NULLs y prioridad de estados)
+	// 3. FILTRO POR ESTADO (Corregido con IFNULL para robustez)
 	state := c.Query("state")
 	if state != "" {
 		switch strings.ToLower(state) {
 		case "creado":
-			// 'Creado': Si NO ha sido enviado, cobrado ni finalizado (tratando NULL como 0/False).
+			// 'Creado': Si NO ha sido enviado, cobrado ni finalizado.
 			query = query.Where("IFNULL(enviado, 0) = 0 AND IFNULL(cobrado, 0) = 0 AND IFNULL(finalizado, 0) = 0")
 
 		case "enviado":
-			// 'Enviado': Si enviado=1, pero AÚN NO cobrado/pagado/finalizado.
+			// 'Enviado': Si enviado=1, pero AÚN NO cobrado/pagado/finalizado (Estado puro de "Enviado").
 			query = query.Where("enviado = ?", 1).
 				Where("IFNULL(cobrado, 0) = 0").
 				Where("IFNULL(pagado, 0) = 0").
@@ -246,16 +246,18 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 		query = query.Where("fecha <= ?", fechaFin)
 	}
 
-	// 6. FILTRO POR PALABRA CLAVE (Búsqueda general en múltiples campos)
+	// 6. FILTRO POR PALABRA CLAVE (Búsqueda general en múltiples campos STRING)
 	palabra := c.Query("palabra")
 	searchType := c.Query("search_type")
 
 	if palabra != "" {
 		words := strings.Fields(strings.ToLower(palabra))
 
+		// 🚨 CAMPOS DE TEXTO ELEGIDOS PARA LA BÚSQUEDA
 		searchFields := []string{
 			"numero_albaran", "referencia", "asalariado", "dni_pasajero",
-			"matricula", "cliente", "origen", "destino", "observaciones",
+			"matricula", "cliente", "origen", "parada", "destino",
+			"observaciones", "observaciones_admin", "num_factura",
 			"autorizado_por",
 		}
 
@@ -266,7 +268,7 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 		case "exacta":
 			log.Printf("Búsqueda: Exacta (%s)", palabra)
 			for _, field := range searchFields {
-				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
 				searchValues = append(searchValues, "%"+strings.ToLower(palabra)+"%")
 			}
 			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
@@ -277,7 +279,7 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 				var wordClauses []string
 				var wordValues []interface{}
 				for _, field := range searchFields {
-					wordClauses = append(wordClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+					wordClauses = append(wordClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
 					wordValues = append(wordValues, "%"+word+"%")
 				}
 				query = query.Where("("+strings.Join(wordClauses, " OR ")+")", wordValues...)
@@ -285,9 +287,10 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 
 		case "cualquier":
 			log.Printf("Búsqueda: Cualquier (%v)", words)
-			for _, word := range words {
-				for _, field := range searchFields {
-					searchClauses = append(searchClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+			// Usamos OR para que cualquiera de las palabras en cualquiera de los campos coincida
+			for _, field := range searchFields {
+				for _, word := range words {
+					searchClauses = append(searchClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
 					searchValues = append(searchValues, "%"+word+"%")
 				}
 			}
@@ -296,7 +299,7 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 		default:
 			log.Printf("Búsqueda: Default (Exacta) (%s)", palabra)
 			for _, field := range searchFields {
-				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
 				searchValues = append(searchValues, "%"+strings.ToLower(palabra)+"%")
 			}
 			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
@@ -380,7 +383,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	jsonInput, _ := json.MarshalIndent(dto, "", "  ")
+	jsonInput, _ := json.MarshalIndent(dto, "", "  ")
 	log.Printf("🔵 [CreateAlbaran] DTO recibido:\n%s", string(jsonInput))
 
 	fecha, err := time.Parse("2006-01-02", dto.Fecha)

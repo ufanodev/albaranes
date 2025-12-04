@@ -1,5 +1,5 @@
 // Archivo: static/js/busqueda.js
-// ✅ Versión Final con prioridad de estados verificada.
+// ✅ Versión Final con todas las correcciones: Paginación, Bloqueo Mutuo, Limpieza Total y Botones de Modo.
 
 const APP = {
     elements: {
@@ -29,7 +29,7 @@ const APP = {
         // Elementos de Modo Manual
         btnModeCampos: document.getElementById('btn-mode-campos'),
         btnModePalabra: document.getElementById('btn-mode-palabra'),
-        btnModeLimpiar: document.getElementById('btn-mode-limpiar'), // Nuevo botón Limpiar
+        btnModeLimpiar: document.getElementById('btn-mode-limpiar'),
 
         // Agrupación de campos específicos (MODO CAMPOS)
         specificFields: [
@@ -65,7 +65,7 @@ const UI = {
         return isoString ? isoString.substring(0, 10) : '-'; 
     },
     
-    // ✅ PRIORIDAD: Finalizado > Pagado/Cobrado > Enviado > Creado
+    // PRIORIDAD: Finalizado > Pagado/Cobrado > Enviado > Creado
     getStateHtml(albaran) {
         if (albaran.finalizado) return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-200 text-purple-800">Finalizado</span>`;
         
@@ -136,11 +136,6 @@ const UI = {
         
         // 🚀 EJECUTAR BÚSQUEDA TRAS CAMBIAR EL MODO
         Events.handleSearchByMode(mode);
-    },
-    
-    // Nueva función para el botón 'Limpiar y Reiniciar'
-    limpiarBusqueda() {
-        Events.handleClearAllFilters();
     },
 
     // --- LÓGICA PRINCIPAL DE MODOS DE BÚSQUEDA ---
@@ -899,10 +894,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 // =================================================================================
 window.handleSearch = Events.handleSearch.bind(Events);
 window.handleClearAllFilters = Events.handleClearAllFilters.bind(Events);
-// Enlazamos UI.setSearchModeManual al scope global (window)
+// Enlazamos UI.setSearchModeManual y UI.limpiarBusqueda al scope global (window)
 window.UI = window.UI || {};
 window.UI.setSearchModeManual = UI.setSearchModeManual.bind(UI);
-window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events); // Enlace para el botón Limpiar
+window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events);
 
 window.handleAction = (title, description) => {
     const modal = document.getElementById('actionModal');
