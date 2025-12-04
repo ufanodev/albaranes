@@ -23,7 +23,7 @@ type BulkIDsInput struct {
 }
 
 // ---------------------------------------------------------------------
-// 🆕 DTO para la Creación (Mapea 100% el JSON del Frontend)
+// DTO para la Creación
 // ---------------------------------------------------------------------
 type CreateAlbaranDTO struct {
 	NumeroAlbaran string `json:"numero_albaran" binding:"required"`
@@ -67,10 +67,9 @@ type CreateAlbaranDTO struct {
 }
 
 // ---------------------------------------------------------------------
-// 🆕 AYUDANTES DE PARSEO Y CONVERSIÓN
+// AYUDANTES DE PARSEO Y CONVERSIÓN
 // ---------------------------------------------------------------------
 
-// parseStringPtr devuelve un puntero a string si la cadena no está vacía, o nil.
 func parseStringPtr(s string) *string {
 	if strings.TrimSpace(s) == "" {
 		return nil
@@ -78,7 +77,6 @@ func parseStringPtr(s string) *string {
 	return &s
 }
 
-// parseDatePtr convierte una cadena YYYY-MM-DD en *time.Time o nil si está vacía.
 func parseDatePtr(dateStr string) (*time.Time, error) {
 	if strings.TrimSpace(dateStr) == "" {
 		return nil, nil
@@ -90,7 +88,6 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	return &t, nil
 }
 
-// parseTimePtr combina la fecha base YYYY-MM-DD con la hora HH:MM y la convierte a *time.Time.
 func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 	if strings.TrimSpace(timeStr) == "" {
 		return nil, nil
@@ -99,7 +96,6 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 		return nil, fmt.Errorf("fecha base requerida para hora")
 	}
 
-	// Formato completo DATETIME: "YYYY-MM-DD HH:MM:00"
 	full := fmt.Sprintf("%s %s:00", dateBase, timeStr)
 	t, err := time.Parse("2006-01-02 15:04:05", full)
 	if err != nil {
@@ -108,16 +104,14 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 	return &t, nil
 }
 
-// preloadAlbaran ayuda a cargar las relaciones necesarias (Licencia y Empresa)
 func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
 // ---------------------------------------------------------------------
-// --- Controladores de Consulta (GET) ---
+// CONTROLADORES DE CONSULTA (GET)
 // ---------------------------------------------------------------------
 
-// GetAlbaranes obtiene la lista de albaranes con paginación (sin filtros específicos).
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
@@ -142,7 +136,6 @@ func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	})
 }
 
-// GetAlbaranesByEmpresa obtiene la lista de albaranes filtrada por Empresa ID.
 func GetAlbaranesByEmpresa(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	empresaID, err := strconv.ParseUint(idStr, 10, 32)
@@ -179,7 +172,7 @@ func GetAlbaranesByEmpresa(c *gin.Context, db *gorm.DB) {
 // SearchAlbaranes permite buscar con filtros.
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "5000"))
 	offset := (page - 1) * pageSize
 
 	var albaranes []models.Albaran
@@ -189,11 +182,131 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 		Preload("LicenciaData").
 		Preload("EmpresaData")
 
-	// ... (Lógica de filtros se mantiene) ...
+	// -----------------------------------------------------------
+	// LÓGICA DE FILTROS DINÁMICOS
+	// -----------------------------------------------------------
+
+	// 1. FILTRO POR LICENCIA (OBLIGATORIO)
+	licenciaRef := c.Query("licencia_ref")
+	if licenciaRef == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "licencia_ref es obligatoria para la búsqueda"})
+		return
+	}
+	query = query.Where("licencia_ref = ?", licenciaRef)
+
+	// 2. FILTRO POR EMPRESA
+	empresaRef := c.Query("empresa_ref")
+	if empresaRef != "" {
+		query = query.Where("empresa_ref = ?", empresaRef)
+	}
+
+	// 3. FILTRO POR ESTADO (CORREGIDO: Robustez contra NULLs y prioridad de estados)
+	state := c.Query("state")
+	if state != "" {
+		switch strings.ToLower(state) {
+		case "creado":
+			// 'Creado': Si NO ha sido enviado, cobrado ni finalizado (tratando NULL como 0/False).
+			query = query.Where("IFNULL(enviado, 0) = 0 AND IFNULL(cobrado, 0) = 0 AND IFNULL(finalizado, 0) = 0")
+
+		case "enviado":
+			// 'Enviado': Si enviado=1, pero AÚN NO cobrado/pagado/finalizado.
+			query = query.Where("enviado = ?", 1).
+				Where("IFNULL(cobrado, 0) = 0").
+				Where("IFNULL(pagado, 0) = 0").
+				Where("IFNULL(finalizado, 0) = 0")
+
+		case "pagado":
+			// 'Pagado': Si cobrado=1 O pagado=1.
+			query = query.Where("IFNULL(cobrado, 0) = 1 OR IFNULL(pagado, 0) = 1")
+
+		case "finalizado":
+			// 'Finalizado': Si finalizado=1.
+			query = query.Where("finalizado = ?", 1)
+		}
+	}
+
+	// 4. FILTRO POR REFERENCIA (solo referencia/numero_albaran)
+	referencia := c.Query("referencia")
+	if referencia != "" {
+		searchRef := "%" + strings.ToLower(referencia) + "%"
+		query = query.Where(
+			"LOWER(referencia) LIKE ? OR LOWER(numero_albaran) LIKE ?",
+			searchRef,
+			searchRef,
+		)
+	}
+
+	// 5. FILTRO POR FECHAS
+	fechaIni := c.Query("fecha_ini")
+	if fechaIni != "" {
+		query = query.Where("fecha >= ?", fechaIni)
+	}
+	fechaFin := c.Query("fecha_fin")
+	if fechaFin != "" {
+		query = query.Where("fecha <= ?", fechaFin)
+	}
+
+	// 6. FILTRO POR PALABRA CLAVE (Búsqueda general en múltiples campos)
+	palabra := c.Query("palabra")
+	searchType := c.Query("search_type")
+
+	if palabra != "" {
+		words := strings.Fields(strings.ToLower(palabra))
+
+		searchFields := []string{
+			"numero_albaran", "referencia", "asalariado", "dni_pasajero",
+			"matricula", "cliente", "origen", "destino", "observaciones",
+			"autorizado_por",
+		}
+
+		var searchClauses []string
+		var searchValues []interface{}
+
+		switch searchType {
+		case "exacta":
+			log.Printf("Búsqueda: Exacta (%s)", palabra)
+			for _, field := range searchFields {
+				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+				searchValues = append(searchValues, "%"+strings.ToLower(palabra)+"%")
+			}
+			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
+
+		case "todas":
+			log.Printf("Búsqueda: Todas (%v)", words)
+			for _, word := range words {
+				var wordClauses []string
+				var wordValues []interface{}
+				for _, field := range searchFields {
+					wordClauses = append(wordClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+					wordValues = append(wordValues, "%"+word+"%")
+				}
+				query = query.Where("("+strings.Join(wordClauses, " OR ")+")", wordValues...)
+			}
+
+		case "cualquier":
+			log.Printf("Búsqueda: Cualquier (%v)", words)
+			for _, word := range words {
+				for _, field := range searchFields {
+					searchClauses = append(searchClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+					searchValues = append(searchValues, "%"+word+"%")
+				}
+			}
+			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
+
+		default:
+			log.Printf("Búsqueda: Default (Exacta) (%s)", palabra)
+			for _, field := range searchFields {
+				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(%s) LIKE ?", field))
+				searchValues = append(searchValues, "%"+strings.ToLower(palabra)+"%")
+			}
+			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
+		}
+	}
+	// -----------------------------------------------------------
 
 	query.Count(&total)
 
-	if result := preloadAlbaran(query).Limit(pageSize).Offset(offset).Order("albaranes.fecha desc, albaranes.id desc").Find(&albaranes); result.Error != nil {
+	if result := query.Limit(pageSize).Offset(offset).Order("albaranes.fecha desc, albaranes.id desc").Find(&albaranes); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener la lista filtrada"})
 		return
 	}
@@ -226,10 +339,9 @@ func GetAlbaran(c *gin.Context, db *gorm.DB) {
 }
 
 // ---------------------------------------------------------------------
-// --- Controladores CRUD y ACCIONES MASIVAS
+// CONTROLADORES CRUD y ACCIONES MASIVAS
 // ---------------------------------------------------------------------
 
-// BulkSendAlbaranes actualiza el estado 'enviado' a true.
 func BulkSendAlbaranes(c *gin.Context, db *gorm.DB) {
 	var input BulkIDsInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -259,24 +371,18 @@ func BulkSendAlbaranes(c *gin.Context, db *gorm.DB) {
 	})
 }
 
-// CreateAlbaran usa el DTO para parsear fechas y convertir al modelo GORM.
 func CreateAlbaran(c *gin.Context, db *gorm.DB) {
-	var dto CreateAlbaranDTO // Usamos el DTO
+	var dto CreateAlbaranDTO
 
-	// 1. Bind JSON al DTO (Aquí solo maneja strings/bools/nums)
 	if err := c.ShouldBindJSON(&dto); err != nil {
 		log.Printf("🔴 [CreateAlbaran] Bind error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos", "details": err.Error()})
 		return
 	}
 
-	// Debug Input
 	jsonInput, _ := json.MarshalIndent(dto, "", "  ")
 	log.Printf("🔵 [CreateAlbaran] DTO recibido:\n%s", string(jsonInput))
 
-	// 2. CONVERSIÓN Y PARSEO EXPLÍCITO A models.Albaran
-
-	// Parse FECHA (obligatoria)
 	fecha, err := time.Parse("2006-01-02", dto.Fecha)
 	if err != nil {
 		log.Printf("🔴 [CreateAlbaran] Error de formato en Fecha: %v", err)
@@ -284,7 +390,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Parse Horas/Tiempos
 	horaPtr, err := parseTimePtr(dto.Fecha, dto.Hora)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Hora inválida, use HH:MM"})
@@ -309,20 +414,17 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 3. Validación de Campos Críticos (Basado en DTO)
 	if dto.LicenciaRef == 0 || dto.EmpresaRef == 0 || dto.NumeroAlbaran == "" || dto.ImporteTotal == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Es obligatorio Licencia, Empresa, Nº Albarán e Importe Total"})
 		return
 	}
 
-	// 4. Mapeo final al struct de GORM (models.Albaran)
 	albaran := models.Albaran{
 		NumeroAlbaran: dto.NumeroAlbaran,
 		Fecha:         fecha,
 		LicenciaRef:   dto.LicenciaRef,
 		EmpresaRef:    dto.EmpresaRef,
 
-		// 🚨 CAMPO STRING SÍ NULL -> Usamos parseStringPtr
 		Referencia:    parseStringPtr(dto.Referencia),
 		Asalariado:    parseStringPtr(dto.Asalariado),
 		DNIPasajero:   parseStringPtr(dto.DNIPasajero),
@@ -335,7 +437,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		Observaciones: parseStringPtr(dto.Observaciones),
 		NumFactura:    parseStringPtr(dto.NumFactura),
 
-		// El resto de campos siguen el mapeo correcto
 		Hora:              horaPtr,
 		Festivo:           dto.Festivo,
 		Finalizado:        dto.Finalizado,
@@ -357,7 +458,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		FechaPago:         fechaPagoPtr,
 	}
 
-	// 5. Creación en DB
 	if err := db.Create(&albaran).Error; err != nil {
 		log.Printf("🔴 [CreateAlbaran] Error DB: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear", "details": err.Error()})
@@ -367,19 +467,16 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Creado", "data": albaran})
 }
 
-// UpdateAlbaran actualiza un albarán existente (CORREGIDO: Sanitización de FKs y Fechas).
 func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	log.Printf("🟢 [UpdateAlbaran] Iniciando actualización para ID: %s", id)
 
 	var albaran models.Albaran
-	// 1. Buscar el registro existente
 	if err := db.First(&albaran, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No encontrado"})
 		return
 	}
 
-	// 2. Bind JSON a un mapa
 	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		log.Printf("🔴 [UpdateAlbaran] Error binding JSON: %v", err)
@@ -387,9 +484,6 @@ func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 3. SANITIZACIÓN DE DATOS (Se omite por brevedad, asumiendo que el código de sanitización está aquí)
-
-	// 4. Actualizar en BD
 	if err := db.Model(&albaran).Updates(input).Error; err != nil {
 		log.Printf("🔴 [UpdateAlbaran] Error DB: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar el albarán", "details": err.Error()})
@@ -398,7 +492,6 @@ func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 
 	log.Printf("✅ [UpdateAlbaran] ID %s actualizado con éxito.", id)
 
-	// 5. Recargar datos para devolver la versión actualizada
 	preloadAlbaran(db).First(&albaran, id)
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Albarán actualizado", "data": albaran})
 }

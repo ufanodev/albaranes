@@ -1,12 +1,20 @@
 // Archivo: static/js/busqueda.js
-// ✅ CORREGIDO: Filtra por licencia + Filtros funcionan al pulsar Buscar
+// ✅ Versión Final con prioridad de estados verificada.
 
 const APP = {
     elements: {
+        // Elementos de Resultados y Paginación
         resultsBody: document.getElementById('albaranResults'),
         totalRow: document.getElementById('albaranTotal'),
         recordsSelect: document.getElementById('recordsPerPage'),
         statusMessage: document.getElementById('statusMessage'),
+        pageInfo: document.getElementById('pageInfo'),
+        totalLabel: document.getElementById('totalLabel'),
+        resultsCount: document.getElementById('resultsCount'),
+        prevBtn: document.getElementById('prevPageBtn'),
+        nextBtn: document.getElementById('nextPageBtn'),
+        
+        // Elementos de Filtros
         searchForm: document.getElementById('searchForm'),
         licenciaInput: document.getElementById('licencia'),
         empresaSelect: document.getElementById('empresa'),
@@ -14,35 +22,58 @@ const APP = {
         referenciaInput: document.getElementById('referencia'),
         fechaDesdeInput: document.getElementById('fecha_desde'),
         fechaHastaInput: document.getElementById('fecha_hasta'),
-        totalLabel: document.getElementById('totalLabel'),
-        prevBtn: document.querySelector('button[title="Anterior"]'),
-        nextBtn: document.querySelector('button[title="Siguiente"]'),
-        pageInfo: document.querySelector('.text-sm.text-gray-600.font-medium')
+        palabraInput: document.getElementById('palabra'),
+        activeFiltersCount: document.getElementById('activeFiltersCount'),
+        searchInfo: document.getElementById('searchInfo'),
+
+        // Elementos de Modo Manual
+        btnModeCampos: document.getElementById('btn-mode-campos'),
+        btnModePalabra: document.getElementById('btn-mode-palabra'),
+        btnModeLimpiar: document.getElementById('btn-mode-limpiar'), // Nuevo botón Limpiar
+
+        // Agrupación de campos específicos (MODO CAMPOS)
+        specificFields: [
+            document.getElementById('empresa'),
+            document.getElementById('state'),
+            document.getElementById('referencia'),
+            document.getElementById('fecha_desde'),
+            document.getElementById('fecha_hasta'),
+        ],
+        // Radio buttons para búsqueda por palabra
+        searchTypeRadios: document.querySelectorAll('input[name="search_type"]'), 
     },
     state: {
-        allAlbaranes: [],           // Todos los albaranes (backend debería filtrar)
-        filteredAlbaranes: [],      // Albaranes después de filtros
+        allAlbaranes: [],       // Lista completa de la licencia (copia de seguridad)
+        filteredAlbaranes: [],  // Lista actual mostrada
         currentLicenciaRef: 0,
         currentPage: 1,
         pageSize: 10,
         totalRecords: 0,
         totalPages: 1,
-        currentFilters: {}
+        currentSort: { key: 'fecha', direction: 'desc' },
+        searchMode: 'todos', // 'todos', 'palabra', 'campos'
+        modeIsManual: false, // Indica si el modo fue forzado por un botón
     }
 };
 
 // =================================================================================
-// 🎨 UI HELPERS
+// 🎨 UI HELPERS & MODE MANAGEMENT
 // =================================================================================
+
 const UI = {
     formatDate(isoString) { 
         return isoString ? isoString.substring(0, 10) : '-'; 
     },
     
+    // ✅ PRIORIDAD: Finalizado > Pagado/Cobrado > Enviado > Creado
     getStateHtml(albaran) {
         if (albaran.finalizado) return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-200 text-purple-800">Finalizado</span>`;
+        
+        // Debe ser Pagado si cobrado O pagado es true
         if (albaran.cobrado || albaran.pagado) return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-200 text-green-800">Pagado</span>`;
+        
         if (albaran.enviado) return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-200 text-blue-800">Enviado</span>`;
+        
         return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-700">Creado</span>`;
     },
 
@@ -57,20 +88,32 @@ const UI = {
     },
 
     updatePageInfo() {
-        const { pageInfo, totalLabel } = APP.elements;
+        const { pageInfo, totalLabel, resultsCount } = APP.elements;
+        
+        // Cálculo del total de páginas usando Math.ceil para el redondeo correcto
+        APP.state.totalPages = Math.ceil(APP.state.filteredAlbaranes.length / APP.state.pageSize);
         
         if (pageInfo) {
-            pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages}`;
+            pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
         }
         
         if (totalLabel) {
-            const showing = Math.min(APP.state.pageSize, APP.state.filteredAlbaranes.length);
+            // Cálculo para mostrar cuántos registros se ven en la página actual (e.g., 10 de 13)
+            const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
+            const endIndex = Math.min(startIndex + APP.state.pageSize, APP.state.filteredAlbaranes.length);
+            const showing = endIndex - startIndex;
+
             totalLabel.textContent = `(${showing} de ${APP.state.filteredAlbaranes.length} registros)`;
+        }
+        
+        if (resultsCount) {
+            resultsCount.textContent = APP.state.filteredAlbaranes.length;
         }
     },
 
     updatePaginationButtons() {
         const { prevBtn, nextBtn } = APP.elements;
+        const totalPages = APP.state.totalPages || 1;
         
         if (prevBtn) {
             prevBtn.disabled = APP.state.currentPage <= 1;
@@ -79,114 +122,268 @@ const UI = {
         }
         
         if (nextBtn) {
-            nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
-            nextBtn.classList.toggle('opacity-50', APP.state.currentPage >= APP.state.totalPages);
-            nextBtn.classList.toggle('cursor-not-allowed', APP.state.currentPage >= APP.state.totalPages);
+            nextBtn.disabled = APP.state.currentPage >= totalPages;
+            nextBtn.classList.toggle('opacity-50', APP.state.currentPage >= totalPages);
+            nextBtn.classList.toggle('cursor-not-allowed', APP.state.currentPage >= totalPages);
+        }
+    },
+    
+    // Función pública llamada por los botones en el HTML
+    setSearchModeManual(mode) {
+        // Al pulsar el botón, forzamos el modo
+        APP.state.modeIsManual = true;
+        this.setSearchMode(mode, true);
+        
+        // 🚀 EJECUTAR BÚSQUEDA TRAS CAMBIAR EL MODO
+        Events.handleSearchByMode(mode);
+    },
+    
+    // Nueva función para el botón 'Limpiar y Reiniciar'
+    limpiarBusqueda() {
+        Events.handleClearAllFilters();
+    },
+
+    // --- LÓGICA PRINCIPAL DE MODOS DE BÚSQUEDA ---
+    setSearchMode(mode, triggerChange = false) {
+        if (APP.state.searchMode === mode && !triggerChange) return;
+        
+        console.log(`🔄 Cambiando modo de búsqueda a: ${mode.toUpperCase()}`);
+        APP.state.searchMode = mode;
+        
+        const { palabraInput, specificFields, searchTypeRadios, btnModeCampos, btnModePalabra } = APP.elements;
+        const palabraContainer = palabraInput.closest('.flex-1'); 
+        const radioContainer = searchTypeRadios.length > 0 ? searchTypeRadios[0].closest('.bg-blue-50 > div') : null;
+
+        // Función para obtener el contenedor de filtro (el div que es hijo directo del grid)
+        const getFieldContainer = (field) => {
+            let container = field.parentElement;
+            while(container && !container.parentElement.classList.contains('grid') && container.tagName !== 'BODY') {
+                container = container.parentElement;
+            }
+            return container;
+        };
+        
+        // 1. Limpieza y estado base (deshabilitado/opaco)
+        palabraInput.disabled = true;
+        palabraInput.classList.remove('bg-yellow-100', 'border-yellow-300');
+        if (palabraContainer) palabraContainer.classList.add('opacity-50', 'pointer-events-none');
+        if (radioContainer) radioContainer.classList.add('opacity-50', 'pointer-events-none');
+        
+        specificFields.forEach(field => {
+            field.disabled = true;
+            const container = getFieldContainer(field);
+            if (container) {
+                container.classList.add('opacity-50', 'pointer-events-none');
+            }
+        });
+        
+        // Estilos de botones de modo (Reset)
+        const resetModeButtons = () => {
+             [btnModeCampos, btnModePalabra].forEach(btn => {
+                if (btn) {
+                    btn.classList.remove('bg-secondary-blue', 'text-white');
+                    btn.classList.add('bg-primary-pastel', 'text-black-pure');
+                }
+            });
+        };
+        resetModeButtons();
+
+
+        // 2. Aplicar estilos y habilitaciones según el modo
+        if (mode === 'palabra') {
+            palabraInput.disabled = false;
+            palabraInput.classList.add('bg-yellow-100', 'border-yellow-300');
+            if (palabraContainer) palabraContainer.classList.remove('opacity-50', 'pointer-events-none');
+            if (radioContainer) radioContainer.classList.remove('opacity-50', 'pointer-events-none');
+            
+            if (btnModePalabra) { // Estilo activo
+                 btnModePalabra.classList.remove('bg-primary-pastel', 'text-black-pure');
+                 btnModePalabra.classList.add('bg-secondary-blue', 'text-white');
+            }
+
+            // Limpiar campos específicos
+            specificFields.forEach(field => {
+                if (field.id !== 'licencia') {
+                    field.value = field.type === 'select-one' ? '' : field.defaultValue || '';
+                }
+            });
+            
+        } else if (mode === 'campos') {
+            specificFields.forEach(field => {
+                const container = getFieldContainer(field);
+                if (container) {
+                    field.disabled = false;
+                    container.classList.remove('opacity-50', 'pointer-events-none');
+                }
+            });
+            
+            if (btnModeCampos) { // Estilo activo
+                 btnModeCampos.classList.remove('bg-primary-pastel', 'text-black-pure');
+                 btnModeCampos.classList.add('bg-secondary-blue', 'text-white');
+            }
+            
+            // Limpiar y desactivar campo palabra/radios
+            palabraInput.value = '';
+            if (radioContainer) radioContainer.classList.add('opacity-50', 'pointer-events-none');
+            
+        } else { // 'todos' (Limpieza total o estado inicial)
+            
+            // Limpiar y habilitar TODOS los elementos
+            palabraInput.disabled = false;
+            if (palabraContainer) palabraContainer.classList.remove('opacity-50', 'pointer-events-none');
+            if (radioContainer) radioContainer.classList.remove('opacity-50', 'pointer-events-none');
+
+            specificFields.forEach(field => {
+                const container = getFieldContainer(field);
+                if (container) {
+                    field.disabled = false;
+                    container.classList.remove('opacity-50', 'pointer-events-none');
+                }
+            });
+        }
+        
+        // Re-renderizar iconos de Lucide (necesario al cambiar visibilidad/estado)
+        if (window.lucide) { window.lucide.createIcons(); }
+        this.updateActiveFiltersCount();
+    },
+    
+    updateActiveFiltersCount() {
+        const { searchForm, activeFiltersCount, searchInfo } = APP.elements;
+        if (!searchForm) return;
+        
+        const formData = new FormData(searchForm);
+        
+        // Verificar si hay campos específicos o palabra clave activos
+        const isPalabraActive = (formData.get('palabra') || '').trim() !== '';
+        const isSpecificActive = APP.elements.specificFields.some(field => 
+             (field.value && field.value.toString().trim() !== '') && 
+             (field.tagName === 'SELECT' ? field.value !== '' : true)
+        );
+        
+        // Determinar el modo de búsqueda y forzar el cambio si es necesario
+        if (!APP.state.modeIsManual) {
+            if (isPalabraActive && APP.state.searchMode !== 'palabra') {
+                 UI.setSearchMode('palabra');
+            } else if (isSpecificActive && APP.state.searchMode !== 'campos') {
+                UI.setSearchMode('campos');
+            } else if (!isPalabraActive && !isSpecificActive && APP.state.searchMode !== 'todos') {
+                 UI.setSearchMode('todos');
+            }
+        }
+        
+        // Contar campos activos en el formulario (excluyendo licencia y radios)
+        let finalCount = 0;
+        for (let [key, value] of formData.entries()) {
+            if (key !== 'licencia' && key !== 'search_type' && value && value.toString().trim() !== '') {
+                // El campo empresa es un select, si el value es vacío no cuenta
+                if (key === 'empresa_ref' && value === '') continue;
+                finalCount++;
+            }
+        }
+        
+        // Actualizar contador en la UI
+        if (activeFiltersCount) {
+            activeFiltersCount.textContent = finalCount;
+            activeFiltersCount.className = finalCount > 0 ? 
+                'ml-3 text-sm font-normal bg-yellow-500 text-white px-3 py-1 rounded-full' :
+                'ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full';
+        }
+        
+        // Actualizar info de búsqueda
+        if (searchInfo) {
+            let modeText = '';
+            if (APP.state.searchMode === 'palabra') modeText = '(Modo Palabra)';
+            if (APP.state.searchMode === 'campos') modeText = '(Modo Campos)';
+            
+            if (finalCount > 0) {
+                searchInfo.textContent = `${finalCount} filtro(s) activo(s) ${modeText} - Listo para buscar`;
+                searchInfo.className = 'text-sm text-blue-600 font-medium flex items-center';
+            } else {
+                searchInfo.textContent = 'Listo para buscar - Mostrará todos los albaranes de su licencia';
+                searchInfo.className = 'text-sm text-gray-600 flex items-center';
+            }
+            if (window.lucide) { window.lucide.createIcons(); } 
         }
     }
 };
 
 // =================================================================================
-// 🔍 FILTER FUNCTIONS
+// 🔍 FILTER & SORT LOGIC
 // =================================================================================
 const Filters = {
-    // ✅ Obtiene filtros del formulario
+    // Obtiene todos los filtros del formulario, aplicando la lógica de modos
     getFiltersFromForm() {
         const form = APP.elements.searchForm;
         const formData = new FormData(form);
         
-        return {
+        const filters = {
+            licencia_ref: APP.state.currentLicenciaRef,
             empresa_ref: formData.get('empresa_ref') || '',
             state: formData.get('state') || '',
             referencia: formData.get('referencia') || '',
             fecha_ini: formData.get('fecha_desde') || '',
-            fecha_fin: formData.get('fecha_hasta') || ''
+            fecha_fin: formData.get('fecha_hasta') || '',
+            palabra: formData.get('palabra') || '',
+            search_type: formData.get('search_type') || 'exacta', 
         };
-    },
-
-    // ✅ Filtra localmente por licencia (seguridad adicional)
-    filterByLicencia(albaranes, licenciaRef) {
-        if (!licenciaRef) return albaranes;
         
-        return albaranes.filter(albaran => {
-            // Verificar licencia de varias formas posibles
-            const licenciaAlbaran = albaran.licencia_ref || 
-                                  albaran.LicenciaData?.licencia || 
-                                  albaran.LicenciaData?.id;
+        // Lógica de Modos: Si Palabra está activo, ignorar Campos, y viceversa
+        if (APP.state.searchMode === 'palabra') {
+             // Modo Palabra: solo usamos licencia, palabra, y search_type
+             filters.empresa_ref = '';
+             filters.state = '';
+             filters.referencia = '';
+             filters.fecha_ini = '';
+             filters.fecha_fin = '';
+        } else if (APP.state.searchMode === 'campos') {
+             // Modo Campos: ignoramos palabra y search_type
+             filters.palabra = '';
+             filters.search_type = '';
+        }
+        
+        return filters;
+    },
+    
+    // Función de ordenación (basada en el array filtrado)
+    sortTable(key, dataType = 'string') {
+        const { currentSort } = APP.state;
+        let direction = 'asc';
+        
+        if (currentSort.key === key && currentSort.direction === 'asc') {
+            direction = 'desc';
+        }
+        
+        APP.state.filteredAlbaranes.sort((a, b) => {
+            let valA = a[key] || '';
+            let valB = b[key] || '';
             
-            return String(licenciaAlbaran) === String(licenciaRef);
+            if (dataType === 'date') {
+                valA = new Date(valA || 0).getTime();
+                valB = new Date(valB || 0).getTime();
+            } else if (dataType === 'number' || key.includes('importe')) {
+                valA = parseFloat(valA) || 0;
+                valB = parseFloat(valB) || 0;
+            } else if (key === 'licencia') {
+                valA = a.LicenciaData?.licencia || a.licencia_ref || 0;
+                valB = b.LicenciaData?.licencia || b.licencia_ref || 0;
+                valA = parseInt(valA);
+                valB = parseInt(valB);
+            }
+            
+            let comparison = 0;
+            if (valA > valB) {
+                comparison = 1;
+            } else if (valA < valB) {
+                comparison = -1;
+            }
+            
+            return direction === 'asc' ? comparison : comparison * -1;
         });
-    },
-
-    // ✅ Aplica filtros locales (para cuando el backend no filtra)
-    applyLocalFilters(albaranes, filters) {
-        let filtered = [...albaranes];
         
-        console.log('🔍 Aplicando filtros locales:', filters);
-        console.log('📊 Antes de filtrar:', filtered.length);
-        
-        // 1. Filtrar por empresa
-        if (filters.empresa_ref) {
-            filtered = filtered.filter(albaran => {
-                const empresaId = albaran.empresa_ref || albaran.EmpresaData?.id;
-                return String(empresaId) === String(filters.empresa_ref);
-            });
-            console.log(`🏢 Después de empresa: ${filtered.length}`);
-        }
-        
-        // 2. Filtrar por estado
-        if (filters.state) {
-            filtered = filtered.filter(albaran => {
-                switch(filters.state) {
-                    case 'creado':
-                        return !albaran.enviado && !albaran.cobrado && !albaran.finalizado;
-                    case 'enviado':
-                        return albaran.enviado && !albaran.cobrado && !albaran.finalizado;
-                    case 'pagado':
-                        return albaran.cobrado || albaran.pagado;
-                    case 'finalizado':
-                        return albaran.finalizado;
-                    default:
-                        return true;
-                }
-            });
-            console.log(`📊 Después de estado: ${filtered.length}`);
-        }
-        
-        // 3. Filtrar por referencia
-        if (filters.referencia) {
-            const ref = filters.referencia.toLowerCase();
-            filtered = filtered.filter(albaran => {
-                return (albaran.referencia || '').toLowerCase().includes(ref) ||
-                       (albaran.numero_albaran || '').toLowerCase().includes(ref);
-            });
-            console.log(`🔤 Después de referencia: ${filtered.length}`);
-        }
-        
-        // 4. Filtrar por fechas
-        if (filters.fecha_ini || filters.fecha_fin) {
-            filtered = filtered.filter(albaran => {
-                if (!albaran.fecha) return false;
-                
-                const fechaAlbaran = new Date(albaran.fecha);
-                
-                if (filters.fecha_ini) {
-                    const desde = new Date(filters.fecha_ini);
-                    if (fechaAlbaran < desde) return false;
-                }
-                
-                if (filters.fecha_fin) {
-                    const hasta = new Date(filters.fecha_fin);
-                    hasta.setHours(23, 59, 59, 999);
-                    if (fechaAlbaran > hasta) return false;
-                }
-                
-                return true;
-            });
-            console.log(`📅 Después de fecha: ${filtered.length}`);
-        }
-        
-        return filtered;
+        APP.state.currentSort = { key, direction };
+        APP.state.currentPage = 1;
+        DOM.renderResults();
+        Events.updateSortIcons();
     }
 };
 
@@ -224,87 +421,8 @@ const API = {
         }
     },
 
-    // ✅ Carga inicial TODOS los albaranes (backend DEBERÍA filtrar por licencia)
-    async loadAllAlbaranes() {
-        if (!APP.state.currentLicenciaRef) {
-            UI.alertMessage('No hay licencia asignada', 'error');
-            return;
-        }
-
-        DOM.showLoading();
-
-        try {
-            // Intentar usar el endpoint search para que el backend filtre
-            const url = `/api/v1/albaranes/search?licencia_ref=${APP.state.currentLicenciaRef}&pageSize=1000`;
-            console.log('🔍 Cargando TODOS los albaranes de mi licencia:', url);
-
-            const response = await fetch(url);
-            
-            if (response.status === 401) {
-                window.location.href = '/login';
-                return;
-            }
-            
-            if (!response.ok) {
-                // Si falla search, intentar con el endpoint normal
-                console.warn('Search falló, usando endpoint normal');
-                return await this.loadAlbaranesNormal();
-            }
-
-            const data = await response.json();
-            
-            // ✅ FILTRO DE SEGURIDAD: Asegurar que solo muestra mi licencia
-            let albaranes = data.data || [];
-            albaranes = Filters.filterByLicencia(albaranes, APP.state.currentLicenciaRef);
-            
-            APP.state.allAlbaranes = albaranes;
-            APP.state.filteredAlbaranes = [...albaranes];
-            APP.state.totalRecords = albaranes.length;
-            
-            console.log(`✅ ${albaranes.length} albaranes de licencia ${APP.state.currentLicenciaRef}`);
-            
-            // Renderizar primera página
-            APP.state.currentPage = 1;
-            DOM.renderResults();
-            
-            UI.alertMessage(`Cargados ${albaranes.length} albaranes`, 'success');
-            
-        } catch (error) {
-            console.error('Error cargando albaranes:', error);
-            UI.alertMessage(`Error: ${error.message}`, 'error');
-            DOM.showNoResults();
-        }
-    },
-
-    // ✅ Endpoint alternativo si search no funciona
-    async loadAlbaranesNormal() {
-        try {
-            const url = `/api/v1/albaranes?licencia_ref=${APP.state.currentLicenciaRef}&pageSize=1000`;
-            const response = await fetch(url);
-            
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
-            const data = await response.json();
-            let albaranes = data.data || [];
-            
-            // ✅ FILTRADO LOCAL POR LICENCIA (IMPORTANTE)
-            albaranes = Filters.filterByLicencia(albaranes, APP.state.currentLicenciaRef);
-            
-            APP.state.allAlbaranes = albaranes;
-            APP.state.filteredAlbaranes = [...albaranes];
-            APP.state.totalRecords = albaranes.length;
-            
-            DOM.renderResults();
-            UI.alertMessage(`Cargados ${albaranes.length} albaranes`, 'success');
-            
-        } catch (error) {
-            console.error('Error endpoint normal:', error);
-            throw error;
-        }
-    },
-
-    // ✅ BÚSQUEDA CON FILTROS (al pulsar "Buscar")
-    async searchWithFilters() {
+    // 🚨 Función principal de búsqueda/carga
+    async searchAlbaranes(filters) {
         if (!APP.state.currentLicenciaRef) {
             UI.alertMessage('No hay licencia asignada', 'error');
             return;
@@ -312,27 +430,31 @@ const API = {
 
         DOM.showLoading();
         
+        // Obtenemos el valor actual del selector de registros (10, 20, 50, o 'todos')
+        const recordsSelectElement = APP.elements.recordsSelect;
+        const selectedPageSizeValue = recordsSelectElement ? recordsSelectElement.value : '10';
+
         try {
-            // 1. Obtener filtros del formulario
-            const filters = Filters.getFiltersFromForm();
-            APP.state.currentFilters = filters;
-            
-            console.log('🔍 Buscando con filtros:', filters);
-            
-            // 2. Construir URL para el endpoint search
+            // 1. Construir URL para el endpoint search (con todos los filtros)
             const params = new URLSearchParams({
-                licencia_ref: APP.state.currentLicenciaRef
+                licencia_ref: filters.licencia_ref
             });
             
-            // Añadir filtros al API call
             if (filters.empresa_ref) params.append('empresa_ref', filters.empresa_ref);
             if (filters.state) params.append('state', filters.state);
             if (filters.referencia) params.append('referencia', filters.referencia);
             if (filters.fecha_ini) params.append('fecha_ini', filters.fecha_ini);
             if (filters.fecha_fin) params.append('fecha_fin', filters.fecha_fin);
+            if (filters.palabra) {
+                params.append('palabra', filters.palabra);
+                params.append('search_type', filters.search_type);
+            }
+            
+            // Usar un pageSize ALTO (5000) en la API para obtener todo el conjunto filtrado.
+            params.append('pageSize', '5000'); 
             
             const url = `/api/v1/albaranes/search?${params.toString()}`;
-            console.log('🚀 API Call:', url);
+            console.log('🚀 API Call con filtros:', url);
             
             const response = await fetch(url);
             
@@ -342,21 +464,37 @@ const API = {
             }
             
             if (!response.ok) {
-                // Si el backend no soporta search, filtrar localmente
-                console.warn('Search no disponible, filtrando localmente');
-                return this.filterLocally(filters);
+                 throw new Error('Error en el endpoint de búsqueda avanzada.');
             }
             
             const data = await response.json();
             let albaranes = data.data || [];
             
-            // ✅ FILTRO DE SEGURIDAD: Asegurar licencia
-            albaranes = Filters.filterByLicencia(albaranes, APP.state.currentLicenciaRef);
-            
+            // ✅ CORRECCIÓN DEL LÍMITE: Limitamos el resultado a un máximo de 500 registros
+            const MAX_RESULTS_LIMIT = 500;
+            if (albaranes.length > MAX_RESULTS_LIMIT) {
+                 albaranes = albaranes.slice(0, MAX_RESULTS_LIMIT);
+                 UI.alertMessage(`⚠️ Advertencia: Resultados limitados a ${MAX_RESULTS_LIMIT} para visualización.`, 'info');
+            }
+
             APP.state.filteredAlbaranes = albaranes;
             APP.state.totalRecords = albaranes.length;
             APP.state.currentPage = 1;
             
+            // Restablecer APP.state.pageSize al valor seleccionado
+            if (selectedPageSizeValue === 'todos') {
+                APP.state.pageSize = albaranes.length || 10;
+            } else {
+                 APP.state.pageSize = parseInt(selectedPageSizeValue);
+            }
+
+            // Si no hay filtros activos (modo 'todos'), guardamos la lista completa
+            if (Object.values(filters).every(val => !val || val === APP.state.currentLicenciaRef || val === 'exacta')) {
+                APP.state.allAlbaranes = albaranes;
+                console.log('✅ Lista completa guardada.');
+            }
+            
+            // Renderizar la tabla con la primera página de los resultados filtrados
             DOM.renderResults();
             UI.alertMessage(`Encontrados ${albaranes.length} albaranes`, 'success');
             
@@ -366,23 +504,12 @@ const API = {
             DOM.showNoResults();
         }
     },
-
-    // ✅ Filtrado local si el backend no soporta search
-    filterLocally(filters) {
-        console.log('🔍 Filtrando localmente con:', filters);
-        
-        // 1. Partir de todos los albaranes de mi licencia
-        let filtered = [...APP.state.allAlbaranes];
-        
-        // 2. Aplicar filtros adicionales
-        filtered = Filters.applyLocalFilters(filtered, filters);
-        
-        APP.state.filteredAlbaranes = filtered;
-        APP.state.totalRecords = filtered.length;
-        APP.state.currentPage = 1;
-        
-        DOM.renderResults();
-        UI.alertMessage(`Encontrados ${filtered.length} albaranes (filtrado local)`, 'success');
+    
+    // Carga inicial (Llama a la búsqueda sin filtros)
+    async loadAllAlbaranes() {
+        console.log('🔍 Carga inicial de albaranes...');
+        // Llamar a searchAlbaranes sin filtros para obtener todos los registros de la licencia
+        await this.searchAlbaranes(Filters.getFiltersFromForm());
     },
 
     async initUserSession() {
@@ -393,6 +520,7 @@ const API = {
             
             const { licenciaInput } = APP.elements;
             if (licenciaInput) {
+                // Asegura que el número de licencia se muestra correctamente
                 licenciaInput.value = APP.state.currentLicenciaRef || 'No asignada';
             }
             
@@ -407,7 +535,7 @@ const API = {
             
         } catch (error) {
             console.error('Error sesión:', error);
-            UI.alertMessage('Error al cargar sesión', 'error');
+            UI.alertMessage('Error al cargar sesión. Intente recargar.', 'error');
             return false;
         }
     }
@@ -418,7 +546,7 @@ const API = {
 // =================================================================================
 const DOM = {
     showLoading() {
-        const { resultsBody } = APP.elements;
+        const { resultsBody, resultsCount } = APP.elements;
         if (resultsBody) {
             resultsBody.innerHTML = `
                 <tr>
@@ -428,10 +556,11 @@ const DOM = {
                     </td>
                 </tr>`;
         }
+        if (resultsCount) { resultsCount.textContent = '...'; }
     },
 
     showNoResults() {
-        const { resultsBody, totalRow } = APP.elements;
+        const { resultsBody, totalRow, resultsCount } = APP.elements;
         
         if (resultsBody) {
             resultsBody.innerHTML = `
@@ -446,6 +575,8 @@ const DOM = {
             totalRow.innerHTML = '';
         }
         
+        if (resultsCount) { resultsCount.textContent = '0'; }
+        
         UI.updatePageInfo();
         UI.updatePaginationButtons();
     },
@@ -458,26 +589,29 @@ const DOM = {
         // Limpiar tabla
         resultsBody.innerHTML = '';
         
+        // Calcular total de páginas y si es necesario redirigir a la última página válida
+        APP.state.totalPages = Math.ceil(APP.state.filteredAlbaranes.length / APP.state.pageSize);
+        if (APP.state.currentPage > APP.state.totalPages && APP.state.totalPages > 0) {
+            APP.state.currentPage = APP.state.totalPages;
+        }
+        
         // Calcular datos de la página actual
         const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
         const endIndex = startIndex + APP.state.pageSize;
         const pageData = APP.state.filteredAlbaranes.slice(startIndex, endIndex);
         
-        // Calcular total de páginas
-        APP.state.totalPages = Math.ceil(APP.state.filteredAlbaranes.length / APP.state.pageSize);
-        
-        if (!pageData.length) {
+        if (!pageData.length && APP.state.totalRecords === 0) {
+            // Solo mostrar No Results si no hay registros cargados
             DOM.showNoResults();
             return;
         }
-        
+
         // Calcular total de importe
-        let totalImporte = 0;
+        let totalImporte = APP.state.filteredAlbaranes.reduce((acc, albaran) => acc + (parseFloat(albaran.importe_total || 0)), 0);
         
         // Renderizar cada fila
         pageData.forEach(albaran => {
             const importe = parseFloat(albaran.importe_total || 0);
-            totalImporte += importe;
 
             const row = `
                 <tr class="hover:bg-gray-50 border-b transition-colors">
@@ -538,7 +672,7 @@ const DOM = {
                         €${totalImporte.toFixed(2)}
                     </td>
                     <td colspan="3" class="px-4 py-3 text-center text-sm text-gray-700">
-                        Página ${APP.state.currentPage} de ${APP.state.totalPages} - Licencia ${APP.state.currentLicenciaRef}
+                        Página ${APP.state.currentPage} de ${APP.state.totalPages || 1} - Licencia ${APP.state.currentLicenciaRef}
                     </td>
                 </tr>`;
         }
@@ -557,17 +691,18 @@ const DOM = {
         const { recordsSelect } = APP.elements;
         if (!recordsSelect) return;
         
+        // Opciones de paginación solicitadas: 10, 20, 50, Todos
         recordsSelect.innerHTML = `
             <option value="10" selected>10</option>
             <option value="20">20</option>
             <option value="50">50</option>
-            <option value="100">100</option>
             <option value="todos">Todos</option>
         `;
         
         recordsSelect.addEventListener('change', (e) => {
             if (e.target.value === 'todos') {
-                APP.state.pageSize = APP.state.filteredAlbaranes.length;
+                // Si elige 'Todos', el tamaño de página es igual al total de registros filtrados
+                APP.state.pageSize = APP.state.filteredAlbaranes.length || 5000; 
             } else {
                 APP.state.pageSize = parseInt(e.target.value);
             }
@@ -582,94 +717,150 @@ const DOM = {
 // 🎯 EVENT HANDLERS
 // =================================================================================
 const Events = {
-    // ✅ AL PULSAR "BUSCAR / MOSTRAR TODOS"
+    // 🚨 AL PULSAR "BUSCAR / MOSTRAR TODOS" (Botón Submit)
     async handleSearch(e) {
         if (e) e.preventDefault();
         
-        console.log('🎯 Botón Buscar pulsado');
+        console.log('🎯 Botón Buscar pulsado. Modo:', APP.state.searchMode);
         
-        // Obtener filtros del formulario
         const filters = Filters.getFiltersFromForm();
-        console.log('🔍 Filtros obtenidos:', filters);
         
-        // Realizar búsqueda con filtros
-        await API.searchWithFilters();
+        // Llamar al API con los filtros del modo activo
+        await API.searchAlbaranes(filters);
+    },
+    
+    // 🚀 FUNCIÓN DE BÚSQUEDA POR MODO MANUAL
+    async handleSearchByMode(mode) {
+        // Obtenemos los filtros del formulario (ya limpios por setSearchMode)
+        const filters = Filters.getFiltersFromForm();
+        
+        // Ejecutamos siempre la búsqueda al pulsar el botón de modo, confiando en que 
+        // el usuario quiere ver los resultados de los campos que dejó rellenos en ese modo.
+        console.log(`🎯 Buscando por modo: ${mode}`);
+        await API.searchAlbaranes(filters);
     },
 
-    handlePrevPage() {
-        if (APP.state.currentPage > 1) {
-            APP.state.currentPage--;
-            DOM.renderResults();
-        }
-    },
-
-    handleNextPage() {
-        if (APP.state.currentPage < APP.state.totalPages) {
-            APP.state.currentPage++;
-            DOM.renderResults();
-        }
-    },
-
-    handleClearForm() {
-        const { searchForm } = APP.elements;
+    // 🚨 AL PULSAR "LIMPIAR Y REINICIAR"
+    handleClearAllFilters() {
+        const { searchForm, licenciaInput } = APP.elements;
         if (searchForm) {
+            // 1. Limpiar formulario (reset)
             searchForm.reset();
-            
-            // Restaurar licencia
-            const { licenciaInput } = APP.elements;
             if (licenciaInput) {
-                licenciaInput.value = APP.state.currentLicenciaRef;
+                // Restaurar el valor de la licencia (es readonly y debe permanecer)
+                licenciaInput.value = APP.state.currentLicenciaRef || 'No asignada';
             }
             
-            // Resetear estado
+            // 2. Forzar modo TODOS y limpieza mutua (esto es lo que libera los campos y borra valores)
+            UI.setSearchMode('todos', true); 
+            APP.state.modeIsManual = false; // Resetear bandera manual
+            
+            // 3. Resetear estado de la tabla
             APP.state.currentPage = 1;
             APP.state.pageSize = 10;
-            APP.state.filteredAlbaranes = [...APP.state.allAlbaranes];
+            APP.state.filteredAlbaranes = [...APP.state.allAlbaranes]; // Volver a la lista original
             APP.state.currentFilters = {};
             
-            // Resetear selector
+            // 4. Resetear UI y mostrar resultados
             const { recordsSelect } = APP.elements;
-            if (recordsSelect) {
-                recordsSelect.value = '10';
-            }
+            if (recordsSelect) recordsSelect.value = '10';
             
-            // Renderizar
             DOM.renderResults();
-            UI.alertMessage('Filtros limpiados', 'info');
+            UI.alertMessage('✅ Todos los filtros han sido limpiados (Modo TODOS)', 'info');
+             
+            UI.updateActiveFiltersCount();
         }
     },
+    
+    // 🚨 Manejar cambios en cualquier campo de búsqueda para cambiar de modo (Auto-Detección)
+    handleFilterChange(e) {
+        // Al modificar cualquier campo, asumimos que el modo manual ha terminado
+        APP.state.modeIsManual = false;
 
+        const { palabraInput, specificFields } = APP.elements;
+        const target = e.target;
+        
+        // Excluir cambios en los radio buttons de tipo de búsqueda
+        if (target.name === 'search_type') {
+            UI.updateActiveFiltersCount(); 
+            return;
+        }
+
+        const isPalabraActive = palabraInput.value.trim() !== '';
+        const isSpecificActive = specificFields.some(field => 
+            (field.value && field.value.toString().trim() !== '') && 
+            (field.tagName === 'SELECT' ? field.value !== '' : true)
+        );
+
+        if (isPalabraActive) {
+            UI.setSearchMode('palabra');
+        } else if (isSpecificActive) {
+            UI.setSearchMode('campos');
+        } else {
+            UI.setSearchMode('todos');
+        }
+        
+        UI.updateActiveFiltersCount();
+    },
+    
+    updateSortIcons() {
+        const sortIcons = document.querySelectorAll('.sort-icon');
+        sortIcons.forEach(icon => {
+            icon.dataset.lucide = 'chevrons-up-down';
+            icon.classList.remove('rotate-180', 'text-blue-500');
+        });
+
+        const { key, direction } = APP.state.currentSort;
+        const activeIcon = document.getElementById(`sort-${key}`);
+        if (activeIcon) {
+            activeIcon.dataset.lucide = direction === 'asc' ? 'chevron-up' : 'chevron-down';
+            activeIcon.classList.add('text-blue-500');
+            activeIcon.classList.remove('rotate-180');
+        }
+        if (window.lucide) { window.lucide.createIcons(); }
+    },
+    
     init() {
         const { searchForm, prevBtn, nextBtn } = APP.elements;
-        
-        // Inicializar selector de registros
+
+        // Inicializar selector de registros y paginación
         DOM.initRecordsSelect();
-        
-        // ✅ Formulario de búsqueda - IMPORTANTE
+
+        // 🚨 Formulario de búsqueda - EVENTO PRINCIPAL
         if (searchForm) {
-            // Remover event listener antiguo si existe
-            searchForm.removeEventListener('submit', this.handleSearch);
-            // Añadir nuevo
             searchForm.addEventListener('submit', this.handleSearch.bind(this));
-            console.log('✅ Evento submit configurado para formulario');
+            console.log('✅ Evento submit configurado para handleSearch');
         }
+
+        // 🚨 Configurar listeners de cambio para gestión de modos
+        if (searchForm) {
+            searchForm.addEventListener('change', this.handleFilterChange.bind(this));
+            searchForm.addEventListener('input', this.handleFilterChange.bind(this));
+        }
+
+        // Asignar función de limpiar a la ventana
+        window.handleClearAllFilters = this.handleClearAllFilters.bind(this);
         
-        // Botones de paginación
+        // ✅ EVENTOS DE PAGINACIÓN
         if (prevBtn) {
-            prevBtn.addEventListener('click', this.handlePrevPage.bind(this));
+            prevBtn.addEventListener('click', () => { 
+                if (APP.state.currentPage > 1) { 
+                    APP.state.currentPage--; 
+                    DOM.renderResults(); 
+                }
+            });
         }
-        
         if (nextBtn) {
-            nextBtn.addEventListener('click', this.handleNextPage.bind(this));
+            nextBtn.addEventListener('click', () => { 
+                if (APP.state.currentPage < APP.state.totalPages) { 
+                    APP.state.currentPage++; 
+                    DOM.renderResults(); 
+                }
+            });
         }
         
-        // Botón de limpiar
-        const clearBtn = document.querySelector('button[onclick*="reset"]');
-        if (clearBtn) {
-            // Remover onclick original y añadir event listener
-            clearBtn.removeAttribute('onclick');
-            clearBtn.addEventListener('click', this.handleClearForm.bind(this));
-        }
+        // Configurar función de ordenación global
+        window.sortTable = (key) => Filters.sortTable(key, key.includes('fecha') ? 'date' : key.includes('importe') ? 'number' : 'string');
     }
 };
 
@@ -692,17 +883,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. Cargar empresas
     await API.loadEmpresas();
     
-    // 4. Cargar TODOS los albaranes de la licencia
+    // 4. Cargar TODOS los albaranes de la licencia (llamará a searchAlbaranes sin filtros)
     await API.loadAllAlbaranes();
+    
+    // 5. Establecer modo inicial y actualizar UI
+    UI.setSearchMode('todos');
+    UI.updateActiveFiltersCount();
+    Events.updateSortIcons();
     
     console.log('✅ Aplicación lista');
 });
 
 // =================================================================================
-// 🌍 FUNCIONES GLOBALES
+// 🌍 FUNCIONES GLOBALES (se mantienen)
 // =================================================================================
-// ✅ Asegurar que handleSearch funciona desde el HTML
 window.handleSearch = Events.handleSearch.bind(Events);
+window.handleClearAllFilters = Events.handleClearAllFilters.bind(Events);
+// Enlazamos UI.setSearchModeManual al scope global (window)
+window.UI = window.UI || {};
+window.UI.setSearchModeManual = UI.setSearchModeManual.bind(UI);
+window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events); // Enlace para el botón Limpiar
 
 window.handleAction = (title, description) => {
     const modal = document.getElementById('actionModal');
@@ -715,7 +915,6 @@ window.handleAction = (title, description) => {
         modal.classList.remove('hidden');
     }
 };
-
 window.handleActionModal = (show) => {
     const modal = document.getElementById('actionModal');
     if (modal) {
@@ -726,16 +925,12 @@ window.handleActionModal = (show) => {
         }
     }
 };
-
 window.handleLogout = async () => {
     try {
         const response = await fetch('/api/v1/logout', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' }
         });
-        
         if (response.ok) {
             window.location.href = '/login';
         } else {
