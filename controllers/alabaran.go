@@ -186,13 +186,12 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	// LÓGICA DE FILTROS DINÁMICOS
 	// -----------------------------------------------------------
 
-	// 1. FILTRO POR LICENCIA (OBLIGATORIO)
+	// 1. FILTRO POR LICENCIA (AHORA ES OPCIONAL PARA ADMIN)
 	licenciaRef := c.Query("licencia_ref")
-	if licenciaRef == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "licencia_ref es obligatoria para la búsqueda"})
-		return
+	if licenciaRef != "" {
+		// Solo aplica el filtro si el valor no está vacío
+		query = query.Where("licencia_ref = ?", licenciaRef)
 	}
-	query = query.Where("licencia_ref = ?", licenciaRef)
 
 	// 2. FILTRO POR EMPRESA
 	empresaRef := c.Query("empresa_ref")
@@ -279,6 +278,7 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 				var wordClauses []string
 				var wordValues []interface{}
 				for _, field := range searchFields {
+					// CORRECCIÓN: Usando 'wordClauses' en lugar de 'wordClabaranes'
 					wordClauses = append(wordClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
 					wordValues = append(wordValues, "%"+word+"%")
 				}
@@ -383,7 +383,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	jsonInput, _ := json.MarshalIndent(dto, "", "  ")
+	jsonInput, _ := json.MarshalIndent(dto, "", "  ")
 	log.Printf("🔵 [CreateAlbaran] DTO recibido:\n%s", string(jsonInput))
 
 	fecha, err := time.Parse("2006-01-02", dto.Fecha)

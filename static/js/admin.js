@@ -298,7 +298,6 @@ const Filters = {
         const formData = new FormData(form);
         
         const filters = {
-            // Obtenemos los valores de los selects/inputs por nombre
             licencia_ref: formData.get('licencia_ref') || '', 
             empresa_ref: formData.get('empresa_ref') || '',
             state: formData.get('state') || '',
@@ -317,15 +316,11 @@ const Filters = {
         }
         
         // Convertir IDs numéricos (si no están vacíos)
-        // Nota: Mantenemos el valor como string o número según se haya rellenado.
-        
-        // Licencia: ID numérico o ''
         if (filters.licencia_ref !== '' && !isNaN(parseInt(filters.licencia_ref))) {
              filters.licencia_ref = parseInt(filters.licencia_ref); 
         } else {
              filters.licencia_ref = ''; 
         }
-        // Empresa: ID numérico o ''
         if (filters.empresa_ref !== '' && !isNaN(parseInt(filters.empresa_ref))) {
              filters.empresa_ref = parseInt(filters.empresa_ref); 
         } else {
@@ -460,7 +455,7 @@ const API = {
         try {
             const params = new URLSearchParams({});
             
-            // Adjuntar filtros SOLO si NO están vacíos
+            // Adjuntar filtros SOLO si NO están vacíos, para evitar problemas de Bad Request (400)
             if (filters.licencia_ref !== '') params.append('licencia_ref', filters.licencia_ref); 
             if (filters.empresa_ref !== '') params.append('empresa_ref', filters.empresa_ref);
             if (filters.state !== '') params.append('state', filters.state);
@@ -690,7 +685,7 @@ const Events = {
             
             APP.state.currentPage = 1;
             APP.state.pageSize = 10;
-            app.state.filteredalbaranes = [...app.state.allalbaranes]; 
+            APP.state.filteredAlbaranes = [...APP.state.allAlbaranes]; 
             
             if (recordsSelect) recordsSelect.value = '10'; // Volver a la paginación por defecto
             
@@ -750,6 +745,7 @@ const Events = {
             searchForm.addEventListener('input', this.handleFilterChange.bind(this));
         }
 
+        // CORRECCIÓN FINAL DEL BOTÓN LIMPIAR: Enlazar la función global
         window.handleClearAllFilters = this.handleClearAllFilters.bind(this);
         
         if (prevBtn) { prevBtn.addEventListener('click', () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } }); }
@@ -789,8 +785,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 window.handleSearch = Events.handleSearch.bind(Events);
 window.UI = window.UI || {};
 window.UI.setSearchModeManual = UI.setSearchModeManual.bind(UI);
-// Enlace UI.limpiarBusqueda al handler (usa el mismo que se enlaza al botón en init)
-window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events); 
+// Nota: UI.limpiarBusqueda ahora está enlazado a window.handleClearAllFilters en el HTML
+// y aquí ya no se necesita, ya que handleClearAllFilters ya es global.
+// Para mantener la consistencia con el código anterior:
+window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events);
+
+
 window.showModal = (show) => {
     const modal = document.getElementById('actionModal');
     if (modal) modal.classList.toggle('hidden', !show);

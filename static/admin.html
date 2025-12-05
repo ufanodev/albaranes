@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏢  Administrador Albaranes</title>
+    <title>🏢  Administrador</title>
+    <script src="/js/security.js"></script>    
+    <script src="/js/admin.js" defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Configuración para usar colores personalizados (Naranja Pastel)
@@ -20,91 +22,92 @@
         }
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        /* Clases base */
-        .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
-        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
-        
-        /* Estilos del mensaje de estado (usados por JS) */
-        .status-message { 
-            @apply mt-4 p-3 rounded-md font-medium text-center; 
-        }
-        .status-success { 
-            @apply bg-green-100 text-green-700 border border-green-400; 
-        }
-        .status-error { 
-            /* Rojo pastel */
-            @apply bg-red-400 text-white border border-red-600; 
-        }
-        .status-info, .status-neutral { 
-            @apply bg-gray-200 text-gray-700 border border-gray-400; 
-        }
+<style>
+  /* Clases base */
+  .card {
+    @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50;
+  }
+  .input-field {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md
+           focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link
+           transition duration-150;
+  }
 
-        /* Estilos específicos para la tabla y el pie */
-        .total-row td {
-            @apply bg-primary-pastel/70 font-extrabold text-gray-800 text-lg;
-        }
-        /* Estilo para los encabezados de tabla clickables */
-        .sortable {
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            align-items: center;
-        }
-        .sort-icon {
-            margin-left: 0.5rem;
-            width: 1rem;
-            height: 1rem;
-            display: inline-block;
-        }
+  /* Mensajes de estado */
+  .status-message {
+    @apply mt-4 p-3 rounded-md font-medium text-center;
+  }
+  .status-success {
+    @apply bg-green-100 text-green-700 border border-green-400;
+  }
+  .status-error {
+    @apply bg-red-400 text-white border border-red-600;
+  }
+  .status-info, .status-neutral {
+    @apply bg-gray-200 text-gray-700 border border-gray-400;
+  }
 
-        /* Estilos para menús desplegables */
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: white;
-            min-width: 200px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 1000;
-            border-radius: 0.5rem;
-            margin-top: 0.5rem;
-        }
-        .dropdown.active .dropdown-content {
-            display: block;
-        }
-        .dropdown-content a {
-            color: #374151;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-            border-bottom: 1px solid #f3f4f6;
-            transition: background-color 0.2s;
-        }
-        .dropdown-content a:hover {
-            background-color: #FFDAB9;
-            color: #000;
-        }
-        .dropdown-content a:last-child {
-            border-bottom: none;
-        }
+  /* Tabla */
+  .total-row td {
+    @apply bg-primary-pastel/70 font-extrabold text-gray-800 text-lg;
+  }
+  .sortable {
+    @apply flex items-center cursor-pointer select-none;
+  }
+  .sort-icon {
+    @apply ml-2 w-4 h-4 inline-block;
+  }
 
-        /* Optimización para tabla sin scroll */
-        .compact-table th,
-        .compact-table td {
-            padding: 8px 12px;
-            font-size: 0.75rem;
-            line-height: 1.2;
-        }
-        .compact-table th {
-            white-space: nowrap;
-        }
-        .compact-table .text-truncate {
-            max-width: 120px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    </style>
+    /* ==============================
+       DROPDOWNS / MENÚS DESPLEGABLES
+       ============================== */
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: white;
+        min-width: 200px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1000;
+        border-radius: 0.5rem;
+        margin-top: 0.5rem;
+        /* Contenedor del menú desplegable */
+    }
+    .dropdown.active .dropdown-content {
+        display: block;
+        /* Mostrar el dropdown cuando tenga clase activa */
+    }
+    .dropdown-content a {
+        color: #374151;
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+        border-bottom: 1px solid #f3f4f6;
+        transition: background-color 0.2s;
+        /* Links dentro del dropdown */
+    }
+    .dropdown-content a:hover {
+        background-color: #FFDAB9;
+        color: #000;
+        /* Hover para mejorar visibilidad */
+    }
+    .dropdown-content a:last-child {
+        border-bottom: none;
+        /* Último link sin borde inferior */
+    }
+
+  /* Tabla compacta */
+  .compact-table th,
+  .compact-table td {
+    @apply px-3 py-2 text-xs;
+  }
+  .compact-table th {
+    @apply whitespace-nowrap;
+  }
+  .compact-table .text-truncate {
+    @apply max-w-[120px] overflow-hidden whitespace-nowrap text-ellipsis;
+  }
+</style>
+
 </head>
 <body class="bg-gray-50 font-inter">
 
@@ -115,7 +118,7 @@
                 <!-- Logo y Título -->
                 <div class="flex items-center space-x-3">
                     <span class="text-3xl">🏢 </span>
-                    <h1 class="text-xl font-bold">Administrador Albaranes</h1>
+                    <h1 class="text-xl font-bold">Administrador</h1>
                 </div>
 
                 <!-- Menú de Navegación -->
@@ -178,11 +181,23 @@
                         </div>
                     </div>
 
-                    <!-- Botón Salir -->
-                    <a href="/login" class="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition duration-200 font-medium flex items-center space-x-2">
-                        <span>🔙</span>
-                        <span>Salir</span>
-                    </a>
+                                        <div class="flex space-x-3 mt-4 sm:mt-0">
+                        <button title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Imprimir PDF', 'Se imprimirá todo el listado actual de albaranes')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                        </button>
+                        <button title="Exportar a Word" class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Word', 'Se exportará el listado actual a formato Word')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+                        </button>
+                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Excel', 'Se exportará el listado actual a formato Excel')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M11 15h6"/><path d="M14 12v6"/><path d="M8 12h2"/><path d="M8 15h2"/><path d="M8 18h2"/></svg>
+                        </button>
+                        <!-- Botón Salir -->
+                        <button onclick="handleLogout()" 
+                            title="Salir y cerrar sesión"
+                            class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                        </button>
+                    </div>
                 </nav>
 
                 <!-- Botón menú móvil -->
@@ -211,7 +226,10 @@
                     <a href="/login" class="block px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition duration-200 mt-4">Salir</a>
                 </div>
             </div>
-        </div>
+
+                    
+
+
     </header>
 
     <!-- Modal de Acciones -->
@@ -234,141 +252,216 @@
                         <span class="text-3xl mr-3">📋</span>
                         <span class="text-xl">ALBARANES PRINCIPAL</span>
                     </h1>
-                    
-                    <div class="flex space-x-2">
-                        <button title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Imprimir PDF', 'Todo el listado')">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
-                        </button>
-                        <button title="Exportar a Word" class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Word', 'Todo el listado')">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-                        </button>
-                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Excel', 'Todo el listado')">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M11 15h6"/><path d="M14 12v6"/><path d="M8 12h2"/><path d="M8 15h2"/><path d="M8 18h2"/></svg>
-                        </button>
-                    </div>
+
+
                 </div>
                 
-                <div class="flex flex-wrap gap-2">
-                    <a href="/admin/nuevo_albaran" 
-                        class="group relative inline-flex items-center justify-center px-4 py-2 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-green-500/50 hover:from-green-600 hover:to-green-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
-                        <span class="mr-2 text-lg transition-transform group-hover:scale-110">➕</span>
-                        <span class="relative text-sm">NUEVO ALBARAN</span>
-                    </a>
-
-                    <a href="/busqueda" 
-                        class="group relative inline-flex items-center justify-center px-3 py-2 font-semibold text-white transition-all duration-300 ease-in-out bg-primary-link rounded-lg shadow-md hover:bg-orange-600 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-link focus:ring-offset-2">
-                        <span class="mr-2 transition-transform group-hover:scale-105">📧</span>
-                        <span class="relative text-sm">VER ENVIADOS</span>
-                    </a>
-
-                    <a href="/busqueda" 
-                        class="group relative inline-flex items-center justify-center px-3 py-2 font-semibold text-black-pure transition-all duration-300 ease-in-out bg-primary-pastel border-2 border-primary-pastel rounded-lg shadow-md hover:bg-orange-300 hover:border-orange-400 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:ring-offset-2">
-                        <span class="mr-2 transition-transform group-hover:rotate-6">🏁</span>
-                        <span class="relative text-sm">FINALIZAR</span>
-                    </a>
-                </div>
+               
             </div>
 
             <!-- Filtros de Búsqueda -->
-            <div class="card mb-6">
-                <h2 class="text-lg font-bold text-black-pure mb-3">🔍 Filtros de Búsqueda</h2>
-                <form id="searchForm" onsubmit="handleSearch(event)">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                        <div>
-                            <label for="licencia" class="block text-xs font-medium text-gray-700 mb-1">LICENCIA</label>
-                            <input type="text" id="licencia" name="licencia" placeholder="Ej: 001A" class="input-field text-sm">
-                        </div>
-                        <div>
-                            <label for="empresa" class="block text-xs font-medium text-gray-700 mb-1">Empresa</label>
-                            <select id="empresa" name="empresa" class="input-field text-sm appearance-none">
-                                <option value="">Seleccione</option>
-                                <option value="race">RACE</option>
-                                <option value="mapfre">Mapfre</option>
-                                <option value="mutua">Mutua Madrileña</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="state" class="block text-xs font-medium text-gray-700 mb-1">Estado</label>
-                            <select id="state" name="state" class="input-field text-sm appearance-none">
-                                <option value="">Seleccione</option>
-                                <option value="creado">Creado</option>
-                                <option value="enviado">Enviado</option>
-                                <option value="pagado">Pagado</option>
-                                <option value="finalizado">Finalizado</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="referencia" class="block text-xs font-medium text-gray-700 mb-1">Referencia</label>
-                            <input type="text" id="referencia" name="referencia" placeholder="Si la tiene" class="input-field text-sm">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label for="fecha_desde" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Desde)</label>
-                            <input type="date" id="fecha_desde" name="fecha_desde" class="input-field text-sm">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label for="fecha_hasta" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Hasta)</label>
-                            <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field text-sm">
-                        </div>
+  <div class="card mb-8 filter-section">
+            <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center">
+                <span class="mr-2">🔍</span>
+                Filtros de Búsqueda Avanzada
+                <span class="ml-auto text-sm font-normal text-gray-500">
+                    <span id="activeFiltersCount">0</span> filtro(s) activo(s)
+                </span>
+            </h2>
+            
+            <form id="searchForm" onsubmit="handleSearch(event)">
+                
+                <div class="flex flex-wrap gap-3 mb-4 items-center">
+                    <span class="font-medium text-gray-700">Modo de filtro:</span>
+                    
+                    <button type="button" 
+                            id="btn-mode-campos"
+                            onclick="UI.setSearchModeManual('campos')"
+                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
+                                bg-blue-600 text-white hover:bg-blue-700 active:scale-95">
+                        <span class="mr-2">📝</span> Búsqueda por Campos
+                    </button>
+
+                    <button type="button" 
+                            id="btn-mode-palabra"
+                            onclick="UI.setSearchModeManual('palabra')"
+                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
+                                bg-primary-pastel text-black-pure hover:bg-orange-300 active:scale-95">
+                        <span class="mr-2">💬</span> Búsqueda por Palabra
+                    </button>
+
+                    <button type="button" 
+                            id="btn-limpiar"
+                            onclick="handleClearAllFilters()" 
+                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
+                                bg-red-600 text-white hover:bg-red-700 active:scale-95 ml-2">
+                        Limpiar
+                    </button>
+
+                </div>
+
+                </div>
+                
+                <hr class="mb-6 border-gray-100">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+
+                    <div>
+                        <label for="licenciaSelect" class="block text-sm font-medium text-gray-600 mb-1">
+                            <i data-lucide="id-card" class="h-3 w-3 mr-1"></i>
+                            LICENCIA
+                        </label>
+                        <select id="licenciaSelect" name="licencia_ref" class="input-field appearance-none text-xs">
+                            <option value="">Cargando licencias...</option>
+                        </select>
                     </div>
-                    <div class="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div class="flex flex-wrap gap-x-4 text-xs text-gray-700">
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-3 w-3 border-gray-300 focus:ring-primary-link" checked>
-                                <span class="ml-1">Frase Exacta</span>
+
+                    <div>
+                        <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">
+                            Empresa *
+                        </label>
+                        <select id="empresa" name="empresa_ref" required class="input-field appearance-none">
+                            <option value="" disabled selected>Cargando empresas...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="state" class="filter-label">
+                            <i data-lucide="activity" class="h-3 w-3 mr-1"></i>
+                            Estado
+                        </label>
+                        <select id="state" name="state" class="input-field appearance-none text-xs">
+                            <option value="">🎯 Todos los estados</option>
+                            <option value="creado">🆕 Creado</option>
+                            <option value="enviado">📧 Enviado</option>
+                            <option value="pagado">💰 Pagado</option>
+                            <option value="finalizado">✅ Finalizado</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="referencia" class="filter-label">
+                            <i data-lucide="hash" class="h-3 w-3 mr-1"></i>
+                            Referencia
+                        </label>
+                        <input type="text" 
+                               id="referencia" 
+                               name="referencia" 
+                               placeholder="Ref..." 
+                               class="input-field text-xs"
+                               title="Buscar por número de referencia">
+                    </div>
+
+                    <div>
+                        <label for="fecha_desde" class="filter-label">
+                            <i data-lucide="calendar" class="h-3 w-3 mr-1"></i>
+                            Fecha (Desde)
+                        </label>
+                        <input type="date" 
+                               id="fecha_desde" 
+                               name="fecha_desde" 
+                               class="input-field text-xs"
+                               max="<?php echo date('Y-m-d'); ?>">
+                    </div>
+
+                    <div>
+                        <label for="fecha_hasta" class="filter-label">
+                            <i data-lucide="calendar" class="h-3 w-3 mr-1"></i>
+                            Fecha (Hasta)
+                        </label>
+                        <input type="date" 
+                               id="fecha_hasta" 
+                               name="fecha_hasta" 
+                               class="input-field text-xs"
+                               max="<?php echo date('Y-m-d'); ?>">
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        
+                        <div class="flex-1 max-w-full">
+                            <label for="palabra" class="filter-label">
+                                <i data-lucide="file-text" class="h-3 w-3 mr-1"></i>
+                                🔍 Buscar por palabras
                             </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-3 w-3 border-gray-300 focus:ring-primary-link">
-                                <span class="ml-1">Todas palabras</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-3 w-3 border-gray-300 focus:ring-primary-link">
-                                <span class="ml-1">Cualquier palabra</span>
-                            </label>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button" onclick="document.getElementById('searchForm').reset();" 
-                                class="group relative inline-flex items-center justify-center px-3 py-1.5 font-semibold text-blue-600 transition-all duration-300 ease-in-out bg-white border border-blue-500 rounded-lg shadow-md hover:bg-blue-50 hover:border-blue-600 active:scale-95 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-offset-1 text-xs">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1 transition-transform group-hover:rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 6h18"/>
-                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                                </svg>
-                                <span class="relative">Limpiar</span>
-                            </button>
+                            <div class="flex gap-2">
+                                <input type="text" 
+                                       id="palabra" 
+                                       name="palabra" 
+                                       placeholder="Ej: RACE Madrid cliente123..." 
+                                       class="input-field flex-1 search-highlight"
+                                       title="Busca en: nº albarán, referencia, conductor, DNI, matrícula, cliente, origen, destino, observaciones...">
+                                <button type="button" 
+                                        onclick="document.getElementById('palabra').value = '';"
+                                        class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
+                                        title="Limpiar búsqueda">
+                                    <i data-lucide="x" class="h-4 w-4"></i>
+                                </button>
+                            </div>
                             
-                            <button type="submit" 
-                                class="group relative inline-flex items-center justify-center px-3 py-1.5 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg hover:shadow-blue-500/50 hover:from-blue-600 hover:to-blue-700 active:scale-95 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-offset-1 text-xs">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                <span class="relative">Buscar / Mostrar Todos</span>
-                            </button>
+                            <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
+                                <div class="font-medium text-gray-700 flex items-center">
+                                    Tipo de búsqueda de texto:
+                                </div>
+                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
+                                    <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link" checked>
+                                    <span class="ml-2 font-medium">Frase Exacta</span>
+                                </label>
+                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
+                                    <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
+                                    <span class="ml-2 font-medium">Todas las palabras</span>
+                                </label>
+                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
+                                    <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
+                                    <span class="ml-2 font-medium">Cualquier palabra</span>
+                                </label>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">
+                                📝 Busca en múltiples campos: referencia, cliente, conductor, observaciones, etc.
+                            </p>
                         </div>
                     </div>
-                </form>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                <h2 class="text-xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
+                    <span class="mr-2">📊</span>
+                    Resultados de Búsqueda
+                    <span id="resultsCount" class="ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full">
+                        Cargando...
+                    </span>
+                </h2>
+
+                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div class="flex items-center space-x-2 text-sm text-gray-600">
+                        <span>Registros por página:</span>
+                        <select id="recordsPerPage" class="input-field w-auto px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500">
+                            </select>
+                        <span id="totalLabel" class="text-xs text-gray-500 ml-2"></span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <button id="prevPageBtn" 
+                                class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 
+                                title="Página anterior">
+                            <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                        </button>
+                        <span id="pageInfo" class="text-sm text-gray-600 font-medium px-3 py-1 bg-gray-100 rounded">
+                            Página 1 de 1
+                        </span>
+                        <button id="nextPageBtn" 
+                                class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 
+                                title="Página siguiente">
+                            <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <!-- Resultados -->
-            <h2 class="text-lg font-bold text-black-pure mb-3">📊 Últimos Albaranes</h2>
-
-            <div class="flex justify-between items-center mb-3">
-                <div class="flex items-center space-x-2 text-xs text-gray-600">
-                    <span>Registros por página:</span>
-                    <select id="recordsPerPage" class="input-field w-auto px-2 py-1 text-xs">
-                        <option value="10">10</option>
-                        <option value="20" selected>20</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                    </select>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <button class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-1 rounded-lg transition duration-200 active:scale-95" title="Anterior">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                    </button>
-                    <span class="text-xs text-gray-600 font-medium">Página 1 de 5</span>
-                    <button class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-1 rounded-lg transition duration-200 active:scale-95" title="Siguiente">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                    </button>
-                </div>
-            </div>
 
             <!-- Tabla de Resultados - Compacta -->
             <div class="shadow-lg rounded-xl border border-gray-100 compact-table">
