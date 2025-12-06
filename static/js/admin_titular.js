@@ -1,5 +1,5 @@
 // Archivo: static/js/admin_titular.js
-// ✅ Versión para Administrador: Gestión de Titulares/Licencias, toda la lógica JS.
+// ✅ Versión para Administrador: Gestión de Titulares/Licencias, tabla principal.
 
 const APP = {
     elements: {
@@ -65,7 +65,7 @@ const UI = {
         APP.state.totalPages = Math.ceil(APP.state.filteredTitulares.length / APP.state.pageSize);
         
         if (pageInfo) {
-            APP.state.currentPage = Math.min(APP.state.currentPage, APP.state.totalPages || 1); // Fix para páginas que desaparecen
+            APP.state.currentPage = Math.min(APP.state.currentPage, APP.state.totalPages || 1); 
             pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
         }
         
@@ -82,7 +82,7 @@ const UI = {
         }
     },
 
-    /** Habilita/deshabilita los botones de paginación. */
+    /** Habilita/Deshabilita los botones de paginación. */
     updatePaginationButtons() {
         const { prevBtn, nextBtn } = APP.elements;
         const totalPages = APP.state.totalPages || 1;
@@ -110,7 +110,6 @@ const UI = {
         
         for (let [key, value] of formData.entries()) {
             const val = value.toString().trim();
-            // Contar solo si el valor no está vacío y no es el valor de la paginación
             if (val !== '' && key !== 'recordsPerPage') { 
                 finalCount++;
             }
@@ -145,8 +144,8 @@ const Filters = {
             licencia: formData.get('licencia') || '', 
             dni: formData.get('dni') || '',
             nombre: formData.get('nombre') || '',
-            socio: formData.get('socio') || '', // '' | '1' | '0'
-            chofer: formData.get('chofer') || '', // '' | '1' | '0'
+            socio: formData.get('socio') || '', 
+            chofer: formData.get('chofer') || '', 
         };
 
         if (filters.socio !== '') filters.socio = parseInt(filters.socio);
@@ -160,7 +159,6 @@ const Filters = {
         const { currentSort } = APP.state;
         let direction = 'asc';
         
-        // Determina la dirección de ordenación
         if (currentSort.key === key && currentSort.direction === 'asc') {
             direction = 'desc';
         }
@@ -200,11 +198,10 @@ const API = {
         DOM.showLoading();
         
         try {
-            // Endpoint para GetLicencias según el código Go
+            // Endpoint GetLicencias: /api/v1/licencias
             const response = await fetch('/api/v1/licencias'); 
             
             if (response.status === 401) {
-                // Si la sesión expira
                 window.location.href = '/login';
                 return;
             }
@@ -215,7 +212,6 @@ const API = {
             }
             
             const data = await response.json();
-            // La estructura Go usa {data: [...]}
             const titulares = Array.isArray(data.data) ? data.data : data; 
             
             APP.state.allTitulares = titulares;
@@ -277,7 +273,6 @@ const DOM = {
         
         APP.state.totalPages = Math.ceil(APP.state.filteredTitulares.length / APP.state.pageSize);
 
-        // Ajuste de página si el número actual excede el total después de filtrar/paginar
         if (APP.state.currentPage > APP.state.totalPages && APP.state.totalPages > 0) {
             APP.state.currentPage = APP.state.totalPages;
         } else if (APP.state.filteredTitulares.length > 0 && APP.state.currentPage === 0) {
@@ -359,11 +354,9 @@ const Events = {
     /** Maneja el envío del formulario de búsqueda (filtrado local). */
     async handleSearch(e) {
         if (e) e.preventDefault();
-        console.log('🎯 Buscando Titulares localmente...');
         
         const filters = Filters.getFiltersFromForm();
         
-        // Filtrado de la lista completa (APP.state.allTitulares)
         let filteredResults = APP.state.allTitulares.filter(titular => {
             const matchesLicencia = !filters.licencia || (titular.licencia && titular.licencia.toLowerCase().includes(filters.licencia.toLowerCase()));
             const matchesDni = !filters.dni || (titular.dni && titular.dni.toLowerCase().includes(filters.dni.toLowerCase()));
@@ -431,14 +424,11 @@ const Events = {
             searchForm.addEventListener('input', this.handleFilterChange.bind(this));
         }
         
-        // Enlazar las funciones a nivel de ventana para que sean accesibles desde el HTML
         window.handleClearAllFilters = this.handleClearAllFilters.bind(this);
         
-        // Handlers de Paginación
         if (prevBtn) { prevBtn.addEventListener('click', () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } }); }
         if (nextBtn) { nextBtn.addEventListener('click', () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } }); }
         
-        // Enlazar la función de ordenación global
         window.sortTable = (key) => Filters.sortTable(key, key === 'socio' || key === 'chofer' ? 'number' : 'string');
     }
 };
@@ -447,43 +437,49 @@ const Events = {
 // 🚀 INICIALIZACIÓN
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 Iniciando gestión de Titulares (MODO ADMIN)...');
+    console.log('---[ admin_titular.js ]---------------------------------');
+    console.log('✅ 1. Inicio de carga de la página principal de Titulares.');
     
     Events.init();
     
-    // 1. Cargar todos los titulares de la API
     await API.loadAllTitulares();
     
-    // 2. Aplicar ordenación inicial por licencia
     Events.updateSortIcons();
     Filters.sortTable('licencia');
     
-    // 3. Renderizar resultados y actualizar contador de filtros
     UI.updateActiveFiltersCount();
-    
-    console.log('✅ Aplicación Titulares lista');
+    console.log('✅ 2. Carga de datos inicial y UI completada.');
 });
 
 // =================================================================================
-// 🌍 FUNCIONES GLOBALES (Redirecciones y Modales, necesarias en el scope global)
+// 🌍 FUNCIONES GLOBALES (Redirecciones y Modales)
 // =================================================================================
 
-// Lógica de navegación (para los botones de acción en la tabla y en el header)
+// Redirige a la vista del titular (Acción 'Ver Detalle')
 window.handleViewActionTitular = (titularId) => {
-    window.location.href = `/admin/titulares/view/${titularId}`;
+    console.log(`➡️ 3. Botón 'Ver Detalle' pulsado para ID: ${titularId}.`);
+    const url = `/admin/titulares/view/${titularId}`; 
+    console.log(`➡️ 4. Redirigiendo a CRUD (VIEW): ${url}`);
+    window.location.href = url;
 };
 
+// Redirige a la edición del titular (Acción 'Editar')
 window.handleEditActionTitular = (titularId) => {
-    window.location.href = `/admin/titulares/update/${titularId}`;
+    console.log(`➡️ 3. Botón 'Editar' pulsado para ID: ${titularId}.`);
+    // Redirección a la ruta de actualización/edición
+    const url = `/admin/titulares/update/${titularId}`;
+    console.log(`➡️ 4. Redirigiendo a CRUD (EDIT): ${url}`);
+    window.location.href = url;
 };
 
+// Simula la eliminación (usa el modal de acción)
 window.handleDeleteActionTitular = (titularId, licencia) => {
     const title = 'Confirmación de Eliminación';
-    const message = `Se ha SIMULADO la eliminación del Titular con ID ${titularId} (Licencia ${licencia}). En producción, esto enviaría una solicitud DELETE a /api/v1/licencias/${titularId}`;
+    const message = `Se ha SIMULADO la eliminación del Titular con ID ${titularId} (Licencia ${licencia}).`;
     window.handleAction(title, message);
 };
 
-// Lógica de Modales (copiada del HTML original)
+// Funciones de utilidad de la UI (Para el header/modal)
 window.showModal = (show) => {
     const modal = document.getElementById('actionModal');
     if (modal) modal.classList.toggle('hidden', !show);
@@ -508,7 +504,6 @@ window.handleLogout = () => {
     }, 1500);
 };
 
-// Lógica de Dropdowns (copiada del HTML original)
 window.toggleDropdown = (button) => {
     document.querySelectorAll('.dropdown').forEach(dropdown => {
         if (dropdown !== button.parentElement) {

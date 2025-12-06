@@ -7,6 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
     <script src="/js/utils.js"></script>
+    <script src="/js/licencias_cargar.js"></script>
+    <script src="/js/admin_titular_crud.js" defer></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
         /* Definición de la Paleta de Colores Estandarizada */
@@ -64,6 +67,11 @@
             /* Color Gris Neutral */
             @apply bg-gray-500 hover:bg-gray-600 focus:ring-gray-300 shadow-gray-400/50;
         }
+        
+        /* Estado deshabilitado para botones */
+        .action-button:disabled {
+            @apply opacity-50 cursor-not-allowed transform-none shadow-none hover:scale-100;
+        }
 
         /* 💬 MENSAJES DE ESTADO */
         .status-message {
@@ -80,11 +88,14 @@
 <body class="p-4 sm:p-8 lg:p-12">
 
     <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 class="text-4xl font-extrabold text-indigo-800 text-center mb-10 border-b pb-3">
+        <h1 id="mainTitle" class="text-4xl font-extrabold text-indigo-800 text-center mb-10 border-b pb-3">
             Gestión Datos de Titulares 👤
         </h1>
 
-        <form id="userForm" onsubmit="handleFormSubmit(event)">
+        <form id="titularForm" onsubmit="handleFormSubmit(event)">
+
+            <input type="hidden" id="titularId" name="titularId" value="">
+            <input type="hidden" id="currentMode" name="currentMode" value="create">
 
             <div class="section-title">🔑 Datos de Identificación</div>
             
@@ -100,10 +111,10 @@
                 </div>
 
                 <div>
-                    <label for="nif" class="block text-sm font-medium text-gray-700 mb-1">
-                        NIF / CIF
+                    <label for="dni" class="block text-sm font-medium text-gray-700 mb-1">
+                        DNI / CIF
                     </label>
-                    <input type="text" id="nif" name="nif"
+                    <input type="text" id="dni" name="dni"
                             placeholder="12345678Z"
                             class="input-field uppercase">
                 </div>
@@ -131,10 +142,10 @@
                 </div>
 
                 <div>
-                    <label for="telf" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="telefono" class="block text-sm font-medium text-gray-700 mb-1">
                         Teléfono Fijo
                     </label>
-                    <input type="tel" id="telf" name="telf"
+                    <input type="tel" id="telefono" name="telefono"
                             placeholder="9XX XXX XXX"
                             class="input-field">
                 </div>
@@ -155,7 +166,7 @@
                         Nivel de Usuario (Userlevel)
                     </label>
                     <select id="userlevel" name="userlevel"
-                             class="input-field appearance-none">
+                            class="input-field appearance-none">
                         <option value="" disabled selected>Seleccione un nivel</option>
                         <option value="1">Administrador</option>
                         <option value="2">Operador</option>
@@ -181,8 +192,8 @@
                 Dirección (Calle y Número)
               </label>
               <input type="text" id="direccion" name="direccion"
-                     placeholder="Calle Mayor, 123"
-                     class="input-field w-full">
+                      placeholder="Calle Mayor, 123"
+                      class="input-field w-full">
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
@@ -258,17 +269,17 @@
 
             <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
                 
-                <button type="submit"
+                <button type="submit" id="btn-crear"
                         class="action-button btn-crear">
                     <span class="mr-2">➕</span> Crear
                 </button>
 
-                <button type="button" onclick="handleAction('modificar')"
+                <button type="button" id="btn-modificar" onclick="handleAction('modificar')"
                         class="action-button btn-modificar">
                     <span class="mr-2">✏️</span> Modificar
                 </button>
 
-                <button type="button" onclick="handleAction('borrar')"
+                <button type="button" id="btn-borrar" onclick="handleAction('borrar')"
                         class="action-button btn-borrar">
                     <span class="mr-2">🗑️</span> Borrar
                 </button>
@@ -283,75 +294,5 @@
 
         </form>
     </div>
-
-    <script>
-        // Función de simulación para todos los botones
-        function handleAction(actionType) {
-            const statusMessage = document.getElementById('statusMessage');
-            
-            // Ocultar mensaje de estado anterior
-            statusMessage.classList.add('hidden');
-            statusMessage.classList.remove('status-success', 'status-error', 'status-info', 'status-neutral');
-
-            switch (actionType) {
-                case 'crear':
-                    return; // La función handleFormSubmit maneja el "crear"
-                case 'modificar':
-                    statusMessage.textContent = '✏️ Simulación: Datos listos para ser modificados en el sistema.';
-                    statusMessage.classList.add('status-info'); 
-                    statusMessage.classList.remove('hidden');
-                    break;
-                case 'borrar':
-                    if (confirm('¿Está seguro que desea borrar este registro? Esta acción es irreversible.')) {
-                        statusMessage.textContent = '🗑️ Simulación: El registro se borraría del sistema.';
-                        statusMessage.classList.add('status-error'); 
-                        statusMessage.classList.remove('hidden');
-                    }
-                    break;
-                case 'volver':
-                    // *** CAMBIO IMPLEMENTADO AQUÍ ***
-                    window.location.href = 'admin.html';
-                    return; // Detiene la ejecución para que ocurra la redirección
-                default:
-                    return;
-            }
-        }
-
-        // Simulación de función de envío/creación (enlazada al botón "Crear")
-        function handleFormSubmit(event) {
-            event.preventDefault();
-            const form = event.target;
-            const statusMessage = document.getElementById('statusMessage');
-            
-            statusMessage.classList.add('hidden');
-            statusMessage.classList.remove('status-success', 'status-error', 'status-info', 'status-neutral');
-            
-            if (!document.getElementById('licencia').value) {
-                statusMessage.classList.add('status-error');
-                statusMessage.textContent = '❌ Error: El campo LICENCIA es obligatorio.';
-                statusMessage.classList.remove('hidden');
-                return;
-            }
-
-            const data = {};
-            new FormData(form).forEach((value, key) => {
-                data[key] = value;
-            });
-
-            statusMessage.classList.add('status-success');
-            statusMessage.textContent = '✅ ¡CREACIÓN exitosa simulada! Datos listos para ser enviados al backend.';
-            statusMessage.classList.remove('hidden');
-
-            console.log("--- DATOS DE USUARIO A ENVIAR ---");
-            console.log(JSON.stringify(data, null, 2));
-        }
-
-        // Contador de palabras para Observaciones
-        document.getElementById('observaciones').addEventListener('input', function() {
-            const text = this.value.trim();
-            const wordCount = text ? text.split(/\s+/).filter(word => word.length > 0).length : 0;
-            document.getElementById('wordCount').textContent = `${wordCount} palabras`;
-        });
-    </script>
 </body>
 </html>
