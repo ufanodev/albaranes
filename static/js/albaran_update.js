@@ -1,3 +1,6 @@
+// Archivo: static/js/albaran_update.js
+// Lógica para cargar y actualizar un albarán. Soporta modo de edición completa para Admin.
+
 let albaranID = null;
 
 // Funciones auxiliares
@@ -15,10 +18,42 @@ function showStatus(msg, type) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
+/**
+ * Deshabilita todos los campos del formulario.
+ */
 function disableForm() {
     document.querySelectorAll('input, select, textarea, button').forEach(el => {
+        // Excluye el botón de volver para que el usuario siempre pueda navegar
         if (el.getAttribute('onclick') !== "handleAction('volver')") el.disabled = true;
     });
+}
+
+/**
+ * ✅ NUEVA FUNCIÓN: Desbloquea todos los campos para permitir la edición completa (Modo Admin).
+ * @param {boolean} unlock - Si es true, desbloquea todos los campos.
+ */
+function toggleAllFields(unlock) {
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.disabled = !unlock;
+        // Opcional: remover clases de sólo lectura que pueden estar en el HTML
+        if (unlock) {
+            el.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        }
+    });
+    
+    if (unlock) {
+        // Muestra o habilita elementos específicos de Admin, como el botón de borrar
+        const deleteBtn = document.getElementById('btn-borrar');
+        if (deleteBtn) deleteBtn.disabled = false;
+        
+        console.log("🔓 Modo de Administrador: Todos los campos desbloqueados.");
+    } else {
+        // Lógica para el usuario regular (si se requiere deshabilitar campos específicos)
+        // Por ejemplo, si los campos de facturación deben estar siempre deshabilitados para el usuario regular:
+        // const numFactura = document.getElementById('num_factura');
+        // if (numFactura) numFactura.disabled = true;
+        console.log("🔒 Modo de Usuario normal: Solo campos editables por defecto.");
+    }
 }
 
 function setupWordCounter() {
@@ -224,7 +259,9 @@ window.handleAction = async function(actionType, event = null) {
 
             if (response.ok) {
                 showStatus('✅ Albarán actualizado correctamente.', 'success');
-                setTimeout(() => window.location.href = '/titulares', 1000);
+                // Redirigir al listado principal o al listado de administrador según la URL de origen
+                const redirectPath = window.location.pathname.startsWith('/admin') ? '/admin' : '/titulares';
+                setTimeout(() => window.location.href = redirectPath, 1000);
             } else {
                 const errorText = await response.text();
                 let errorMsg = `Error ${response.status}: `;
@@ -244,15 +281,19 @@ window.handleAction = async function(actionType, event = null) {
     }
 
     if (actionType === 'borrar') {
-        if (confirm('⚠️ ¿Está seguro que desea borrar este Albarán?')) {
+        if (confirm('⚠️ ¿Está seguro que desea borrar este Albarán? Esta acción es irreversible.')) {
+            // Aquí deberías realizar la llamada DELETE real. Por ahora, es simulada.
             showStatus('🗑️ Borrado simulado. Redirigiendo.', 'error');
-            setTimeout(() => window.location.href = '/titulares', 1000);
+            const redirectPath = window.location.pathname.startsWith('/admin') ? '/admin' : '/titulares';
+            setTimeout(() => window.location.href = redirectPath, 1000);
         }
         return;
     }
 
     if (actionType === 'volver') {
-        window.location.href = '/titulares';
+        // Mejor usar window.history.back() si se usa desde el listado de búsqueda
+        window.history.back();
+        // Fallback: window.location.href = '/titulares'; 
         return;
     }
 };
@@ -260,6 +301,9 @@ window.handleAction = async function(actionType, event = null) {
 // Inicialización
 document.addEventListener('DOMContentLoaded', async function() {
     albaranID = getAlbaranIDFromURL();
+    
+    // ✅ Detección del modo Admin mediante la nueva URL
+    let isAdminMode = window.location.pathname.startsWith('/admin/albaranes/update/'); 
 
     if (!albaranID) {
         showStatus('❌ Error: ID de albarán no válido en la URL.', 'error');
@@ -273,6 +317,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     ]);
 
     await loadAlbaranData(albaranID);
+    
+    // 💡 APLICAR LÓGICA DE PERMISOS
+    // Se recomienda que los campos deshabilitados para el usuario regular se definan en el HTML.
+    // Aquí solo se revierte esa deshabilitación para el Admin.
+    if (isAdminMode) {
+        toggleAllFields(true); 
+    }
 
     const form = document.getElementById('albaranForm');
     if (form) form.addEventListener('submit', (e) => handleAction('modificar', e));

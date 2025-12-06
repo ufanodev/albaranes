@@ -602,7 +602,7 @@ const DOM = {
                             <button onclick="handleViewAction('${albaran.id || albaran.numero_albaran}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-0.5 rounded-full hover:bg-blue-100 transition active:scale-90">
                                 <i data-lucide="eye" class="h-3 w-3"></i>
                             </button>
-                            <button onclick="handleAction('Editar', '${albaran.numero_albaran}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
+                            <button onclick="handleEditAction('${albaran.id || albaran.numero_albaran}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
                                 <i data-lucide="pencil" class="h-3 w-3"></i>
                             </button>
                             <button onclick="handleAction('Copiar', '${albaran.numero_albaran}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-0.5 rounded-full hover:bg-purple-100 transition active:scale-90">
@@ -785,25 +785,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 window.handleSearch = Events.handleSearch.bind(Events);
 window.UI = window.UI || {};
 window.UI.setSearchModeManual = UI.setSearchModeManual.bind(UI);
-// Nota: UI.limpiarBusqueda ahora está enlazado a window.handleClearAllFilters en el HTML
-// y aquí ya no se necesita, ya que handleClearAllFilters ya es global.
 // Para mantener la consistencia con el código anterior:
-window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events);
+window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events); 
 
-// ✅ NUEVA FUNCIÓN: Redirige a la vista del albarán
+// Redirige a la vista del albarán
 window.handleViewAction = (albaranId) => {
-    // Asumiendo que la ruta de la vista es /albaranes/view/<ID>
     const url = `/albaranes/view/${albaranId}`;
     console.log(`👁️ Navegando a la vista del albarán: ${url}`);
     window.location.href = url;
 };
+
+// ✅ NUEVA FUNCIÓN: Redirige a la vista de edición del albarán para el ADMIN
+window.handleEditAction = (albaranId) => {
+    // Usamos la ruta /admin/albaranes/update/<ID> para indicar el rol Admin
+    const url = `/admin/albaranes/update/${albaranId}`;
+    console.log(`✏️ Navegando a la edición (Admin) del albarán: ${url}`);
+    window.location.href = url;
+};
+
 
 window.showModal = (show) => {
     const modal = document.getElementById('actionModal');
     if (modal) modal.classList.toggle('hidden', !show);
 };
 
-// Función existente (ahora solo para acciones que usan el modal, como Editar, Copiar, Eliminar)
+// Función existente (solo para acciones que usan el modal, como Copiar y Eliminar)
 window.handleAction = (title, description) => {
     const modal = document.getElementById('actionModal');
     const modalTitle = document.getElementById('modalTitle');
