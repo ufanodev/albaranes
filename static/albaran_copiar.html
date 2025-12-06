@@ -6,7 +6,6 @@
     <title>Copiar Albarán</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Scripts -->
     <script src="/js/security.js"></script>
     <script src="/js/albaran_copiar.js" defer></script>
     
@@ -36,9 +35,10 @@
 
         .action-button {
             @apply inline-flex items-center justify-center font-semibold py-2.5 px-6 rounded-lg 
-                    shadow-md cursor-pointer transition duration-300 transform text-white focus:outline-none 
-                    hover:scale-[1.02] focus:ring-4 text-sm;
+                     shadow-md cursor-pointer transition duration-300 transform text-white focus:outline-none 
+                     hover:scale-[1.02] focus:ring-4 text-sm;
         }
+        /* Cambiado btn-crear a btn-guardar para la copia */
         .btn-guardar { @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-300 shadow-indigo-400/50; }
         .btn-borrar { @apply bg-red-600 hover:bg-red-700 focus:ring-red-300 shadow-red-400/50; }
         .btn-volver { @apply bg-gray-500 hover:bg-gray-600 focus:ring-gray-300 shadow-gray-400/50; }
@@ -51,14 +51,13 @@
     <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
         
         <div class="flex justify-between items-center mb-8 border-b pb-3">
-            <h1 class="text-3xl font-extrabold text-sky-800">Modificar Albarán 📝</h1>
+            <h1 class="text-3xl font-extrabold text-sky-800">Copiar Albarán (Nueva Entrada) 📄</h1>
             <button type="button" onclick="handleAction('volver')" class="action-button btn-volver">
                 <span class="mr-2">🔙</span> Volver
             </button>
         </div>
         
-        <!-- El evento onsubmit llama a handleAction('crear') en el JS -->
-        <form id="albaranForm" onsubmit="handleAction('crear', event)">
+        <form id="albaranForm" onsubmit="handleAction('guardar_copia', event)">
 
             <div class="section-title !mt-0">Datos Principales</div>
             
@@ -78,8 +77,8 @@
                         Nº Albarán * <span class="text-xs text-gray-400">(Ej: ENERO2025-804-1)</span>
                     </label>
                     <input type="text" id="n_albaran" name="numero_albaran" required
-                               placeholder="Generado automáticamente o ENERO2025-804-1"
-                               class="input-field bg-gray-50">
+                                placeholder="Generado automáticamente o ENERO2025-804-1"
+                                class="input-field bg-gray-50">
                 </div>
 
                 <div>
@@ -101,13 +100,12 @@
                     <input type="text" id="referencia" name="referencia" class="input-field">
                 </div>
 
-                <!-- CONDUCTOR (SELECT) -->
                 <div>
                     <label for="asalariado_select" class="block text-sm font-medium text-gray-600 mb-1">
                         Asalariado (Conductor)
                     </label>
                     <select id="asalariado_select" name="asalariado" class="input-field appearance-none">
-                         <option value="">Cargando conductores...</option>
+                           <option value="">Cargando conductores...</option>
                     </select>
                 </div>
             </div>
@@ -169,8 +167,8 @@
             
             <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
                 
-                <button type="submit" class="action-button btn-crear">
-                    <span class="mr-2">💾</span> Guardar Albarán (Crear)
+                <button type="submit" class="action-button btn-guardar">
+                    <span class="mr-2">💾</span> Guardar Copia (Crear Nuevo)
                 </button>
             </div>
             

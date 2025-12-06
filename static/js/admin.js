@@ -605,7 +605,7 @@ const DOM = {
                             <button onclick="handleEditAction('${albaran.id || albaran.numero_albaran}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
                                 <i data-lucide="pencil" class="h-3 w-3"></i>
                             </button>
-                            <button onclick="handleAction('Copiar', '${albaran.numero_albaran}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-0.5 rounded-full hover:bg-purple-100 transition active:scale-90">
+                            <button onclick="handleCopyAction('${albaran.id || albaran.numero_albaran}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-0.5 rounded-full hover:bg-purple-100 transition active:scale-90">
                                 <i data-lucide="copy" class="h-3 w-3"></i>
                             </button>
                             <button onclick="handleAction('Eliminar', '${albaran.numero_albaran}')" title="Eliminar albarán" class="text-red-500 hover:text-red-700 p-0.5 rounded-full hover:bg-red-100 transition active:scale-90">
@@ -795,11 +795,17 @@ window.handleViewAction = (albaranId) => {
     window.location.href = url;
 };
 
-// ✅ NUEVA FUNCIÓN: Redirige a la vista de edición del albarán para el ADMIN
+// Redirige a la vista de edición del albarán para el ADMIN
 window.handleEditAction = (albaranId) => {
-    // Usamos la ruta /admin/albaranes/update/<ID> para indicar el rol Admin
     const url = `/admin/albaranes/update/${albaranId}`;
     console.log(`✏️ Navegando a la edición (Admin) del albarán: ${url}`);
+    window.location.href = url;
+};
+
+// Redirige a la vista de copia del albarán para el ADMIN
+window.handleCopyAction = (albaranId) => {
+    const url = `/admin/albaranes/copiar/${albaranId}`;
+    console.log(`✂️ Navegando a la vista de Copia (Admin) del albarán: ${url}`);
     window.location.href = url;
 };
 
@@ -809,7 +815,7 @@ window.showModal = (show) => {
     if (modal) modal.classList.toggle('hidden', !show);
 };
 
-// Función existente (solo para acciones que usan el modal, como Copiar y Eliminar)
+// Función existente (solo para acciones que usan el modal, como Copiar y Eliminar en caso de fallback)
 window.handleAction = (title, description) => {
     const modal = document.getElementById('actionModal');
     const modalTitle = document.getElementById('modalTitle');
