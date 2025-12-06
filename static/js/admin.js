@@ -608,7 +608,7 @@ const DOM = {
                             <button onclick="handleCopyAction('${albaran.id || albaran.numero_albaran}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-0.5 rounded-full hover:bg-purple-100 transition active:scale-90">
                                 <i data-lucide="copy" class="h-3 w-3"></i>
                             </button>
-                            <button onclick="handleAction('Eliminar', '${albaran.numero_albaran}')" title="Eliminar albarán" class="text-red-500 hover:text-red-700 p-0.5 rounded-full hover:bg-red-100 transition active:scale-90">
+                            <button onclick="handleDeleteAction('${albaran.id || albaran.numero_albaran}')" title="Eliminar albarán" class="text-red-500 hover:text-red-700 p-0.5 rounded-full hover:bg-red-100 transition active:scale-90">
                                 <i data-lucide="trash-2" class="h-3 w-3"></i>
                             </button>
                         </div>
@@ -806,6 +806,13 @@ window.handleEditAction = (albaranId) => {
 window.handleCopyAction = (albaranId) => {
     const url = `/admin/albaranes/copiar/${albaranId}`;
     console.log(`✂️ Navegando a la vista de Copia (Admin) del albarán: ${url}`);
+    window.location.href = url;
+};
+
+// ✅ NUEVA FUNCIÓN: Redirige a la vista de borrado del albarán para el ADMIN
+window.handleDeleteAction = (albaranId) => {
+    const url = `/admin/albaranes/borrar/${albaranId}`;
+    console.log(`🗑️ Navegando a la confirmación de borrado (Admin) del albarán: ${url}`);
     window.location.href = url;
 };
 

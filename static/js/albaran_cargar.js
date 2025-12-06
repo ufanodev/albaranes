@@ -1,55 +1,9 @@
 // Archivo: static/js/albaran_cargar.js
-// Carga los datos de un albarán específico para visualización (solo lectura).
-
-document.addEventListener('DOMContentLoaded', async () => {
-    const loadingIndicator = document.getElementById('loadingIndicator');
-    const errorMessage = document.getElementById('errorMessage');
-
-    // 1. Obtener el ID de la URL
-    // La URL es del tipo /titulares/view/32
-    const pathParts = window.location.pathname.split('/');
-    const id = pathParts[pathParts.length - 1];
-
-    if (!id || isNaN(id)) {
-        showError("ID de albarán no válido.");
-        return;
-    }
-
-    try {
-        // 2. Llamar a la API
-        const response = await fetch(`/api/v1/albaranes/${id}`);
-        
-        if (response.status === 401) {
-            window.location.href = '/login';
-            return;
-        }
-        
-        if (!response.ok) {
-            throw new Error(`Error ${response.status}: No se pudo cargar el albarán.`);
-        }
-
-        const json = await response.json();
-        const data = json.data; // El backend devuelve { data: { ... } }
-
-        if (!data) {
-            throw new Error("No se recibieron datos del servidor.");
-        }
-
-        // 3. Rellenar el formulario
-        populateForm(data);
-        
-        // Ocultar indicador de carga
-        if (loadingIndicator) loadingIndicator.style.display = 'none';
-
-    } catch (error) {
-        console.error(error);
-        showError(error.message);
-        if (loadingIndicator) loadingIndicator.textContent = "Error";
-    }
-});
+// Contiene las funciones auxiliares para cargar y mapear datos de un albarán.
 
 /**
  * Rellena los campos del HTML con los datos JSON.
+ * Esta función debe ser llamada por el script principal de la vista (ej: albaran_view.js o albaran_borrar.js).
  */
 function populateForm(data) {
     // Helper para asignar valor (maneja nulos)
@@ -84,6 +38,7 @@ function populateForm(data) {
     if (data.EmpresaData) {
         setVal('empresa_nombre', data.EmpresaData.Nombre || data.EmpresaData.nombre);
     } else {
+        // En vistas de solo lectura, mostrar el ID si el nombre no está disponible
         setVal('empresa_nombre', `Empresa ID: ${data.EmpresaRef}`);
     }
 
@@ -113,10 +68,24 @@ function populateForm(data) {
     setVal('observaciones', data.Observaciones || data.observaciones);
 
     // Facturación
-    setVal('num_factura', data.Num_factura || data.num_factura || '-');
-    // Si fecha_cobro es nula, mostramos guión o vacío
+    // Nota: Para la vista de borrado, el HTML usa <span> para num_factura y fecha_cobro
+    // Por eso usamos textContent si no es un input.
+    const numFacturaEl = document.getElementById('num_factura');
+    const fechaCobroEl = document.getElementById('fecha_cobro');
+    
+    if (numFacturaEl && numFacturaEl.tagName !== 'INPUT') {
+        numFacturaEl.textContent = data.Num_factura || data.num_factura || '-';
+    } else if (numFacturaEl) {
+        numFacturaEl.value = data.Num_factura || data.num_factura || '-';
+    }
+    
     const fechaCobro = data.Fecha_cobro || data.fecha_cobro;
-    document.getElementById('fecha_cobro').textContent = fechaCobro ? fechaCobro.substring(0, 10) : '-';
+    if (fechaCobroEl && fechaCobroEl.tagName !== 'INPUT') {
+        fechaCobroEl.textContent = fechaCobro ? fechaCobro.substring(0, 10) : '-';
+    } else if (fechaCobroEl) {
+        fechaCobroEl.value = fechaCobro ? fechaCobro.substring(0, 10) : '-';
+    }
+
 
     // Checkboxes
     setCheck('urbano', data.Urbano || data.urbano);
@@ -140,8 +109,9 @@ function showError(msg) {
 }
 
 // =====================================================================
-// ✅ NUEVA FUNCIÓN: Ir a la página anterior en el historial del navegador
+// FUNCIONES GLOBALES REQUERIDAS POR EL HTML
 // =====================================================================
+// Mantenemos goBack global para el botón "Volver"
 window.goBack = () => {
     console.log("Navegando hacia atrás en el historial...");
     window.history.back();

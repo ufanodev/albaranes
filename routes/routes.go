@@ -79,11 +79,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			c.HTML(http.StatusOK, "albaran_update.html", nil)
 		})
 
-		// ✅ RUTA AÑADIDA: Vista de copia para Administrador
+		// Vista de copia para Administrador
 		viewGroup.GET("/admin/albaranes/copiar/:id", func(c *gin.Context) {
-			// Asumo que tienes un albaran_copiar.html o reutilizas albaran_update.html
-			// con lógica específica. Si usas albaran_update, cámbialo aquí.
 			c.HTML(http.StatusOK, "albaran_copiar.html", nil)
+		})
+
+		// ✅ RUTA AÑADIDA: Vista de confirmación de borrado para Administrador
+		viewGroup.GET("/admin/albaranes/borrar/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "albaran_borrar.html", nil) // Nuevo archivo HTML
 		})
 
 		adminViews := viewGroup.Group("/admin")
