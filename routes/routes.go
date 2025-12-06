@@ -71,6 +71,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		viewGroup.GET("/titulares/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_update.html", nil) })
 		viewGroup.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_view.html", nil) })
 
+		// ✅ RUTA AÑADIDA: Maneja la vista del albarán por su ID para /albaranes/view/45
+		viewGroup.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_view.html", nil) })
+
 		adminViews := viewGroup.Group("/admin")
 		{
 			adminViews.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "admin.html", nil) })

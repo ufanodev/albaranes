@@ -43,8 +43,8 @@ const APP = {
         searchTypeRadios: document.querySelectorAll('input[name="search_type"]'), 
     },
     state: {
-        allAlbaranes: [],       // Lista completa (copia de seguridad)
-        filteredAlbaranes: [],  // Lista actual mostrada
+        allAlbaranes: [],       // Lista completa (copia de seguridad)
+        filteredAlbaranes: [],  // Lista actual mostrada
         currentPage: 1,
         pageSize: 10,
         totalRecords: 0,
@@ -599,7 +599,7 @@ const DOM = {
                     <td class="px-3 py-2 text-xs text-gray-600 max-w-[120px] text-truncate" title="${albaran.observaciones_admin || ''}">${albaran.observaciones_admin || '-'}</td>
                     <td class="px-3 py-2 whitespace-nowrap text-center text-xs font-medium">
                         <div class="flex space-x-1 justify-center">
-                            <button onclick="handleAction('Ver', '${albaran.numero_albaran}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-0.5 rounded-full hover:bg-blue-100 transition active:scale-90">
+                            <button onclick="handleViewAction('${albaran.id || albaran.numero_albaran}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-0.5 rounded-full hover:bg-blue-100 transition active:scale-90">
                                 <i data-lucide="eye" class="h-3 w-3"></i>
                             </button>
                             <button onclick="handleAction('Editar', '${albaran.numero_albaran}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
@@ -790,11 +790,20 @@ window.UI.setSearchModeManual = UI.setSearchModeManual.bind(UI);
 // Para mantener la consistencia con el código anterior:
 window.UI.limpiarBusqueda = Events.handleClearAllFilters.bind(Events);
 
+// ✅ NUEVA FUNCIÓN: Redirige a la vista del albarán
+window.handleViewAction = (albaranId) => {
+    // Asumiendo que la ruta de la vista es /albaranes/view/<ID>
+    const url = `/albaranes/view/${albaranId}`;
+    console.log(`👁️ Navegando a la vista del albarán: ${url}`);
+    window.location.href = url;
+};
 
 window.showModal = (show) => {
     const modal = document.getElementById('actionModal');
     if (modal) modal.classList.toggle('hidden', !show);
 };
+
+// Función existente (ahora solo para acciones que usan el modal, como Editar, Copiar, Eliminar)
 window.handleAction = (title, description) => {
     const modal = document.getElementById('actionModal');
     const modalTitle = document.getElementById('modalTitle');

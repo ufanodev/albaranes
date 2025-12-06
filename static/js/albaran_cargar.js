@@ -138,3 +138,11 @@ function showError(msg) {
     const loading = document.getElementById('loadingIndicator');
     if (loading) loading.style.display = 'none';
 }
+
+// =====================================================================
+// ✅ NUEVA FUNCIÓN: Ir a la página anterior en el historial del navegador
+// =====================================================================
+window.goBack = () => {
+    console.log("Navegando hacia atrás en el historial...");
+    window.history.back();
+};
