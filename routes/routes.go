@@ -197,7 +197,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albaranGroup.GET("/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 
-				albaranGroup.PUT("/bulk-pay", func(c *gin.Context) { controllers.BulkPayAlbaranes(c, db) })
+				// 🔑 ASIGNACIÓN CORREGIDA: BulkPay (usado por JS) apunta al nuevo controlador BulkCharge
+				albaranGroup.PUT("/bulk-pay", func(c *gin.Context) { controllers.BulkChargeAlbaranes(c, db) })
 
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
 			}

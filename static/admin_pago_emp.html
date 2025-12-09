@@ -62,6 +62,7 @@
                 </div>
 
                 <nav class="hidden md:flex items-center space-x-6">
+                    
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Titulares</span>
@@ -69,7 +70,7 @@
                         </button>
                         <div class="dropdown-content">
                             <a href="/admin/titulares">Titulares Gestión</a>
-                            <a href="/admin/pago_tit">Titulares Pagos</a>
+                            <a href="/admin/pago_tit">Titulares Pagos</a> 
                         </div>
                     </div>
 
@@ -93,7 +94,7 @@
                         </button>
                         <div class="dropdown-content">
                             <a href="/admin/empresas">Empresas Gestión</a>
-                            <a href="/admin/pago_emp" class="bg-primary-pastel/50 font-bold">Empresas Cobro</a>
+                            <a href="/admin/pago_emp" class="bg-primary-pastel/50 font-bold">Empresas Cobro</a> 
                         </div>
                     </div>
                     
@@ -149,7 +150,7 @@
             </div>
 
             <div class="card mb-8 filter-section">
-                <h2 class="text-xl font-bold text-black-pure mb-4">🔍 Filtros de Búsqueda</h2>
+                
                 <form id="searchForm" onsubmit="handleSearch(event)">
                     
                     <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center">
@@ -180,10 +181,10 @@
                         </button>
 
                         <button type="button" 
-                                id="btn-limpiar"
-                                onclick="handleClearAllFilters()" 
-                                class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                     bg-red-600 text-white hover:bg-red-700 active:scale-95 ml-2">
+                            id="btn-limpiar"
+                            onclick="handleClearAllFilters()" 
+                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
+                                bg-red-600 text-white hover:bg-red-700 active:scale-95 ml-2">
                             Limpiar
                         </button>
                     </div>
@@ -192,19 +193,29 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
                         
                         <div>
-                            <label for="licencia" class="block text-xs font-medium text-gray-700 mb-1">LICENCIA</label>
-                            <input type="text" id="licencia" name="licencia" placeholder="Ej: 77 CESAR" class="input-field">
+                            <label for="licenciaSelect" class="block text-sm font-medium text-gray-600 mb-1">
+                                <i data-lucide="id-card" class="h-3 w-3 mr-1"></i>
+                                LICENCIA
+                            </label>
+                            <select id="licenciaSelect" name="licencia" class="input-field appearance-none text-xs">
+                                <option value="">Cargando licencias...</option>
+                            </select>
                         </div>
                         
                         <div>
-                            <label for="empresa" class="block text-xs font-medium text-gray-700 mb-1">Empresa</label>
+                            <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">
+                                Empresa
+                            </label>
                             <select id="empresa" name="empresa" class="input-field appearance-none">
                                 <option value="">Por favor Seleccione</option>
                             </select>
                         </div>
                         
                         <div>
-                            <label for="cobrado" class="block text-xs font-medium text-gray-700 mb-1">Cobrado</label>
+                            <label for="cobrado" class="block text-sm font-medium text-gray-600 mb-1">
+                                <i data-lucide="activity" class="h-3 w-3 mr-1"></i>
+                                Cobrado
+                            </label>
                             <select id="cobrado" name="cobrado" class="input-field appearance-none">
                                 <option value="">Todos</option>
                                 <option value="si">Sí</option>
@@ -213,16 +224,19 @@
                         </div>
                         
                         <div>
-                            <label for="referencia" class="block text-xs font-medium text-gray-700 mb-1">Referencia</label>
-                            <input type="text" id="referencia" name="referencia" placeholder="Si la tiene" class="input-field">
+                            <label for="referencia" class="block text-sm font-medium text-gray-600 mb-1">
+                                <i data-lucide="hash" class="h-3 w-3 mr-1"></i>
+                                Referencia
+                            </label>
+                            <input type="text" id="referencia" name="referencia" placeholder="Ref..." class="input-field text-xs" title="Buscar por número de referencia">
                         </div>
                         
                         <div>
-                            <label for="fecha_desde" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Desde)</label>
+                            <label for="fecha_desde" class="block text-sm font-medium text-gray-600 mb-1">Fecha (Desde)</label>
                             <input type="date" id="fecha_desde" name="fecha_desde" class="input-field">
                         </div>
                         <div>
-                            <label for="fecha_hasta" class="block text-xs font-medium text-gray-700 mb-1">Fecha (Hasta)</label>
+                            <label for="fecha_hasta" class="block text-sm font-medium text-gray-600 mb-1">Fecha (Hasta)</label>
                             <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field">
                         </div>
 
@@ -232,8 +246,16 @@
                          <label for="palabra" class="filter-label block text-xs font-medium text-gray-700 mb-1">
                             🔍 Búsqueda Global (Licencia, Ref, Obs.)
                         </label>
-                        <input type="text" id="palabra" name="palabra" placeholder="Buscar texto libre..." class="input-field">
-                        
+                        <div class="flex gap-2">
+                            <input type="text" id="palabra" name="palabra" placeholder="Buscar texto libre..." class="input-field flex-1 search-highlight">
+                            <button type="button" 
+                                    onclick="document.getElementById('palabra').value = '';"
+                                    class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
+                                    title="Limpiar búsqueda">
+                                <i data-lucide="x" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+
                         <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
                             <div class="font-medium text-gray-700 flex items-center">
                                 Tipo de búsqueda de texto:
@@ -252,29 +274,15 @@
                             </label>
                         </div>
                     </div>
-
-
-                    <div class="mt-6 flex justify-end gap-3">
-                        <button type="button" 
-                            id="btn-limpiar-final"
-                            onclick="handleClearAllFilters()" 
-                            class="btn btn-red flex items-center">
-                            <i data-lucide="rotate-ccw" class="h-5 w-5 mr-2"></i> Limpiar Filtros
-                        </button>
-                        <button type="submit" 
-                            class="btn btn-primary flex items-center">
-                            <i data-lucide="search" class="h-5 w-5 mr-2"></i> Buscar Albaranes
-                        </button>
-                    </div>
                 </form>
             </div>
 
-            <button type="button" class="group relative inline-flex items-center justify-center px-6 py-3 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-green-500/50 hover:from-green-600 hover:to-green-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 mb-6" onclick="handleBulkPay()">
+            <button type="button" class="group relative inline-flex items-center justify-center px-6 py-3 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-green-500/50 hover:from-green-600 hover:to-green-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" onclick="handleBulkPay()">
                 <i data-lucide="credit-card" class="h-5 w-5 mr-2 transition-transform group-hover:scale-110"></i>
                 <span class="relative">Cobrar Seleccionados</span>
             </button>
 
-            <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 mt-6"> 
                 <div id="statusInfo" class="text-sm text-gray-600 mb-2 sm:mb-0">
                     <span id="pageInfo">Página 1 de 1</span> 
                     <span id="totalLabel"></span>
