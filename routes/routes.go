@@ -32,7 +32,9 @@ func AuthRedirectMiddleware() gin.HandlerFunc {
 		isProtectedView := strings.HasPrefix(c.Request.URL.Path, "/admin") ||
 			strings.HasPrefix(c.Request.URL.Path, "/titulares") ||
 			// Protección explícita del CRUD
-			strings.HasPrefix(c.Request.URL.Path, "/admin/titulares")
+			strings.HasPrefix(c.Request.URL.Path, "/admin/titulares") ||
+			// Protección para CRUD EMPRESAS
+			strings.HasPrefix(c.Request.URL.Path, "/admin/empresas")
 
 		// A. Si NO hay sesión válida Y se accede a una vista protegida, redirigir al login.
 		if !isSessionValid && isProtectedView {
@@ -93,18 +95,19 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/albaranes", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_busqueda.html", nil) })
 			adminViews.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
 
-			// ✅ GESTIÓN PRINCIPAL DE TITULARES (Tabla)
+			// GESTIÓN PRINCIPAL DE TITULARES (Tabla)
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
-			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
+			// GESTIÓN PRINCIPAL DE EMPRESAS (Tabla)
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
 
+			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
 			adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
 			adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) })
 			adminViews.GET("/pago_emp", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_emp.html", nil) })
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
 		}
 
-		// 🟢 RUTAS CRUD de TITULARES (Usando admin_titular_crud.html)
+		// RUTAS CRUD de TITULARES (Usando admin_titular_crud.html)
 		viewGroup.GET("/admin/titulares/crear", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_titular_crud.html", nil)
 		})
@@ -114,16 +117,26 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		viewGroup.GET("/admin/titulares/view/:id", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_titular_crud.html", nil)
 		})
-		// 🗑️ RUTA DE CONFIRMACIÓN DE BORRADO LÓGICO
 		viewGroup.GET("/admin/titulares/delete/:id", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_titular_crud.html", nil)
+		})
+
+		// 🏢 RUTAS CRUD de EMPRESAS (Usando admin_empresas_crud.html)
+		viewGroup.GET("/admin/empresas/crear", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_empresas_crud.html", nil)
+		})
+		viewGroup.GET("/admin/empresas/update/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_empresas_crud.html", nil)
+		})
+		viewGroup.GET("/admin/empresas/delete/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_empresas_crud.html", nil)
 		})
 	}
 
 	// 3. API REST (Backend Datos)
 	api := r.Group("/api/v1")
 	{
-		api.POST("/register", utils.RegisterKeyAuth(), func(c *gin.Context) { controllers.Register(c, db) })
+		api.POST("/register", func(c *gin.Context) { controllers.Register(c, db) })
 		api.POST("/login", func(c *gin.Context) { controllers.Login(c, db) })
 		api.POST("/logout", func(c *gin.Context) {
 			utils.ClearAndSetAuthCookie(c)
@@ -157,9 +170,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				licenciaGroup.GET("/", func(c *gin.Context) { controllers.GetLicencias(c, db) })
 				licenciaGroup.GET("/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) })
 				licenciaGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
-				// 🗑️ RUTA DE BORRADO LÓGICO (Soft Delete)
 				licenciaGroup.PUT("/softdelete/:id", func(c *gin.Context) { controllers.SoftDeleteLicencia(c, db) })
-				// Borrado físico (mantener por si acaso, aunque se usa softdelete)
 				licenciaGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
 			}
 
@@ -186,7 +197,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albaranGroup.GET("/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 
-				// 💰 RUTA DE PAGO MASIVO (Bulk Pay)
 				albaranGroup.PUT("/bulk-pay", func(c *gin.Context) { controllers.BulkPayAlbaranes(c, db) })
 
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
