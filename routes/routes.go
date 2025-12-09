@@ -105,7 +105,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		}
 
 		// 🟢 RUTAS CRUD de TITULARES (Usando admin_titular_crud.html)
-		// Las rutas de vista/edición/borrado lógico apuntan al mismo archivo CRUD.
 		viewGroup.GET("/admin/titulares/crear", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_titular_crud.html", nil)
 		})
@@ -186,6 +185,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				protected.GET("/albaranes", func(c *gin.Context) { controllers.GetAlbaranes(c, db) })
 				albaranGroup.GET("/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
+
+				// 💰 RUTA DE PAGO MASIVO (Bulk Pay)
+				albaranGroup.PUT("/bulk-pay", func(c *gin.Context) { controllers.BulkPayAlbaranes(c, db) })
+
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
 			}
 		}

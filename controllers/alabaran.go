@@ -199,6 +199,18 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 		query = query.Where("empresa_ref = ?", empresaRef)
 	}
 
+	// 2.5 FILTRO POR ENVIADO (Usado en el flujo de pagos)
+	enviado := c.Query("enviado")
+	if enviado != "" {
+		query = query.Where("enviado = ?", enviado)
+	}
+
+	// 2.7 FILTRO POR PAGADO (Usado en el flujo de pagos)
+	pagado := c.Query("pagado")
+	if pagado != "" {
+		query = query.Where("pagado = ?", pagado)
+	}
+
 	// 3. FILTRO POR ESTADO (Corregido con IFNULL para robustez)
 	state := c.Query("state")
 	if state != "" {
@@ -278,7 +290,6 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 				var wordClauses []string
 				var wordValues []interface{}
 				for _, field := range searchFields {
-					// CORRECCIÓN: Usando 'wordClauses' en lugar de 'wordClabaranes'
 					wordClauses = append(wordClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
 					wordValues = append(wordValues, "%"+word+"%")
 				}
@@ -345,6 +356,7 @@ func GetAlbaran(c *gin.Context, db *gorm.DB) {
 // CONTROLADORES CRUD y ACCIONES MASIVAS
 // ---------------------------------------------------------------------
 
+// BulkSendAlbaranes marca una lista de albaranes como enviados.
 func BulkSendAlbaranes(c *gin.Context, db *gorm.DB) {
 	var input BulkIDsInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -370,6 +382,43 @@ func BulkSendAlbaranes(c *gin.Context, db *gorm.DB) {
 	log.Printf("✅ [BulkSend] %d registros actualizados.", result.RowsAffected)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "✅ Albaranes enviados exitosamente",
+		"updated": result.RowsAffected,
+	})
+}
+
+// 💰 BulkPayAlbaranes marca una lista de albaranes como pagados con la fecha actual.
+func BulkPayAlbaranes(c *gin.Context, db *gorm.DB) {
+	var input BulkIDsInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Lista de IDs inválida", "details": err.Error()})
+		return
+	}
+
+	log.Printf("💰 [BulkPay] IDs recibidos para pago: %v", input.IDs)
+
+	if len(input.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No se proporcionaron IDs para el pago"})
+		return
+	}
+
+	// 1. Definir los campos a actualizar
+	updates := map[string]interface{}{
+		"Pagado":    true,
+		"FechaPago": time.Now().Format("2006-01-02"), // Formato YYYY-MM-DD
+	}
+
+	// 2. Ejecutar la actualización masiva
+	result := db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(updates)
+
+	if result.Error != nil {
+		log.Printf("🔴 [BulkPay] Error DB: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar los albaranes como pagados"})
+		return
+	}
+
+	log.Printf("✅ [BulkPay] %d registros marcados como pagados.", result.RowsAffected)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "✅ Albaranes marcados como Pagados exitosamente",
 		"updated": result.RowsAffected,
 	})
 }
