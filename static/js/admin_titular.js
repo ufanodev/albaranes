@@ -198,7 +198,7 @@ const API = {
         DOM.showLoading();
         
         try {
-            // Endpoint GetLicencias: /api/v1/licencias
+            // Endpoint GetLicencias: /api/v1/licencias. Esto traerá solo activos (Estado=true) por defecto.
             const response = await fetch('/api/v1/licencias'); 
             
             if (response.status === 401) {
@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // 🌍 FUNCIONES GLOBALES (Redirecciones y Modales)
 // =================================================================================
 
-// Redirige a la vista del titular (Acción 'Ver Detalle')
+/** Redirige a la vista del titular (Acción 'Ver Detalle') */
 window.handleViewActionTitular = (titularId) => {
     console.log(`➡️ 3. Botón 'Ver Detalle' pulsado para ID: ${titularId}.`);
     const url = `/admin/titulares/view/${titularId}`; 
@@ -463,21 +463,29 @@ window.handleViewActionTitular = (titularId) => {
     window.location.href = url;
 };
 
-// Redirige a la edición del titular (Acción 'Editar')
+/** Redirige a la edición del titular (Acción 'Editar') */
 window.handleEditActionTitular = (titularId) => {
     console.log(`➡️ 3. Botón 'Editar' pulsado para ID: ${titularId}.`);
-    // Redirección a la ruta de actualización/edición
     const url = `/admin/titulares/update/${titularId}`;
     console.log(`➡️ 4. Redirigiendo a CRUD (EDIT): ${url}`);
     window.location.href = url;
 };
 
-// Simula la eliminación (usa el modal de acción)
+/** Redirige a la confirmación de borrado lógico (Acción 'Eliminar') */
 window.handleDeleteActionTitular = (titularId, licencia) => {
-    const title = 'Confirmación de Eliminación';
-    const message = `Se ha SIMULADO la eliminación del Titular con ID ${titularId} (Licencia ${licencia}).`;
-    window.handleAction(title, message);
+    console.log(`➡️ 3. Botón 'Eliminar' pulsado para ID: ${titularId}.`);
+    const url = `/admin/titulares/delete/${titularId}`; 
+    console.log(`➡️ 4. Redirigiendo a CRUD (DELETE): ${url}`);
+    window.location.href = url;
 };
+
+/** Redirige a la creación de un nuevo titular (Acción 'Nuevo Titular') */
+window.handleCreateActionTitular = () => {
+    console.log("➡️ Botón 'Nuevo Titular' pulsado. Redirigiendo a modo CREATE.");
+    const url = `/admin/titulares/crear`; 
+    window.location.href = url;
+};
+
 
 // Funciones de utilidad de la UI (Para el header/modal)
 window.showModal = (show) => {

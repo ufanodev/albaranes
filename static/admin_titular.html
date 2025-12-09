@@ -170,8 +170,10 @@
                     </div>
 
                     <div class="flex space-x-3 mt-4 sm:mt-0">
-                        <button title="Nuevo Titular" class="bg-green-500 text-white hover:bg-green-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Nuevo Titular', 'Añadir nuevo registro')">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <button title="Nuevo Titular" 
+                                class="bg-green-500 text-white hover:bg-green-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" 
+                                onclick="handleCreateActionTitular()"> 
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         </button>
                         <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Excel', 'Se exportará el listado actual a formato Excel')">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M11 15h6"/><path d="M14 12v6"/><path d="M8 12h2"/><path d="M8 15h2"/><path d="M8 18h2"/></svg>

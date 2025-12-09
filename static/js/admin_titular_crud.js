@@ -1,5 +1,5 @@
 // Archivo: static/js/admin_titular_crud.js
-// Lógica para la vista de CRUD de Titulares, incluyendo los modos 'view', 'edit' y 'create'.
+// Lógica para la vista de CRUD de Titulares, incluyendo los modos 'view', 'edit' y 'delete'.
 
 (function() {
     
@@ -11,11 +11,11 @@
             statusMessage: document.getElementById('statusMessage'),
             btnCrear: document.getElementById('btn-crear'),
             btnModificar: document.getElementById('btn-modificar'),
-            btnBorrar: document.getElementById('btn-borrar'),
+            btnBorrar: document.getElementById('btn-borrar'), // Usaremos este botón para la confirmación
             allInputs: null,
         },
         state: {
-            mode: 'create', // 'create', 'edit', 'view'
+            mode: 'create', // 'create', 'edit', 'view', 'delete'
             titularId: null,
         }
     };
@@ -48,50 +48,61 @@
     }
 
     /** Actualiza el título de la página y los estados de los botones según el modo. */
-    function updateUIForMode(mode) {
+    function updateUIForMode(mode, titularData = null) {
         const { mainTitle, btnCrear, btnModificar, btnBorrar } = CRUD_APP.elements;
+        const titularID = CRUD_APP.state.titularId;
+        const titularLicencia = titularData ? titularData.licencia : '';
 
-        if (mode === 'view') {
-            mainTitle.textContent = `👁️ Detalle Titular #${CRUD_APP.state.titularId}`;
-            
-            // Ocultar Crear y Deshabilitar Modificar/Borrar
-            if (btnCrear) btnCrear.style.display = 'none'; 
-            if (btnModificar) btnModificar.disabled = true;
-            if (btnBorrar) btnBorrar.disabled = true;
-            
-            toggleFormFields(false);
-            
-            crudAlertMessage("Modo Solo Lectura: Los campos y botones de acción están deshabilitados.", 'info');
+        // Ocultar botones de acción por defecto
+        if (btnCrear) btnCrear.style.display = 'none';
+        if (btnModificar) btnModificar.style.display = 'none';
+        if (btnBorrar) btnBorrar.style.display = 'none';
+        
+        // Resetear deshabilitación
+        if (btnModificar) btnModificar.disabled = false;
+        if (btnBorrar) btnBorrar.disabled = false;
+        
+        toggleFormFields(false); // Por defecto, deshabilitado
 
-        } else if (mode === 'edit') {
-            mainTitle.textContent = `✏️ Modificar Titular #${CRUD_APP.state.titularId}`;
-            
-            // Ocultar Crear y Borrar (solo Modificar y Volver deben estar activos)
-            if (btnCrear) btnCrear.style.display = 'none';
-            if (btnBorrar) btnBorrar.style.display = 'none'; 
-            
-            if (btnModificar) {
-                btnModificar.textContent = 'Guardar Cambios'; // Cambiar texto
-                btnModificar.disabled = false;
-                btnModificar.style.display = ''; // Asegurar visibilidad
-            }
-            
-            toggleFormFields(true);
-            crudAlertMessage("Modo Edición: Modifique los campos y pulse 'Guardar Cambios'.", 'neutral');
-            
-        } else { // 'create'
-            mainTitle.textContent = '➕ Crear Nuevo Titular';
-            
-            if (btnModificar) btnModificar.style.display = 'none';
-            if (btnBorrar) btnBorrar.style.display = 'none';
-            
-            if (btnCrear) btnCrear.disabled = false;
-            
-            toggleFormFields(true);
+        switch (mode) {
+            case 'view':
+                mainTitle.textContent = `👁️ Detalle Titular #${titularID}`;
+                crudAlertMessage("Modo Solo Lectura: Campos deshabilitados.", 'info');
+                break;
+
+            case 'edit':
+                mainTitle.textContent = `✏️ Modificar Titular #${titularID}`;
+                if (btnModificar) {
+                    btnModificar.textContent = 'Guardar Cambios';
+                    btnModificar.style.display = '';
+                }
+                toggleFormFields(true); // Habilitar campos
+                crudAlertMessage("Modo Edición: Modifique los campos y pulse 'Guardar Cambios'.", 'neutral');
+                break;
+                
+            case 'delete':
+                // ⚠️ MODO CONFIRMACIÓN DE BAJA
+                mainTitle.textContent = `🗑️ Confirmar Baja Titular #${titularID} (${titularLicencia})`;
+                if (btnBorrar) {
+                    btnBorrar.textContent = '🗑️ CONFIRMAR BAJA'; // Cambiar texto para confirmación
+                    btnBorrar.style.display = ''; // Mostrar solo Borrar
+                }
+                
+                // Deshabilitar campos y mostrar mensaje de confirmación
+                toggleFormFields(false);
+                crudAlertMessage(`ATENCIÓN: Se requiere confirmación para dar de BAJA al titular #${titularID}.`, 'error');
+                break;
+
+            case 'create':
+            default:
+                mainTitle.textContent = '➕ Crear Nuevo Titular';
+                if (btnCrear) btnCrear.style.display = '';
+                toggleFormFields(true); // Habilitar campos
+                break;
         }
     }
 
-    /** Carga los datos del titular y actualiza la UI, usando licencias_cargar.js. */
+    /** Carga los datos del titular y actualiza la UI. */
     async function loadAndFillTitularData(id, mode) {
         if (id && mode !== 'create' && typeof loadLicenciaFromAPI === 'function') {
             
@@ -100,19 +111,26 @@
             const titularData = await loadLicenciaFromAPI(id); 
 
             if (titularData) {
+                // 2. Rellenar formulario
                 if (typeof fillFormWithLicenciaData === 'function') {
                     fillFormWithLicenciaData(titularData); 
                 } else {
-                    console.error("Error: fillFormWithLicenciaData no está definido. ¿licencias_cargar.js cargado?");
+                    console.error("Error: fillFormWithLicenciaData no está definido.");
                 }
                 
+                // 3. Actualizar la UI con los datos cargados
+                updateUIForMode(mode, titularData);
                 console.log(`   [CRUD] ✅ 9. Formulario rellenado. Modo: ${mode.toUpperCase()}`);
+
             } else {
                 console.error(`   [CRUD] ⚠️ 9. Carga fallida. Redefiniendo modo a 'create'.`);
                 CRUD_APP.state.mode = 'create';
                 updateUIForMode('create');
                 crudAlertMessage(`No se pudo encontrar el titular #${id}. Listo para Crear.`, 'error');
             }
+        } else {
+             // Si el ID es nulo (modo create), simplemente actualiza la UI al modo 'create'
+             updateUIForMode('create');
         }
     }
 
@@ -123,22 +141,22 @@
     /** Maneja el envío del formulario (Crear/Modificar) */
     window.handleFormSubmit = function(event) {
         event.preventDefault();
-        const form = event.target;
         
         if (!document.getElementById('licencia').value) {
             crudAlertMessage('❌ Error: El campo LICENCIA es obligatorio.', 'error');
             return;
         }
 
+        const form = event.target;
         const data = {};
         new FormData(form).forEach((value, key) => { data[key] = value; });
         
         if (CRUD_APP.state.mode === 'edit') {
-            // Lógica para Modificar (fetch PUT)
+            // Lógica para Modificar (fetch PUT /api/v1/licencias/ID)
             crudAlertMessage(`✅ MODIFICACIÓN exitosa simulada para ID ${data.titularId}.`, 'success');
             console.log("--- DATOS A MODIFICAR (SIMULADO) ---", JSON.stringify(data, null, 2));
         } else if (CRUD_APP.state.mode === 'create') {
-            // Lógica para Crear (fetch POST)
+            // Lógica para Crear (fetch POST /api/v1/licencias)
             crudAlertMessage('✅ CREACIÓN exitosa simulada.', 'success');
             console.log("--- DATOS A CREAR (SIMULADO) ---", JSON.stringify(data, null, 2));
         }
@@ -148,17 +166,34 @@
     window.handleAction = function(actionType) {
         switch (actionType) {
             case 'modificar':
-                // Si el botón está visible (modo 'edit'), se comporta como "Guardar Cambios"
                 if (CRUD_APP.state.mode === 'edit') {
                     CRUD_APP.elements.form.dispatchEvent(new Event('submit', { cancelable: true }));
                 }
                 break;
                 
             case 'borrar':
-                if (CRUD_APP.state.titularId && confirm(`¿Está seguro que desea borrar el Titular #${CRUD_APP.state.titularId}? Esta acción es irreversible.`)) {
-                    crudAlertMessage(`🗑️ Simulación: Eliminación solicitada para Titular #${CRUD_APP.state.titularId}.`, 'error');
-                    // Redirigir después de simular la acción de la API
-                    setTimeout(() => window.location.href = '/admin/titulares', 1500);
+                // Solo se ejecuta en modo 'delete'
+                if (CRUD_APP.state.mode === 'delete' && CRUD_APP.state.titularId) {
+                    
+                    const id = CRUD_APP.state.titularId;
+                    
+                    // Lógica de Soft Delete contra el endpoint PUT
+                    const deleteUrl = `/api/v1/licencias/softdelete/${id}`; 
+                    
+                    fetch(deleteUrl, { method: 'PUT' })
+                        .then(response => {
+                            if (!response.ok) throw new Error(`Error ${response.status} al desactivar.`);
+                            return response.json();
+                        })
+                        .then(() => {
+                            crudAlertMessage(`✅ Titular #${id} desactivado (Estado=Inactivo).`, 'success');
+                            console.log(`🗑️ Soft Delete exitoso: ${id}`);
+                            setTimeout(() => window.location.href = '/admin/titulares', 1500);
+                        })
+                        .catch(error => {
+                            crudAlertMessage(`❌ Falló la BAJA: ${error.message}`, 'error');
+                            console.error("Error Soft Delete:", error);
+                        });
                 }
                 break;
                 
@@ -186,34 +221,47 @@
              return; 
         }
         
-        // 2. Determinar ID y Modo a partir del path (ej: /admin/titulares/view/20)
+        // 2. Determinar ID y Modo a partir del path (ej: /admin/titulares/delete/19)
         const url = window.location.pathname;
         
-        // Regex para capturar el modo y el ID: /.../(view|update|crear)/(\d+)?
-        const match = url.match(/\/admin\/titulares\/(view|update|crear)\/(\d+)?/);
+        // 🔑 FIX: Usando String.split para la detección de modo y ID (más robusto que regex aquí)
+        const parts = url.split('/').filter(p => p.length > 0);
         
         let mode = 'create';
         let id = null;
 
-        if (match) {
-            if (match[1] === 'crear') {
+        // Regla: Buscamos la acción después de 'titulares'
+        if (parts.length >= 3 && parts[0] === 'admin' && parts[1] === 'titulares') {
+            const action = parts[2];
+            id = parts.length > 3 ? parts[3] : null;
+
+            if (action === 'view') {
+                mode = 'view';
+            } else if (action === 'update') {
+                mode = 'edit';
+            } else if (action === 'delete') {
+                mode = 'delete'; // 🟢 ESTO DEBE SER DETECTADO
+            } else if (action === 'crear') {
                 mode = 'create';
-            } else {
-                mode = match[1] === 'update' ? 'edit' : 'view'; // Mapear 'update' a 'edit'
-                id = match[2];
             }
         }
+        // ----------------------------------------------------------------------------------
 
         // 3. Establecer modo y ID en el estado global
         CRUD_APP.state.titularId = id;
         CRUD_APP.state.mode = mode;
+        
+        // Solo asignar el ID al input si fue detectado
         if (id) document.getElementById('titularId').value = id;
 
+        // 🟢 Log con el modo detectado:
         console.log(`➡️ 4. URL analizada. Modo detectado: ${mode.toUpperCase()} (ID: ${id || 'Nuevo'}).`);
         
         // 4. Cargar datos y actualizar la interfaz (asíncrono)
         loadAndFillTitularData(id, mode);
-        updateUIForMode(mode);
+        
+        // La actualización final de la UI se realiza dentro de loadAndFillTitularData
+        // para asegurar que los datos estén cargados antes de establecer los títulos.
         
         console.log('✅ 10. Inicialización de CRUD completada.');
 

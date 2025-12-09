@@ -24,6 +24,7 @@ type CreateLicenciaInput struct {
 	Email     string `json:"email" binding:"email,max=100"`
 	Socio     bool   `json:"socio"`
 	Chofer    bool   `json:"chofer"`
+	Estado    *bool  `json:"estado"` // Permitir definir estado inicial (default: true en el modelo)
 }
 
 // UpdateLicenciaInput es el DTO para la actualización de una Licencia.
@@ -37,6 +38,7 @@ type UpdateLicenciaInput struct {
 	Email     string `json:"email" binding:"email,max=100"`
 	Socio     *bool  `json:"socio"`
 	Chofer    *bool  `json:"chofer"`
+	Estado    *bool  `json:"estado"` // Permitir actualizar el estado
 }
 
 // --- Handlers CRUD para Licencias ---
@@ -49,6 +51,12 @@ func CreateLicencia(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
+	// Inicializar el estado en true por defecto
+	initialState := true
+	if input.Estado != nil {
+		initialState = *input.Estado
+	}
+
 	licencia := models.Licencia{
 		Licencia:  input.Licencia,
 		DNI:       input.DNI,
@@ -59,6 +67,7 @@ func CreateLicencia(c *gin.Context, db *gorm.DB) {
 		Email:     input.Email,
 		Socio:     input.Socio,
 		Chofer:    input.Chofer,
+		Estado:    initialState, // Usar el estado definido o true por defecto
 	}
 
 	if result := db.Create(&licencia); result.Error != nil {
@@ -70,11 +79,18 @@ func CreateLicencia(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Licencia creada exitosamente", "data": licencia})
 }
 
-// GetLicencias obtiene una lista de todas las licencias.
+// GetLicencias obtiene una lista de todas las licencias, filtrando por activo por defecto.
 func GetLicencias(c *gin.Context, db *gorm.DB) {
 	var licencias []models.Licencia
 
-	if err := db.Find(&licencias).Error; err != nil {
+	query := db.Model(&models.Licencia{})
+
+	// Filtrar por Estado=true a menos que se use ?all=true
+	if c.Query("all") != "true" {
+		query = query.Where("estado = ?", true)
+	}
+
+	if err := query.Find(&licencias).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al obtener la lista de licencias"})
 		return
 	}
@@ -121,14 +137,38 @@ func UpdateLicencia(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// GORM es inteligente y solo actualizará los campos no vacíos de la estructura
-	// En el caso de los punteros (*bool), actualizará incluso si el valor es false.
+	// GORM actualizará el modelo, incluyendo el campo Estado si fue proporcionado en el input.
 	if result := db.Model(&licencia).Updates(input); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar la licencia"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Licencia actualizada exitosamente", "data": licencia})
+}
+
+// 🟢 SoftDeleteLicencia: Cambia el campo Estado a FALSE (Borrado Lógico)
+func SoftDeleteLicencia(c *gin.Context, db *gorm.DB) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de licencia inválido"})
+		return
+	}
+
+	var licencia models.Licencia
+	if err := db.First(&licencia, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Licencia no encontrada para desactivar"})
+		return
+	}
+
+	// Acción clave: Establecer Estado = false
+	if result := db.Model(&licencia).Update("Estado", false); result.Error != nil {
+		log.Printf("ERROR GORM al desactivar licencia: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al desactivar la licencia"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Licencia desactivada (estado = false) con éxito", "id": id})
 }
 
 // DeleteLicencia elimina una licencia por ID (Eliminación física de la DB).
@@ -140,10 +180,7 @@ func DeleteLicencia(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 1. Declarar 'result' fuera del if para usar RowsAffected después.
 	var result *gorm.DB
-
-	// 2. Asignar el resultado al objeto result declarado arriba
 	result = db.Delete(&models.Licencia{}, id)
 
 	if result.Error != nil {
@@ -151,7 +188,6 @@ func DeleteLicencia(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 3. ¡Ahora result es accesible aquí!
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Licencia no encontrada para eliminar"})
 		return
@@ -161,9 +197,8 @@ func DeleteLicencia(c *gin.Context, db *gorm.DB) {
 }
 
 // SearchLicencias busca licencias por el número de licencia (campo 'licencia').
-// Se espera el parámetro de consulta 'q' (ej: /licencias/search?q=L-10)
 func SearchLicencias(c *gin.Context, db *gorm.DB) {
-	searchTerm := c.Query("q") // Obtiene el valor del parámetro ?q=...
+	searchTerm := c.Query("q")
 
 	if searchTerm == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Se requiere un término de búsqueda ('q')."})
@@ -171,10 +206,6 @@ func SearchLicencias(c *gin.Context, db *gorm.DB) {
 	}
 
 	var licencias []models.Licencia
-
-	// Usamos LIKE y el comodín '%' para buscar licencias que contengan la cadena
-	// El 'ilike' (versión insensible a mayúsculas/minúsculas) es preferible si la DB lo soporta.
-	// Usaremos LIKE para compatibilidad general con MySQL.
 	searchPattern := "%" + searchTerm + "%"
 
 	if err := db.Where("licencia LIKE ?", searchPattern).Find(&licencias).Error; err != nil {
