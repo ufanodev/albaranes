@@ -401,45 +401,72 @@ func BulkPayAlbaranes(c *gin.Context, db *gorm.DB) {
 
 // 💳 BulkChargeAlbaranes marca una lista de albaranes como cobrados con la fecha actual.
 func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
-	var input BulkIDsInput
+	// Usaremos BulkIDsInput y asumiremos que el JSON puede contener las fechas,
+	// o que BulkIDsInput ya fue ampliado para incluir las fechas como strings.
+	var input struct {
+		BulkIDsInput
+		FechaCobro string `json:"fecha_cobro"`
+		FechaPago  string `json:"fecha_pago"`
+	}
+
 	if err := c.ShouldBindJSON(&input); err != nil {
 		log.Printf("🔴 [BulkCharge] Error al recibir lista de IDs: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Lista de IDs inválida", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Lista de IDs inválida",
+			"details": err.Error(),
+		})
 		return
 	}
 
 	log.Printf("💳 [BulkCharge] IDs recibidos para Cobro Masivo (Empresa): %v", input.IDs)
 
 	if len(input.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No se proporcionaron IDs para el cobro"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No hay IDs"})
 		return
 	}
 
-	currentDateStr := time.Now().Format(dateFormat)
+	// Fechas recibidas del front
+	fechaCobro := input.FechaCobro
+	fechaPago := input.FechaPago
 
-	// 1. Definir los campos a actualizar: COBRADO (34) y FECHA_COBRO (35)
-	// Usamos los nombres de columna de la DB (snake_case)
+	// Obtener fecha actual
+	hoy := time.Now().Format(dateFormat)
+
+	// Si faltan, se autocompletan
+	if fechaCobro == "" {
+		fechaCobro = hoy
+	}
+	if fechaPago == "" {
+		fechaPago = fechaCobro
+	}
+
+	// Campos a actualizar (cobrado, fecha_cobro, fecha_pago)
 	updates := map[string]interface{}{
-		"cobrado":     true,           // Campo 34: Marcar como Cobrado=1
-		"fecha_cobro": currentDateStr, // Campo 35: Establecer la fecha de cobro (YYYY-MM-DD)
-		// 🚨 Si se necesita actualizar fecha_pago (37) para que coincida con la fecha de cobro:
-		"fecha_pago": currentDateStr, // Campo 37: Actualizar la fecha de pago también
+		"cobrado":     true,       // Campo 34: Marcar como cobrado=1
+		"fecha_cobro": fechaCobro, // Campo 35
+		"fecha_pago":  fechaPago,  // Campo 37
+		// 🚨 CRÍTICO: Añadir 'pagado' para que el filtro JS (que usa pagado=0 por defecto) funcione correctamente
+		"pagado": true, // Campo 36: Marcar como pagado=1
 	}
 
 	log.Printf("[BulkCharge] Campos a actualizar: %+v", updates)
 
-	// 2. Ejecutar la actualización masiva
-	result := db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(updates)
+	// Actualizar
+	result := db.Model(&models.Albaran{}).
+		Where("id IN ?", input.IDs).
+		Updates(updates)
 
 	if result.Error != nil {
-		log.Printf("🔴 [BulkCharge] Error DB al actualizar albaranes: %v", result.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar los albaranes como cobrados"})
+		log.Printf("🔴 [BulkCharge] Error DB: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Error DB",
+		})
 		return
 	}
 
-	log.Printf("✅ [BulkCharge] %d registros marcados como COBRADOS.", result.RowsAffected)
+	log.Printf("✅ [BulkCharge] %d registros actualizados.", result.RowsAffected)
 	c.JSON(http.StatusOK, gin.H{
-		"message": "✅ Albaranes marcados como Cobrados exitosamente",
+		"message": "Albaranes actualizados",
 		"updated": result.RowsAffected,
 	})
 }

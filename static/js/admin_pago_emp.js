@@ -1,9 +1,9 @@
 // Archivo: static/js/admin_pago_emp.js
-// ✅ Versión para Administrador: Gestión de Cobro a Empresas.
+// ✅ VERSIÓN CORREGIDA - Filtra por cobrado=0 correctamente
+// =================================================================================
 
 const APP = {
     elements: {
-        // Elementos de Resultados y Paginación
         resultsBody: document.getElementById('albaranResults'),
         recordsSelect: document.getElementById('recordsPerPage'),
         statusMessage: document.getElementById('statusMessage'),
@@ -11,8 +11,6 @@ const APP = {
         totalLabel: document.getElementById('totalLabel'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
-        
-        // Elementos de Filtros
         searchForm: document.getElementById('searchForm'),
         licenciaSelect: document.getElementById('licenciaSelect'),
         empresaSelect: document.getElementById('empresa'),
@@ -20,431 +18,518 @@ const APP = {
         referenciaInput: document.getElementById('referencia'),
         fechaDesdeInput: document.getElementById('fecha_desde'),
         fechaHastaInput: document.getElementById('fecha_hasta'),
-        palabraInput: document.getElementById('palabra'), 
-        
-        // Botones de modo de búsqueda
+        palabraInput: document.getElementById('palabra'),
         btnModeCampos: document.getElementById('btn-mode-campos'),
         btnModePalabra: document.getElementById('btn-mode-palabra'),
         activeFiltersCount: document.getElementById('activeFiltersCount'),
-        
-        // Todos los inputs relevantes para el modo 'campos'
-        specificFields: [ 
-            document.getElementById('licenciaSelect'), 
-            document.getElementById('empresa'),
-            document.getElementById('cobrado'),
-            document.getElementById('referencia'),
-            document.getElementById('fecha_desde'),
-            document.getElementById('fecha_hasta'),
-        ].filter(el => el !== null),
+        selectAllCheckbox: document.getElementById('selectAllCheckbox')
     },
     state: {
-        allAlbaranes: [], 
+        allAlbaranes: [],
         filteredAlbaranes: [],
         currentPage: 1,
-        pageSize: 10, 
+        pageSize: 10,
         totalRecords: 0,
         totalPages: 1,
         currentSort: { key: 'fecha', direction: 'desc' },
-        searchMode: 'campos', 
+        searchMode: 'campos',
+        selectedIds: new Set(),
+        isBulkProcessing: false,
+        currentFilters: {} // Para guardar los filtros actuales
     }
 };
 
 // =================================================================================
-// 🎨 UI HELPERS & UTILITIES
+// 🎨 UI HELPERS
 // =================================================================================
-
 const UI = {
     formatDate(isoString) { 
-        return isoString ? isoString.substring(0, 10) : '-'; 
+        if (!isoString || isoString === '0000-00-00' || isoString === 'null') return '';
+        try {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) return '';
+            return date.toISOString().split('T')[0];
+        } catch {
+            return isoString.substring(0, 10) || '';
+        }
+    },
+    
+    formatCurrency(amount) {
+        if (!amount && amount !== 0) return '€0.00';
+        return `€${parseFloat(amount).toFixed(2)}`;
+    },
+    
+    getBooleanHtml(value) {
+        const isTrue = (value === 1 || value === true);
+        return isTrue ? 
+            `<span class="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full">✅ SÍ</span>` :
+            `<span class="px-2 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full">❌ NO</span>`;
     },
     
     alertMessage(message, type = 'info') {
+        console.log(`[${type.toUpperCase()}] ${message}`);
         const statusMessage = document.getElementById('statusMessage');
         if (!statusMessage) return;
         
         statusMessage.textContent = message;
-        statusMessage.className = `status-message ${type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info'}`;
+        statusMessage.className = `status-message ${type === 'success' ? 'status-success' : 
+                                 type === 'error' ? 'status-error' : 'status-info'}`;
         statusMessage.classList.remove('hidden');
-        setTimeout(() => statusMessage.classList.add('hidden'), 4000);
+        setTimeout(() => statusMessage.classList.add('hidden'), 5000);
     },
     
-    getBooleanHtml(value) {
-        const isTrue = (value === 1 || value === true || value === 'Sí');
-        if (isTrue) {
-            return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-green-100 text-green-800">Sí</span>`;
-        } else {
-            return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-red-100 text-red-800">No</span>`;
+    showLoading(message = 'Cargando...') {
+        const tbody = document.getElementById('albaranResults');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="12" class="text-center py-8">
+                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mb-2"></div>
+                        <p class="text-gray-600">${message}</p>
+                    </td>
+                </tr>
+            `;
         }
     },
     
     updatePageInfo() {
-        const { pageInfo, totalLabel } = APP.elements;
         const totalFiltered = APP.state.filteredAlbaranes.length;
-        
         APP.state.totalPages = Math.ceil(totalFiltered / APP.state.pageSize);
-        APP.state.currentPage = Math.min(APP.state.currentPage, APP.state.totalPages || 1); 
-        APP.state.currentPage = Math.max(1, APP.state.currentPage);
-
-        const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
-        const endIndex = Math.min(startIndex + APP.state.pageSize, totalFiltered);
-        const showing = endIndex - startIndex;
-
-        if (pageInfo) pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
-        if (totalLabel) totalLabel.textContent = `(${showing} de ${totalFiltered} registros)`;
+        APP.state.currentPage = Math.max(1, Math.min(APP.state.currentPage, APP.state.totalPages));
+        
+        const start = (APP.state.currentPage - 1) * APP.state.pageSize + 1;
+        const end = Math.min(APP.state.currentPage * APP.state.pageSize, totalFiltered);
+        
+        const pageInfo = document.getElementById('pageInfo');
+        const totalLabel = document.getElementById('totalLabel');
+        if (pageInfo) pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages}`;
+        if (totalLabel) totalLabel.textContent = `(${start}-${end} de ${totalFiltered})`;
     },
-
+    
     updatePaginationButtons() {
-        const { prevBtn, nextBtn } = APP.elements;
-        const totalPages = APP.state.totalPages || 1;
-        
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
         if (prevBtn) prevBtn.disabled = APP.state.currentPage <= 1;
-        if (nextBtn) nextBtn.disabled = APP.state.currentPage >= totalPages;
-    },
-    
-    setSearchModeManual(mode) {
-        APP.state.searchMode = mode;
-        const { btnModeCampos, btnModePalabra, palabraInput, specificFields } = APP.elements;
-
-        // Limpiar estilos/habilitación general
-        const getFieldContainer = (field) => field.closest('.grid > div');
-
-        specificFields.forEach(field => {
-            const container = getFieldContainer(field);
-            if (container) {
-                field.disabled = true;
-                container.classList.add('opacity-50', 'pointer-events-none');
-            }
-        });
-        
-        if (palabraInput) {
-            palabraInput.disabled = true;
-            const palabraContainer = palabraInput.closest('.lg\\:col-span-4') || palabraInput.closest('.bg-gray-50');
-            if (palabraContainer) palabraContainer.classList.add('opacity-50', 'pointer-events-none');
-        }
-
-        // Aplicar estilos de modo (Solo si los botones existen)
-        if (btnModeCampos && btnModePalabra) {
-            [btnModeCampos, btnModePalabra].forEach(btn => {
-                const isActive = (btn.id === 'btn-mode-campos' && mode === 'campos') || (btn.id === 'btn-mode-palabra' && mode === 'palabra');
-                btn.classList.toggle('bg-blue-600', isActive);
-                btn.classList.toggle('text-white', isActive);
-                btn.classList.toggle('bg-primary-pastel', !isActive);
-                btn.classList.toggle('text-black-pure', !isActive);
-            });
-        }
-
-
-        // Habilitar campos según el modo
-        if (mode === 'campos') {
-            specificFields.forEach(field => {
-                const container = getFieldContainer(field);
-                if (container) {
-                    field.disabled = false;
-                    container.classList.remove('opacity-50', 'pointer-events-none');
-                }
-            });
-            if (palabraInput) palabraInput.value = ''; 
-        } else if (mode === 'palabra') {
-            if (palabraInput) {
-                palabraInput.disabled = false;
-                const palabraContainer = palabraInput.closest('.lg\\:col-span-4') || palabraInput.closest('.bg-gray-50');
-                if (palabraContainer) palabraContainer.classList.remove('opacity-50', 'pointer-events-none');
-            }
-            specificFields.forEach(field => field.value = field.tagName === 'SELECT' ? '' : '');
-        }
-
-        Events.handleSearch(); 
-    },
-    
-    updateActiveFiltersCount() {
-        const { searchForm, activeFiltersCount } = APP.elements;
-        if (!searchForm || !activeFiltersCount) return;
-        
-        const formData = new FormData(searchForm);
-        let finalCount = 0;
-        
-        for (let [key, value] of formData.entries()) {
-            if (key !== 'search_type' && key !== 'palabra' && value && value.toString().trim() !== '') {
-                finalCount++;
-            }
-            if (key === 'palabra' && APP.state.searchMode === 'palabra' && value.toString().trim() !== '') {
-                 finalCount++;
-            }
-        }
-        
-        activeFiltersCount.textContent = finalCount;
-        activeFiltersCount.className = finalCount > 0 ? 
-            'ml-3 text-sm font-normal bg-yellow-500 text-white px-3 py-1 rounded-full' :
-            'ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full';
-    },
+        if (nextBtn) nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
+    }
 };
 
 // =================================================================================
-// 🔑 LÓGICA DE INTERACCIÓN (COBRO Y FECHA)
-// =================================================================================
-
-async function simulateSaveCobro(id, isPaid, dateString, fieldName = 'cobrado') {
-    const isPaidInt = isPaid ? 1 : 0;
-    
-    // 🔑 Mapeamos los campos de la UI a los nombres reales de la DB para la actualización individual
-    const updatePayload = {};
-    if (fieldName === 'cobrado') {
-        updatePayload.pagado = isPaidInt;         // 🔑 Actualizar campo 36: pagado
-        updatePayload.fecha_pago = dateString;    // 🔑 Actualizar campo 37: fecha_pago
-        // Si el backend espera 'cobrado' para marcar el TINYINT:
-        updatePayload.cobrado = isPaidInt; 
-        updatePayload.fecha_cobro = dateString;
-    } else if (fieldName === 'fecha_pago') {
-        updatePayload.fecha_pago = dateString;    // Actualizar solo fecha_pago
-    } else if (fieldName === 'fecha_cobro') {
-        updatePayload.fecha_cobro = dateString;   // Actualizar solo fecha_cobro
-    }
-    
-    console.log(`[INDIVIDUAL LOG] 📦 PUT /api/v1/albaranes/${id} | Payload:`, updatePayload); // LOG
-
-    try {
-        const response = await fetch(`/api/v1/albaranes/${id}`, { 
-            method: 'PUT', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updatePayload) 
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `Error ${response.status} en la actualización individual.`);
-        }
-
-        UI.alertMessage(`Cobro/Pago de albarán #${id} actualizado.`, 'success');
-        
-        // Actualizar estado local (para evitar un fetch completo)
-        const albaranIndex = APP.state.filteredAlbaranes.findIndex(a => a.id === id);
-        if (albaranIndex !== -1) {
-            // Actualización de estado local con los campos de la DB
-            if (fieldName === 'cobrado') {
-                 APP.state.filteredAlbaranes[albaranIndex].pagado = isPaidInt;
-                 APP.state.filteredAlbaranes[albaranIndex].fecha_pago = dateString; 
-                 APP.state.filteredAlbaranes[albaranIndex].cobrado = isPaidInt; 
-                 APP.state.filteredAlbaranes[albaranIndex].fecha_cobro = dateString;
-            } else {
-                 APP.state.filteredAlbaranes[albaranIndex][fieldName] = dateString;
-            }
-            DOM.renderResults(APP.state.filteredAlbaranes); 
-        }
-
-    } catch (error) {
-        console.error(`[INDIVIDUAL LOG] ❌ Error al guardar ${fieldName} para ID ${id}:`, error);
-        UI.alertMessage(`❌ Error: No se pudo actualizar el albarán #${id}. ${error.message}`, 'error');
-    }
-}
-
-/**
- * Maneja el cambio en el checkbox de cobro (controla el campo 'cobrado' y F. Cobro).
- */
-function handleCobroToggle(albaranId) {
-    const row = document.querySelector(`tr[data-id="${albaranId}"]`);
-    if (!row) return;
-
-    const checkbox = row.querySelector('.cobro-checkbox');
-    const fechaCobroInput = row.querySelector('.fecha-cobro-input'); 
-    const cobradoDisplay = row.querySelector('.cobrado-display');
-    
-    const isChecked = checkbox.checked;
-    let fechaCobro = ''; 
-    
-    if (isChecked) {
-        fechaCobro = fechaCobroInput.value || UI.formatDate(new Date().toISOString());
-        fechaCobroInput.value = fechaCobro;
-        
-        fechaCobroInput.disabled = false;
-    } else {
-        fechaCobroInput.disabled = true;
-        fechaCobroInput.value = '';
-        fechaCobro = ''; // Enviamos un string vacío para establecer NULL en la DB
-    }
-
-    cobradoDisplay.innerHTML = UI.getBooleanHtml(isChecked);
-    
-    // 🔑 Llamada para actualizar el estado Cobrado (UI) / Pagado (DB) y la fecha_pago (DB)
-    // El 'fecha_cobro' en el parámetro se usará para actualizar both: fecha_cobro y fecha_pago en el payload
-    simulateSaveCobro(albaranId, isChecked, fechaCobro, 'cobrado'); 
-}
-
-// =================================================================================
-// 🔍 FILTER & SORT LOGIC
+// 🔍 FILTROS Y ORDENACIÓN - CORREGIDOS PARA USAR cobrado
 // =================================================================================
 const Filters = {
     getFiltersFromForm() {
-        const form = APP.elements.searchForm;
-        const formData = new FormData(form);
-        
+        const formData = new FormData(APP.elements.searchForm);
         const filters = {
-            licencia_ref: formData.get('licencia') || '', 
+            enviado: 1,
+            licencia_ref: formData.get('licencia') || '',
             empresa_ref: formData.get('empresa') || '',
-            cobrado: formData.get('cobrado') || '', // Filtro UI
             referencia: formData.get('referencia') || '',
             fecha_ini: formData.get('fecha_desde') || '',
-            fecha_fin: formData.get('fecha_hasta') || '',
-            palabra: formData.get('palabra') || '',
-            search_type: formData.get('search_type') || 'exacta', 
+            fecha_fin: formData.get('fecha_hasta') || ''
         };
         
-        filters.enviado = 1; 
+        const cobrado = formData.get('cobrado');
         
-        // 🔑 Mapeo de Filtro UI ('cobrado') a Filtro DB ('pagado')
-        if (filters.cobrado === 'si') { filters.pagado = 1; } 
-        else if (filters.cobrado === 'no') { filters.pagado = 0; } 
-        else { delete filters.pagado; } 
-        
-        delete filters.cobrado; // Eliminamos la clave de filtro UI
-
-        if (filters.empresa_ref !== '' && !isNaN(parseInt(filters.empresa_ref))) {
-             filters.empresa_ref = parseInt(filters.empresa_ref); 
-        } else {
-             filters.empresa_ref = ''; 
+        // ✅ CORRECTO: Usar cobrado, NO pagado
+        if (cobrado === 'si') {
+            filters.cobrado = 1;      // Solo COBRADOS
+        } else if (cobrado === 'no') {
+            filters.cobrado = 0;      // Solo PENDIENTES (por defecto)
+        } else if (cobrado === '' || cobrado === null) {
+            // Si está vacío o "todos", NO incluir filtro cobrado
+            // Así mostrará todos (cobrados y pendientes)
         }
         
-        // Limpiar campos que no son relevantes para el modo de búsqueda actual
-        if (APP.state.searchMode === 'palabra') {
-            delete filters.licencia_ref; delete filters.empresa_ref; delete filters.cobrado;
-            delete filters.referencia; delete filters.fecha_ini; delete filters.fecha_fin;
-        } else if (APP.state.searchMode === 'campos') {
-            delete filters.palabra; delete filters.search_type;
-        }
-
+        console.log('[FILTERS] Aplicados:', filters);
+        
+        // Guardar filtros actuales para recargar después
+        APP.state.currentFilters = { ...filters };
+        
         return filters;
     },
     
-    sortTable(key, dataType = 'string') {
-        const { currentSort } = APP.state;
-        let direction = 'asc';
-        
-        if (currentSort.key === key && currentSort.direction === 'asc') {
-            direction = 'desc';
-        }
+    sortTable(key, type = 'string') {
+        const dir = APP.state.currentSort.key === key && APP.state.currentSort.direction === 'asc' ? 'desc' : 'asc';
+        APP.state.currentSort = { key, direction: dir };
         
         APP.state.filteredAlbaranes.sort((a, b) => {
-            let valA = a[key] || '';
-            let valB = b[key] || '';
-            
-            if (dataType === 'date') {
-                valA = new Date(valA || 0).getTime();
-                valB = new Date(valB || 0).getTime();
-            } else if (dataType === 'number' || key.includes('importe')) {
-                valA = parseFloat(valA) || 0;
-                valB = parseFloat(valB) || 0;
-            }
-            
-            let comparison = 0;
-            if (valA > valB) { comparison = 1; } 
-            else if (valA < valB) { comparison = -1; }
-            
-            return direction === 'asc' ? comparison : comparison * -1;
+            let va = a[key] || '', vb = b[key] || '';
+            if (type === 'date') { va = new Date(va).getTime(); vb = new Date(vb).getTime(); }
+            if (type === 'number') { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
+            return va > vb ? (dir === 'asc' ? 1 : -1) : va < vb ? (dir === 'asc' ? -1 : 1) : 0;
         });
         
-        APP.state.currentSort = { key, direction };
         APP.state.currentPage = 1;
-        DOM.renderResults(APP.state.filteredAlbaranes); 
-        Events.updateSortIcons();
+        DOM.renderResults();
     }
 };
+
+// =================================================================================
+// 🔥 CHECKBOX PRINCIPAL
+// =================================================================================
+function handleCobroToggle(albaranId) {
+    console.log(`🔄 [TOGGLE ${albaranId}] Checkbox cambiado`);
+    
+    const row = document.querySelector(`tr[data-id="${albaranId}"]`);
+    if (!row) return console.error(`❌ Row no encontrada: ${albaranId}`);
+
+    const checkbox = row.querySelector('.cobro-checkbox');
+    const fechaCobroInput = row.querySelector('.fecha-cobro-input');
+    const fechaPagoInput = row.querySelector('.fecha-pago-input');
+    const cobradoDisplay = row.querySelector('.cobrado-display');
+    
+    if (!checkbox || !fechaCobroInput || !fechaPagoInput || !cobradoDisplay) {
+        return console.error(`❌ Elementos faltantes en fila ${albaranId}`);
+    }
+
+    const isChecked = checkbox.checked;
+    console.log(`📋 [TOGGLE ${albaranId}] ${isChecked ? '✅ COBRADO' : '❌ PENDIENTE'}`);
+
+    const hoy = new Date().toISOString().split('T')[0];
+
+    if (isChecked) {
+        checkbox.checked = true;
+        fechaCobroInput.disabled = false;
+        fechaPagoInput.disabled = false;
+        
+        if (!fechaCobroInput.value) fechaCobroInput.value = hoy;
+        if (!fechaPagoInput.value) fechaPagoInput.value = hoy;
+        
+        console.log(`✅ [${albaranId}] Campos desbloqueados`);
+    } else {
+        checkbox.checked = false;
+        fechaCobroInput.disabled = true;
+        fechaPagoInput.disabled = true;
+        console.log(`🔒 [${albaranId}] Campos bloqueados`);
+    }
+
+    cobradoDisplay.innerHTML = UI.getBooleanHtml(isChecked);
+    saveCobroState(albaranId, isChecked);
+}
+
+// =================================================================================
+// 💾 FUNCIONES DE GUARDADO
+// =================================================================================
+async function saveCobroState(id, isPaid) {
+    console.log(`💾 [SAVE STATE ${id}] cobrado=${isPaid ? 1 : 0}`);
+    
+    const payload = { 
+        id: parseInt(id),
+        cobrado: isPaid ? 1 : 0,
+        pagado: isPaid ? 1 : 0
+    };
+    
+    if (!isPaid) {
+        payload.fecha_cobro = null;
+        payload.fecha_pago = null;
+    }
+    
+    console.log(`📤 [SAVE STATE ${id}] Payload:`, payload);
+
+    try {
+        const response = await fetch(`/api/v1/albaranes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        const idx = APP.state.filteredAlbaranes.findIndex(a => a.id == id);
+        if (idx !== -1) {
+            const albaran = APP.state.filteredAlbaranes[idx];
+            albaran.cobrado = isPaid ? 1 : 0;
+            albaran.pagado = isPaid ? 1 : 0;
+            
+            if (!isPaid) {
+                albaran.fecha_cobro = null;
+                albaran.fecha_pago = null;
+            }
+            
+            // Si el filtro actual es cobrado=0 y acabamos de marcar como cobrado,
+            // debemos recargar la tabla para que desaparezca
+            if (isPaid && APP.state.currentFilters.cobrado === 0) {
+                console.log(`🔄 Albarán #${id} marcado como cobrado, recargando tabla...`);
+                setTimeout(() => {
+                    API.searchAlbaranes(APP.state.currentFilters);
+                }, 500);
+            } else {
+                DOM.renderResults();
+            }
+        }
+
+        UI.alertMessage(`✅ Albarán #${id} ${isPaid ? 'cobrado' : 'pendiente'}`, 'success');
+    } catch (error) {
+        console.error(`❌ [SAVE STATE ${id}]`, error);
+        UI.alertMessage(`❌ Error #${id}: ${error.message}`, 'error');
+    }
+}
+
+async function saveFechaCobro(id, fecha) {
+    console.log(`💾 [SAVE FECHA COBRO ${id}] fecha=${fecha}`);
+    
+    const payload = { 
+        id: parseInt(id),
+        fecha_cobro: fecha || null,
+        cobrado: 1,
+        pagado: 1
+    };
+    
+    console.log(`📤 [SAVE FECHA COBRO ${id}] Payload:`, payload);
+
+    try {
+        const response = await fetch(`/api/v1/albaranes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        const idx = APP.state.filteredAlbaranes.findIndex(a => a.id == id);
+        if (idx !== -1) {
+            const albaran = APP.state.filteredAlbaranes[idx];
+            albaran.fecha_cobro = fecha;
+            albaran.cobrado = 1;
+            albaran.pagado = 1;
+            
+            // Si el filtro actual es cobrado=0, recargar tabla
+            if (APP.state.currentFilters.cobrado === 0) {
+                console.log(`🔄 Fecha cobro actualizada para #${id}, recargando tabla...`);
+                setTimeout(() => {
+                    API.searchAlbaranes(APP.state.currentFilters);
+                }, 500);
+            } else {
+                DOM.renderResults();
+            }
+        }
+
+        UI.alertMessage(`✅ Fecha cobro #${id}: ${fecha}`, 'success');
+    } catch (error) {
+        console.error(`❌ [SAVE FECHA COBRO ${id}]`, error);
+        UI.alertMessage(`❌ Error fecha cobro #${id}: ${error.message}`, 'error');
+    }
+}
+
+async function saveFechaPago(id, fecha) {
+    console.log(`💾 [SAVE FECHA PAGO ${id}] fecha=${fecha}`);
+    
+    const payload = { 
+        id: parseInt(id),
+        fecha_pago: fecha || null,
+        pagado: 1,
+        cobrado: 1
+    };
+    
+    console.log(`📤 [SAVE FECHA PAGO ${id}] Payload:`, payload);
+
+    try {
+        const response = await fetch(`/api/v1/albaranes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        const idx = APP.state.filteredAlbaranes.findIndex(a => a.id == id);
+        if (idx !== -1) {
+            const albaran = APP.state.filteredAlbaranes[idx];
+            albaran.fecha_pago = fecha;
+            albaran.pagado = 1;
+            albaran.cobrado = 1;
+            
+            // Si el filtro actual es cobrado=0, recargar tabla
+            if (APP.state.currentFilters.cobrado === 0) {
+                console.log(`🔄 Fecha pago actualizada para #${id}, recargando tabla...`);
+                setTimeout(() => {
+                    API.searchAlbaranes(APP.state.currentFilters);
+                }, 500);
+            } else {
+                DOM.renderResults();
+            }
+        }
+
+        UI.alertMessage(`✅ Fecha pago #${id}: ${fecha}`, 'success');
+    } catch (error) {
+        console.error(`❌ [SAVE FECHA PAGO ${id}]`, error);
+        UI.alertMessage(`❌ Error fecha pago #${id}: ${error.message}`, 'error');
+    }
+}
+
+// =================================================================================
+// 🔥 BULK PAY - CON RECARGA AUTOMÁTICA
+// =================================================================================
+async function handleBulkPay() {
+    console.log('🚀 [BULK PAY] Botón clickeado');
+    
+    const checkboxes = document.querySelectorAll('#albaranResults .cobro-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => parseInt(cb.closest('tr').dataset.id));
+    
+    console.log(`📋 [BULK] IDs: [${ids.join(', ')}] (${ids.length})`);
+    
+    if (ids.length === 0) {
+        return UI.alertMessage('❌ Seleccione albaranes', 'info');
+    }
+
+    const albaranes = ids.map(id => APP.state.filteredAlbaranes.find(a => a.id === id)).filter(Boolean);
+    const total = albaranes.reduce((sum, a) => sum + parseFloat(a.importe_total || 0), 0).toFixed(2);
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    // Obtener fechas de cada fila
+    const albaranesConFechas = ids.map(id => {
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        const fechaCobroInput = row?.querySelector('.fecha-cobro-input');
+        const fechaPagoInput = row?.querySelector('.fecha-pago-input');
+        
+        return {
+            id,
+            fecha_cobro: fechaCobroInput?.value || hoy,
+            fecha_pago: fechaPagoInput?.value || hoy
+        };
+    });
+    
+    console.log('[BULK] Albaranes con fechas:', albaranesConFechas);
+    
+    // Validar fechas
+    const fechasInvalidas = albaranesConFechas.filter(a => {
+        if (a.fecha_cobro && a.fecha_pago) {
+            return new Date(a.fecha_pago) < new Date(a.fecha_cobro);
+        }
+        return false;
+    });
+    
+    if (fechasInvalidas.length > 0) {
+        const errores = fechasInvalidas.map(a => 
+            `#${a.id}: Cobro ${a.fecha_cobro} > Pago ${a.fecha_pago}`
+        ).join('\n');
+        
+        UI.alertMessage(`❌ Fechas inválidas:\n${errores}\n\nLa fecha de pago no puede ser anterior a la de cobro.`, 'error');
+        return;
+    }
+    
+    const confirmMsg = `🔥 COBRO MASIVO ${ids.length} albaranes\n💰 €${total}\n\n¿Confirmar cobro?`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        UI.showLoading('Procesando cobro masivo...');
+        UI.alertMessage('⏳ Procesando cobro masivo...', 'info');
+        
+        // Usar bulk-pay del backend
+        const payload = { 
+            ids: ids,
+            fecha_cobro: hoy,
+            fecha_pago: hoy
+        };
+        
+        console.log('[BULK] Usando endpoint bulk-pay:', payload);
+        
+        const response = await fetch('/api/v1/albaranes/bulk-pay', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        console.log('[BULK] Resultado:', result);
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Error servidor');
+        }
+
+        // ✅ RECARGAR TABLA DESPUÉS DEL COBRO
+        console.log('[BULK] Recargando tabla con filtros actuales...');
+        
+        // Recargar desde servidor con los mismos filtros
+        await API.searchAlbaranes(APP.state.currentFilters);
+        
+        const mensaje = `✅ ${result.updated || ids.length} albaranes cobrados\n`;
+        mensaje += `💰 Importe total: ${UI.formatCurrency(total)}`;
+        
+        UI.alertMessage(mensaje, 'success');
+        
+    } catch (error) {
+        console.error('[BULK] Error:', error);
+        UI.alertMessage(`❌ ${error.message}`, 'error');
+    }
+}
 
 // =================================================================================
 // 🌐 API SERVICES
 // =================================================================================
 const API = {
-    
     async loadEmpresas() {
+        const select = document.getElementById('empresa');
+        if (!select) return;
         try {
-            const { empresaSelect } = APP.elements;
-            if (!empresaSelect) return;
-            
-            empresaSelect.innerHTML = '<option value="">Cargando empresas...</option>';
-            
-            const response = await fetch('/api/v1/empresas'); 
-            if (!response.ok) throw new Error(`Error ${response.status} cargando empresas.`);
-            
-            const data = await response.json();
-            const empresas = Array.isArray(data.data) ? data.data : data; 
-            
-            empresaSelect.innerHTML = `
-                <option value="">📋 Todas las empresas</option>
-                ${empresas.map(emp => `
-                    <option value="${emp.id || emp.ID}">${emp.nombre || 'Sin nombre'}</option>
-                `).join('')}
-            `;
-            
-        } catch (error) {
-            console.error('Error cargando empresas:', error);
-            UI.alertMessage(`Error de red al cargar empresas.`, 'error');
+            const res = await fetch('/api/v1/empresas');
+            const data = await res.json();
+            const empresas = Array.isArray(data.data) ? data.data : data;
+            select.innerHTML = '<option value="">Todas</option>' + 
+                empresas.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+        } catch (e) {
+            console.error('Empresas error:', e);
         }
     },
     
     async loadLicencias() {
+        const select = document.getElementById('licenciaSelect');
+        if (!select) return;
         try {
-            const { licenciaSelect } = APP.elements;
-            if (!licenciaSelect) return;
-            
-            licenciaSelect.innerHTML = '<option value="">Cargando licencias...</option>';
-            
-            const response = await fetch('/api/v1/licencias'); 
-            if (!response.ok) throw new Error(`Error ${response.status} cargando licencias.`);
-            
-            const data = await response.json();
+            const res = await fetch('/api/v1/licencias');
+            const data = await res.json();
             const licencias = Array.isArray(data.data) ? data.data : data;
-            
-            licenciaSelect.innerHTML = `
-                <option value="">🆔 Todas las licencias</option>
-                ${licencias.map(lic => {
-                    const displayValue = lic.licencia || 'N/A';
-                    return `<option value="${lic.id || lic.ID}">${displayValue}</option>`;
-                }).join('')}
-            `;
-            
-        } catch (error) {
-            console.error('Error cargando licencias:', error);
-            UI.alertMessage(`Error de red al cargar licencias.`, 'error');
+            select.innerHTML = '<option value="">Todas</option>' + 
+                licencias.map(l => `<option value="${l.id}">${l.licencia}</option>`).join('');
+        } catch (e) {
+            console.error('Licencias error:', e);
         }
     },
-
+    
     async searchAlbaranes(filters) {
-        const resultsBody = APP.elements.resultsBody;
-        if (resultsBody) resultsBody.innerHTML = `<tr><td colspan="12" class="text-center py-4 text-gray-500 italic text-sm">Cargando datos de la API...</td></tr>`;
-
+        UI.showLoading('Buscando albaranes...');
+        
         try {
-            const params = new URLSearchParams({});
-            
-            Object.keys(filters).forEach(key => {
-                if (filters[key] !== '' && key !== 'search_type') {
-                    params.append(key, filters[key]);
+            const params = new URLSearchParams();
+            Object.entries(filters).forEach(([k, v]) => {
+                if (v !== undefined && v !== null && v !== '') {
+                    params.append(k, v);
                 }
             });
             
-            const url = `/api/v1/albaranes/search?${params.toString()}`;
+            console.log('[SEARCH] Parámetros enviados:', params.toString());
             
-            const response = await fetch(url);
+            const res = await fetch(`/api/v1/albaranes/search?${params}`);
+            const data = await res.json();
+            const albaranes = data.data || [];
             
-            if (!response.ok) throw new Error(`Error en la API: ${response.status}`);
+            console.log(`[SEARCH] ${albaranes.length} albaranes recibidos`);
             
-            const data = await response.json();
-            
-            let albaranes = data.data || []; 
-
             APP.state.allAlbaranes = albaranes;
             APP.state.filteredAlbaranes = albaranes;
-            APP.state.totalRecords = albaranes.length;
             
-            Filters.sortTable(APP.state.currentSort.key, 'date'); 
-            APP.state.currentPage = 1;
-
-            DOM.renderResults(APP.state.filteredAlbaranes);
-            UI.alertMessage(`Cargados ${albaranes.length} albaranes ENVIADOS.`, 'success');
+            Filters.sortTable('fecha', 'date');
             
-        } catch (error) {
-            UI.alertMessage(`❌ Error cargando datos: ${error.message}`, 'error');
-            const resultsBody = APP.elements.resultsBody;
-            if (resultsBody) resultsBody.innerHTML = `<tr><td colspan="12" class="text-center py-12 text-red-500">❌ Error al cargar los albaranes.</td></tr>`;
+            if (albaranes.length === 0) {
+                UI.alertMessage('ℹ️ No se encontraron albaranes con los filtros aplicados', 'info');
+            } else {
+                UI.alertMessage(`${albaranes.length} albaranes cargados`, 'success');
+            }
+        } catch (e) {
+            console.error('Search error:', e);
+            UI.alertMessage(`Error: ${e.message}`, 'error');
         }
-    },
+    }
 };
 
 // =================================================================================
@@ -452,252 +537,108 @@ const API = {
 // =================================================================================
 const DOM = {
     getCurrentPageData() {
-        const filtered = Array.isArray(APP.state.filteredAlbaranes) ? APP.state.filteredAlbaranes : [];
-        return filtered.slice(
-            (APP.state.currentPage - 1) * APP.state.pageSize, 
-            APP.state.currentPage * APP.state.pageSize
-        );
+        const data = APP.state.filteredAlbaranes || [];
+        const start = (APP.state.currentPage - 1) * APP.state.pageSize;
+        return data.slice(start, start + APP.state.pageSize);
     },
-
-    renderResults(data) {
-        const resultsBody = APP.elements.resultsBody;
-        if (!resultsBody) return;
-        resultsBody.innerHTML = '';
+    
+    renderResults() {
+        const tbody = document.getElementById('albaranResults');
+        if (!tbody) return;
         
+        tbody.innerHTML = '';
         const pageData = DOM.getCurrentPageData();
-
-        if (pageData.length === 0) {
-            resultsBody.innerHTML = `<tr><td colspan="12" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron albaranes PENDIENTES DE COBRO.</td></tr>`;
-            UI.updatePageInfo();
+        
+        if (!pageData.length) {
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center py-8 text-gray-500">Sin albaranes</td></tr>';
+            UI.updatePageInfo(); 
             UI.updatePaginationButtons();
             return;
         }
 
         pageData.forEach(albaran => {
-            // 🔑 Usamos el campo PAGADO (DB: pagado) para determinar el estado visual 'Cobrado'
-            const isCobrado = albaran.pagado === 1 || albaran.pagado === true; 
-            const fechaCobroActual = albaran.fecha_cobro ? UI.formatDate(albaran.fecha_cobro) : ''; 
-            const fechaPagoActual = albaran.fecha_pago ? UI.formatDate(albaran.fecha_pago) : ''; 
+            const isCobrado = albaran.cobrado === 1;
+            const fCobro = UI.formatDate(albaran.fecha_cobro);
+            const fPago = UI.formatDate(albaran.fecha_pago);
 
             const row = document.createElement('tr');
-            row.dataset.id = albaran.id; 
-            row.classList.add(albaran.id % 2 === 0 ? 'bg-white' : 'bg-gray-50', 'hover:bg-primary-pastel/30', 'transition-colors');
-            
-            const empresaNombre = albaran.EmpresaData?.nombre || `Emp. ${albaran.empresa_ref || 'N/A'}`;
-            const licenciaNum = albaran.LicenciaData?.licencia || `Lic. ${albaran.licencia_ref || 'N/A'}`;
+            row.dataset.id = albaran.id;
+            row.className = `${albaran.id % 2 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50`;
 
             row.innerHTML = `
-                <td class="px-4 py-3 whitespace-nowrap text-xs font-medium text-center">
-                    <input type="checkbox" 
-                           class="cobro-checkbox form-checkbox h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500" 
-                           ${isCobrado ? 'checked' : ''}
-                           onclick="handleCobroToggle(${albaran.id})"
-                           title="Marcar/Desmarcar Cobro">
+                <td class="px-4 py-3 text-center">
+                    <input type="checkbox" class="cobro-checkbox h-5 w-5 rounded border-gray-300" 
+                           ${isCobrado ? 'checked' : ''} onclick="handleCobroToggle(${albaran.id})">
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-700">${albaran.id}</td> 
-                <td class="px-4 py-3 text-sm text-gray-700">${albaran.numero_albaran}</td>
-                <td class="px-4 py-3 text-sm text-gray-700">${licenciaNum}</td>
-                <td class="px-4 py-3 text-sm text-gray-700">${UI.formatDate(albaran.fecha)}</td>
-                <td class="px-4 py-3 text-sm text-gray-700">${empresaNombre}</td>
-                <td class="px-4 py-3 text-sm text-gray-700 text-truncate">${albaran.referencia || '-'}</td>
-                <td class="px-4 py-3 text-sm font-bold text-primary-link text-right">€${parseFloat(albaran.importe_total || 0).toFixed(2)}</td>
-                
-                <td class="px-4 py-3 text-sm text-center">
-                    <span class="cobrado-display">${UI.getBooleanHtml(isCobrado)}</span>
+                <td class="px-4 py-2 text-sm font-medium">${albaran.id}</td>
+                <td class="px-4 py-2 text-sm">${albaran.numero_albaran}</td>
+                <td class="px-4 py-2 text-sm">${albaran.LicenciaData?.licencia || albaran.licencia_ref}</td>
+                <td class="px-4 py-2 text-sm">${UI.formatDate(albaran.fecha)}</td>
+                <td class="px-4 py-2 text-sm">${albaran.EmpresaData?.nombre || albaran.empresa_ref}</td>
+                <td class="px-4 py-2 text-sm">${albaran.referencia || '-'}</td>
+                <td class="px-4 py-2 font-bold text-green-600 text-right">€${parseFloat(albaran.importe_total||0).toFixed(2)}</td>
+                <td class="px-4 py-2 text-center"><span class="cobrado-display">${UI.getBooleanHtml(isCobrado)}</span></td>
+                <td class="px-4 py-2">
+                    <input type="date" class="fecha-cobro-input w-28 p-1 border rounded text-sm" 
+                           value="${fCobro}" ${isCobrado ? '' : 'disabled'}
+                           onchange="saveFechaCobro(${albaran.id}, this.value)"
+                           title="Fecha de cobro (puede ser diferente a fecha de pago)">
                 </td>
-                
-                <td class="px-4 py-3 text-sm text-gray-500">
-                    <input type="date" 
-                           class="fecha-cobro-input input-field w-32 text-sm" 
-                           value="${fechaCobroActual}"
-                           ${isCobrado ? '' : 'disabled'}
-                           data-id="${albaran.id}"
-                           onchange="simulateSaveCobro(${albaran.id}, 1, this.value, 'fecha_cobro')">
+                <td class="px-4 py-2">
+                    <input type="date" class="fecha-pago-input w-28 p-1 border rounded text-sm" 
+                           value="${fPago}" ${isCobrado ? '' : 'disabled'}
+                           onchange="saveFechaPago(${albaran.id}, this.value)"
+                           title="Fecha de pago (debe ser igual o posterior a fecha de cobro)">
                 </td>
-                
-                <td class="px-4 py-3 text-sm text-gray-500">
-                    <input type="date" 
-                           class="fecha-pago-input input-field w-32 text-sm" 
-                           value="${fechaPagoActual}"
-                           data-id="${albaran.id}"
-                           onchange="simulateSaveCobro(${albaran.id}, 1, this.value, 'fecha_pago')">
-                </td>
-                
-                <td class="px-4 py-3 text-sm text-gray-600 text-truncate max-w-xs">${albaran.observaciones_admin || '-'}</td>
+                <td class="px-4 py-2 text-sm text-gray-600 max-w-xs truncate">${albaran.observaciones_admin || '-'}</td>
             `;
-
-            resultsBody.appendChild(row);
+            tbody.appendChild(row);
         });
         
-        if (window.lucide) { window.lucide.createIcons(); }
         UI.updatePageInfo();
         UI.updatePaginationButtons();
-    },
-    
-    initRecordsSelect() {
-        const { recordsSelect } = APP.elements;
-        if (!recordsSelect) return;
-        
-        recordsSelect.innerHTML = `
-             <option value="10" selected>10</option>
-             <option value="30">30</option>
-             <option value="50">50</option>
-             <option value="9999">Todos</option>
-        `;
-        
-        recordsSelect.addEventListener('change', (e) => {
-            const val = e.target.value;
-            APP.state.pageSize = (val === '9999') ? APP.state.filteredAlbaranes.length || 10 : parseInt(val);
-            APP.state.currentPage = 1;
-            DOM.renderResults(APP.state.filteredAlbaranes);
-        });
+        if (window.lucide) window.lucide.createIcons();
     }
 };
 
 // =================================================================================
-// 🎯 EVENT HANDLERS
+// 🎯 EVENTOS
 // =================================================================================
 const Events = {
-    handleSearch(e) {
-        if (e) e.preventDefault();
-        const filters = Filters.getFiltersFromForm();
-        API.searchAlbaranes(filters);
-    },
-    
-    handleClearAllFilters() {
-        const form = APP.elements.searchForm;
-        if (!form) return;
-
-        // 1. Limpieza explícita de selects/inputs de filtro
-        if (APP.elements.licenciaSelect) APP.elements.licenciaSelect.value = '';
-        if (APP.elements.empresaSelect) APP.elements.empresaSelect.value = '';
-        if (APP.elements.cobradoSelect) APP.elements.cobradoSelect.value = '';
-        if (APP.elements.referenciaInput) APP.elements.referenciaInput.value = '';
-        if (APP.elements.fechaDesdeInput) APP.elements.fechaDesdeInput.value = '';
-        if (APP.elements.fechaHastaInput) APP.elements.fechaHastaInput.value = '';
-        if (APP.elements.palabraInput) APP.elements.palabraInput.value = '';
-
-        // 2. Resetear modo de búsqueda a 'campos'
-        APP.state.searchMode = 'campos';
-        
-        // 3. Aplicar cambios de UI y buscar
-        UI.setSearchModeManual('campos'); // Esto llama a Events.handleSearch()
-
-        UI.alertMessage('✅ Filtros limpiados y modo de búsqueda restablecido.', 'info');
-    },
-    
-    updateSortIcons() {
-        const sortIcons = document.querySelectorAll('th[onclick*="sortTable"]');
-        sortIcons.forEach(header => {
-             let icon = header.querySelector('.sort-icon');
-             if (!icon) {
-                 icon = document.createElement('span');
-                 icon.className = 'sort-icon ml-2 w-4 h-4 inline-block';
-                 header.innerHTML = `<div class="sortable flex items-center">${header.innerHTML}</div>`; 
-                 header.querySelector('.sortable').appendChild(icon);
-             }
-             icon.innerHTML = `<svg data-lucide="chevrons-up-down" class="h-3 w-3 text-gray-400"></svg>`;
-        });
-        const { key, direction } = APP.state.currentSort;
-        const activeHeader = document.querySelector(`[onclick*="sortTable('${key}'"]`);
-        if (activeHeader) {
-            const activeIcon = activeHeader.querySelector('.sort-icon');
-            if (activeIcon) activeIcon.innerHTML = `<svg data-lucide="chevron-${direction === 'asc' ? 'up' : 'down'}" class="h-3 w-3 text-primary-link"></svg>`;
-        }
-        if (window.lucide) { window.lucide.createIcons(); }
-    },
-
-    async handleBulkPay() {
-        // 1. Identificar IDs seleccionados
-        const checkedCheckboxes = document.querySelectorAll('#albaranResults .cobro-checkbox:checked');
-        const selectedIDs = Array.from(checkedCheckboxes).map(checkbox => {
-             const row = checkbox.closest('tr');
-             return parseInt(row.dataset.id);
-        });
-
-        console.log(`[BULK PAY LOG] IDs Seleccionados para cobro: ${selectedIDs.join(', ')}`);
-        
-        const selectedAlbaranes = selectedIDs.map(id => 
-            APP.state.filteredAlbaranes.find(a => a.id === id)
-        ).filter(a => a !== undefined);
-
-        if (selectedIDs.length === 0) {
-            UI.alertMessage("Por favor, marque los albaranes que desea cobrar.", 'info');
-            return;
-        }
-
-        const refList = selectedAlbaranes.map(a => a.referencia || `ALB #${a.id}`).join(', ');
-        const confirmationMessage = 
-            `¿Está seguro que desea marcar ${selectedIDs.length} albarán(es) como COBRADOS con la fecha de hoy?\n\n` +
-            `Albaranes afectados (Ref.): ${refList}`;
-
-        if (!confirm(confirmationMessage)) {
-            return;
-        }
-
-        UI.alertMessage("Procesando cobro masivo...", 'neutral');
-
-        try {
-            const payload = { ids: selectedIDs };
-
-            // 🌐 LLAMADA API REAL: PUT /api/v1/albaranes/bulk-pay (llama a BulkChargeAlbaranes en Go)
-            const response = await fetch('/api/v1/albaranes/bulk-pay', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload) 
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                console.error('[BulkPay Error]', result);
-                throw new Error(result.error || `Fallo en la API: Código ${response.status}`);
-            }
-            
-            // 🔑 Actualizar estado de los albaranes en el frontend
-            const currentDate = UI.formatDate(new Date().toISOString());
-            selectedIDs.forEach(id => {
-                const index = APP.state.filteredAlbaranes.findIndex(a => a.id === id);
-                if (index !== -1) {
-                    // Actualizamos PAGADO (campo 36) y FECHA_PAGO (campo 37)
-                    APP.state.filteredAlbaranes[index].pagado = true; 
-                    APP.state.filteredAlbaranes[index].fecha_pago = currentDate; 
-                    
-                    // También actualizamos COBRADO (34) y FECHA_COBRO (35) para la UI/coherencia local
-                    APP.state.filteredAlbaranes[index].cobrado = true;
-                    APP.state.filteredAlbaranes[index].fecha_cobro = currentDate;
-                }
-            });
-            
-            UI.alertMessage(result.message || `Cobro masivo completado. ${result.updated} registros actualizados.`, 'success');
-            
-            // Refrescar la tabla para aplicar filtros (ej. ocultar cobrados)
-            Events.handleSearch(); 
-
-        } catch (error) {
-            console.error('[BulkPay Catch Error]:', error);
-            UI.alertMessage(`❌ Fallo en el cobro masivo: ${error.message}`, 'error');
-        }
-    },
-    
     init() {
-        const { searchForm, prevBtn, nextBtn } = APP.elements;
+        // Paginación
+        document.getElementById('recordsPerPage')?.addEventListener('change', (e) => {
+            APP.state.pageSize = e.target.value === '9999' ? 9999 : +e.target.value;
+            APP.state.currentPage = 1;
+            DOM.renderResults();
+        });
         
-        DOM.initRecordsSelect();
-
-        if (searchForm) searchForm.addEventListener('submit', Events.handleSearch);
+        document.getElementById('prevPageBtn')?.addEventListener('click', () => {
+            if (APP.state.currentPage > 1) {
+                APP.state.currentPage--;
+                DOM.renderResults();
+            }
+        });
         
-        if (prevBtn) prevBtn.addEventListener('click', () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } });
-        if (nextBtn) nextBtn.addEventListener('click', () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } });
+        document.getElementById('nextPageBtn')?.addEventListener('click', () => {
+            if (APP.state.currentPage < APP.state.totalPages) {
+                APP.state.currentPage++;
+                DOM.renderResults();
+            }
+        });
         
-        window.sortTable = (key, dataType) => Filters.sortTable(key, dataType);
-        Events.updateSortIcons();
+        APP.elements.searchForm?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            API.searchAlbaranes(Filters.getFiltersFromForm());
+        });
         
-        if (APP.elements.btnModeCampos) {
-            UI.setSearchModeManual(APP.state.searchMode);
-        }
+        // Botón para recargar manualmente
+        document.getElementById('reloadBtn')?.addEventListener('click', () => {
+            API.searchAlbaranes(APP.state.currentFilters);
+            UI.alertMessage('🔄 Recargando datos...', 'info');
+        });
+        
+        window.sortTable = Filters.sortTable;
     }
 };
 
@@ -705,47 +646,33 @@ const Events = {
 // 🚀 INICIALIZACIÓN
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 Iniciando Gestión de Cobro a Empresas...');
+    console.log('🚀 admin_pago_emp.js CARGADO - Filtra por cobrado=0 correctamente');
     
-    // 1. Cargar Selects (Empresas y Licencias)
-    await API.loadEmpresas(); 
-    await API.loadLicencias(); 
+    // Funciones globales
+    window.handleBulkPay = handleBulkPay;
+    window.handleCobroToggle = handleCobroToggle;
+    window.saveCobroState = saveCobroState;
+    window.saveFechaCobro = saveFechaCobro;
+    window.saveFechaPago = saveFechaPago;
     
+    // Cargar datos
+    await Promise.all([API.loadEmpresas(), API.loadLicencias()]);
     Events.init();
     
-    // 🔑 EXPOSICIÓN GLOBAL DE FUNCIONES
-    window.handleClearAllFilters = Events.handleClearAllFilters.bind(Events);
-    window.handleBulkPay = Events.handleBulkPay.bind(Events); 
+    // Cargar inicialmente PENDIENTES (cobrado=0)
+    const initialFilters = Filters.getFiltersFromForm();
+    // Asegurar que por defecto sea cobrado=0
+    if (!initialFilters.hasOwnProperty('cobrado')) {
+        initialFilters.cobrado = 0;
+    }
+    await API.searchAlbaranes(initialFilters);
     
-    window.handleCobroToggle = handleCobroToggle; 
-    window.simulateSaveCobro = simulateSaveCobro; 
-    
-    // 2. Cargar tabla inicial (API CALL con filtro ENVIADO=1 y COBRADO=0)
-    await API.searchAlbaranes(Filters.getFiltersFromForm()); 
-    
-    console.log('✅ Aplicación Cobro Empresas lista');
+    console.log('✅ Sistema listo - Filtra por cobrado=0 (pendientes)');
 });
 
-// ⚠️ Funciones Globales para la Cabecera (Necesarias para el HTML)
-window.toggleDropdown = (button) => { 
-    const parentDropdown = button.closest('.dropdown'); 
-    document.querySelectorAll('.dropdown').forEach(dropdown => {
-        if (dropdown !== parentDropdown) { dropdown.classList.remove('active'); }
-    });
-    if (parentDropdown) { parentDropdown.classList.toggle('active'); }
+// Utilidades UI
+window.toggleDropdown = (btn) => {
+    const dropdown = btn.closest('.dropdown');
+    document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+    dropdown?.classList.toggle('active');
 };
-window.showModal = (show, title = '', body = '') => { 
-    const modal = document.getElementById('actionModal');
-    if (!modal) return;
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalBody').textContent = body;
-    modal.classList.toggle('hidden', !show);
-};
-window.handleAction = (title, description) => { 
-    window.showModal(true, title, description);
-};
-window.handleLogout = () => { 
-    window.handleAction('Cerrar Sesión', 'Se ha simulado el cierre de sesión. Redirigiendo...'); 
-    setTimeout(() => window.location.href = '/login', 1500); 
-};
-window.toggleMobileMenu = () => { const mobileMenu = document.getElementById('mobileMenu'); if (mobileMenu) mobileMenu.classList.toggle('hidden'); };
