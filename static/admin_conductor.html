@@ -1,247 +1,287 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gestión de Conductores</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚗 Gestión de Conductores - Administrador</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="/js/security.js"></script>
-    <script src="/js/utils.js"></script>
-    
-    <style>
-        /* 🎨 Configuración de Fuente y Estilos Base */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9; /* Fondo suave */
-            color: #1f2937; /* Texto oscuro */
-            line-height: 1.6;
-        }
-
-        /* 🧩 INPUTS Y FORMULARIOS */
-        .input-field {
-            @apply w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-800
-                   transition duration-150 ease-in-out text-base shadow-sm;
-        }
-
-        .input-field:focus {
-            /* Foco estandarizado: Color Principal (Teal) */
-            @apply outline-none border-teal-500 ring-2 ring-teal-300;
-        }
-
-        /* 🏷️ TÍTULOS DE SECCIÓN */
-        .section-title {
-            @apply text-xl font-bold text-teal-700 mb-4 border-b-2 border-teal-200 pb-2 mt-8;
-        }
-        
-        /* 🎛️ BOTONES GENERALES (Usamos Teal como color principal) */
-        .action-button {
-            @apply inline-flex items-center justify-center font-semibold py-2.5 px-6 rounded-lg 
-                   shadow-md cursor-pointer transition duration-300 transform text-white focus:outline-none 
-                   hover:scale-[1.02] focus:ring-4 text-sm;
-        }
-        
-        /* Botones específicos */
-        .btn-crear {
-            @apply bg-teal-600 hover:bg-teal-700 focus:ring-teal-300 shadow-teal-400/50;
-        }
-
-        .btn-modificar {
-            /* Color de Edición: Indigo/Blue */
-            @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-300 shadow-indigo-400/50;
-        }
-
-        .btn-borrar {
-            /* Color Peligro: Red */
-            @apply bg-red-600 hover:bg-red-700 focus:ring-red-300 shadow-red-400/50;
-        }
-
-        .btn-volver {
-            /* Color Gris Neutral */
-            @apply bg-gray-500 hover:bg-gray-600 focus:ring-gray-300 shadow-gray-400/50;
-        }
-
-        /* 💬 MENSAJES DE ESTADO */
-        .status-message {
-            @apply mt-6 p-4 text-center font-medium rounded-lg;
-        }
-
-        .status-success { @apply bg-green-100 text-green-800 border border-green-300; }
-        .status-error { @apply bg-red-100 text-red-800 border border-red-300; }
-        .status-info { @apply bg-blue-100 text-blue-800 border border-blue-300; }
-    </style>
-</head>
-<body class="p-4 sm:p-8 lg:p-12">
-
-    <div class="max-w-3xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 class="text-3xl font-extrabold text-teal-800 text-center mb-8 border-b pb-3">
-            Administración de Conductores 🧑‍✈️
-        </h1>
-
-        <form id="conductorForm" onsubmit="handleAction('crear', event)">
-
-            <div class="section-title !mt-0">Datos de Identificación</div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                <div>
-                    <label for="licencia" class="block text-sm font-medium text-gray-600 mb-1">
-                        LICENCIA *
-                    </label>
-                    <input type="text" id="licencia" name="licencia" required
-                               placeholder="Ej: 007"
-                               class="input-field font-bold text-teal-700">
-                </div>
-
-                <div>
-                    <label for="dni" class="block text-sm font-medium text-gray-600 mb-1">
-                        DNI / NIE *
-                    </label>
-                    <input type="text" id="dni" name="dni" required
-                               placeholder="Ej: 24.XXXXX-L"
-                               class="input-field uppercase">
-                </div>
-            </div>
-
-            <div class="mt-6">
-                <label for="nombre_apellidos" class="block text-sm font-medium text-gray-600 mb-1">
-                    NOMBRE Y APELLIDOS
-                </label>
-                <input type="text" id="nombre_apellidos" name="nombre_apellidos"
-                           placeholder="Nombre completo del conductor"
-                           class="input-field">
-            </div>
-
-
-            <div class="section-title">Roles y Estado</div>
-            
-            <div class="flex flex-wrap gap-x-12 gap-y-6 mt-6 p-6 bg-teal-50 rounded-xl border border-teal-200">
-                
-                <div class="flex items-center space-x-6">
-                    <span class="font-bold text-teal-800">SOCIO</span>
-                    <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="socio" name="socio" class="sr-only peer" />
-                        <div class="relative w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full
-                                    peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-                        <span class="ms-3 text-sm font-medium text-gray-600">Sí / No</span>
-                    </label>
-                </div>
-
-                <div class="flex items-center space-x-6">
-                    <span class="font-bold text-teal-800">CHOFER</span>
-                    <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="chofer" name="chofer" class="sr-only peer" checked/>
-                        <div class="relative w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full
-                                    peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-                        <span class="ms-3 text-sm font-medium text-gray-600">Sí / No</span>
-                    </label>
-                </div>
-
-                <div class="flex items-center space-x-6 p-2 bg-green-100 rounded-lg border border-green-300">
-                    <span class="font-bold text-green-800">ACTIVO</span>
-                    <label class="inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="activo" name="activo" class="sr-only peer" checked/>
-                        <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full
-                                    peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                        <span class="ms-3 text-sm font-medium text-gray-600">Sí / No</span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
-                
-                <button type="submit"
-                        class="action-button btn-crear">
-                    <span class="mr-2">💾</span> Guardar Conductor (Crear)
-                </button>
-
-                <button type="button" onclick="handleAction('modificar')"
-                        class="action-button btn-modificar">
-                    <span class="mr-2">✏️</span> Modificar
-                </button>
-
-                <button type="button" onclick="handleAction('borrar')"
-                        class="action-button btn-borrar">
-                    <span class="mr-2">🗑️</span> Borrar
-                </button>
-                
-                <button type="button" onclick="handleAction('volver')"
-                        class="action-button btn-volver">
-                    <span class="mr-2">🔙</span> Volver
-                </button>
-            </div>
-            
-            <div id="statusMessage" class="hidden status-message" role="alert"></div>
-
-        </form>
-    </div>
-
+    <script src="/js/admin_conductor.js" defer></script> 
     <script>
-        // Función central para manejar todas las acciones de los botones
-        function handleAction(actionType, event = null) {
-            const statusMessage = document.getElementById('statusMessage');
-            
-            // Ocultar y limpiar mensaje de estado anterior
-            statusMessage.classList.add('hidden');
-            statusMessage.classList.remove('status-success', 'status-error', 'status-info');
-
-            switch (actionType) {
-                case 'crear':
-                    if (event) {
-                        event.preventDefault(); // Previene el envío por defecto del formulario
+        // Configuración de Tailwind (Naranja Pastel)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-pastel': '#FFDAB9', // Naranja Pastel
+                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
+                        'black-pure': '#000000',
                     }
-                    const form = document.getElementById('conductorForm');
-                    const data = {};
-
-                    // Recoger datos
-                    new FormData(form).forEach((value, key) => {
-                        data[key] = value;
-                    });
-                    
-                    // Recoger estados de los switches como 'Si'/'No'
-                    data['socio'] = document.getElementById('socio').checked ? 'Si' : 'No';
-                    data['chofer'] = document.getElementById('chofer').checked ? 'Si' : 'No';
-                    data['activo'] = document.getElementById('activo').checked ? 'Si' : 'No';
-
-                    // Simulación de validación simple
-                    if (!document.getElementById('licencia').value || !document.getElementById('dni').value) {
-                        statusMessage.textContent = '❌ Error: LICENCIA y DNI/NIE son obligatorios.';
-                        statusMessage.classList.add('status-error');
-                        statusMessage.classList.remove('hidden');
-                        return;
-                    }
-
-                    statusMessage.textContent = '✅ ¡CREACIÓN exitosa simulada! El conductor se guardaría en el backend.';
-                    statusMessage.classList.add('status-success');
-                    statusMessage.classList.remove('hidden');
-
-                    console.log("--- DATOS DEL CONDUCTOR A ENVIAR/GUARDAR ---");
-                    console.log(JSON.stringify(data, null, 2));
-                    break;
-                
-                case 'modificar':
-                    statusMessage.textContent = '✏️ Simulación: Los datos del conductor se modificarían en el sistema.';
-                    statusMessage.classList.add('status-info'); 
-                    statusMessage.classList.remove('hidden');
-                    break;
-                
-                case 'borrar':
-                    if (confirm('⚠️ ¿Está seguro que desea borrar este Conductor? Esta acción es irreversible.')) {
-                        statusMessage.textContent = '🗑️ Simulación: El Conductor se borraría del sistema.';
-                        statusMessage.classList.add('status-error'); 
-                        statusMessage.classList.remove('hidden');
-                    }
-                    break;
-                
-                case 'volver':
-                    // Redirige al usuario a la página 'admin.html'
-                    window.location.href = 'admin.html';
-                    return; 
-                default:
-                    return;
+                }
             }
         }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Clases base (CSS de la plantilla) */
+        .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
+        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
+        .status-message { @apply mt-4 p-3 rounded-md font-medium text-center; }
+        .status-success { @apply bg-green-100 text-green-700 border border-green-400; }
+        .status-error { @apply bg-red-400 text-white border border-red-600; }
+        .status-info, .status-neutral { @apply bg-gray-200 text-gray-700 border border-gray-400; }
+        .sortable { @apply flex items-center cursor-pointer select-none; }
+        .sort-icon { @apply ml-2 w-4 h-4 inline-block; }
+        .dropdown-content { display: none; position: absolute; background-color: white; min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1000; border-radius: 0.5rem; margin-top: 0.5rem; }
+        .dropdown.active .dropdown-content { display: block; }
+        .dropdown-content a { color: #374151; padding: 12px 16px; text-decoration: none; display: block; border-bottom: 1px solid #f3f4f6; transition: background-color 0.2s; }
+        .dropdown-content a:hover { background-color: #FFDAB9; color: #000; }
+        .dropdown-content a:last-child { border-bottom: none; }
+        .compact-table th, .compact-table td { @apply px-3 py-2 text-xs; }
+        .compact-table th { @apply whitespace-nowrap; }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter">
+
+    <header class="bg-primary-link text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">🏢 </span>
+                    <h1 class="text-xl font-bold">Administrador</h1>
+                </div>
+
+                <nav class="hidden md:flex items-center space-x-6">
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Titulares</span><i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/titulares">Titulares Gestión</a>
+                            <a href="/admin/pago_tit">Titulares Pagos</a>
+                        </div>
+                    </div>
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Albaranes</span><i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/nuevo_albaran">Albaranes Crear</a>
+                            <a href="/admin/albaran">Albaranes Modificar</a>
+                            <a href="/busqueda">Albaranes Ver</a>
+                        </div>
+                    </div>
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Empresas</span><i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/empresas">Empresas Gestión</a>
+                            <a href="/admin/pago_emp">Empresas Pagos</a>
+                        </div>
+                    </div>
+                    <div class="dropdown relative active">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                            <span>Sistema</span><i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/usuarios">Usuarios Gestión</a>
+                            <a href="/admin/conductor" class="bg-primary-pastel/50 font-bold">Conductores Gestión</a>
+                            <a href="/admin/backup">Backup</a>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-3 mt-4 sm:mt-0">
+                        <button title="Nuevo Conductor" 
+                                class="bg-green-500 text-white hover:bg-green-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" 
+                                onclick="handleCreateConductor()"> 
+                            <i data-lucide="user-plus" class="h-6 w-6"></i>
+                        </button>
+                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Excel', 'Se exportará el listado actual a formato Excel')">
+                            <i data-lucide="file-spreadsheet" class="h-6 w-6"></i>
+                        </button>
+                        <button onclick="handleLogout()" 
+                            title="Salir y cerrar sesión"
+                            class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                            <i data-lucide="log-out" class="h-6 w-6"></i>
+                        </button>
+                    </div>
+                </nav>
+                
+                <button class="md:hidden p-2 rounded-lg hover:bg-orange-600 transition duration-200" onclick="toggleMobileMenu()">
+                    <i data-lucide="menu" class="h-6 w-6"></i>
+                </button>
+            </div>
+            
+            <div id="mobileMenu" class="md:hidden hidden py-4 border-t border-orange-300">
+                 <div class="space-y-2">
+                    <a href="/admin/titulares" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Titulares Gestión</a>
+                    <a href="/admin/pago_tit" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Titulares Pagos</a>
+                    <a href="/admin/nuevo_albaran" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Crear</a>
+                    <a href="/admin/albaran" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Modificar</a>
+                    <a href="/admin/empresas" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Empresas Gestión</a>
+                    <a href="/admin/pago_emp" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Empresas Pagos</a>
+                    <a href="/admin/usuarios" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Usuarios Gestión</a>
+                    <a href="/admin/conductor" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200 bg-primary-pastel/50 font-bold">Conductores</a>
+                    <a href="/admin/backup" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Backup</a>
+                    <a href="/login" class="block px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition duration-200 mt-4 text-white">Salir</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="showModal(false)">
+        <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
+            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure">Acción Realizada</h3>
+            <p id="modalBody" class="text-gray-700 mb-4"></p>
+            <button onclick="showModal(false)" class="w-full bg-primary-link text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
+        </div>
+    </div>
+
+    <main class="p-4 sm:p-6 lg:p-8">
+        <div class="max-w-[1800px] mx-auto">
+
+            <div class="card mb-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-4">
+                    <h1 class="text-2xl font-bold text-black-pure mb-3 sm:mb-0 flex items-center">
+                        <span class="text-3xl mr-3">🚗</span>
+                        <span class="text-xl">GESTIÓN DE CONDUCTORES</span>
+                    </h1>
+                </div>
+            </div>
+
+            <div class="card mb-8 filter-section">
+                <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center">
+                    <span class="mr-2">🔍</span> Filtros de Búsqueda
+                    <span id="activeFiltersCount" class="ml-3 text-sm font-normal text-gray-500">0 filtro(s) activo(s)</span>
+                </h2>
+                
+                <form id="searchForm" onsubmit="handleSearch(event)">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                        
+                        <div>
+                            <label for="licencia_filtro" class="block text-sm font-medium text-gray-600 mb-1">Nº Licencia</label>
+                            <input type="text" id="licencia_filtro" name="licencia" placeholder="Ej: 001A" class="input-field text-xs">
+                        </div>
+
+                        <div>
+                            <label for="dni_filtro" class="block text-sm font-medium text-gray-600 mb-1">DNI del Conductor</label>
+                            <input type="text" id="dni_filtro" name="dni" placeholder="12345678A" class="input-field text-xs">
+                        </div>
+                        
+                        <div>
+                            <label for="nombre_filtro" class="block text-sm font-medium text-gray-600 mb-1">Nombre</label>
+                            <input type="text" id="nombre_filtro" name="nombre" placeholder="Nombre completo" class="input-field text-xs">
+                        </div>
+                        
+                        <div>
+                            <label for="chofer_filtro" class="block text-sm font-medium text-gray-600 mb-1">Es Chofer</label>
+                            <select id="chofer_filtro" name="chofer" class="input-field appearance-none text-xs">
+                                <option value="">Todos</option>
+                                <option value="1">Sí</option>
+                                <option value="0">No</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-end gap-2">
+                            <button type="submit" 
+                                    class="bg-primary-link text-white font-semibold py-2 px-6 rounded-lg hover:bg-orange-600 transition duration-200 active:scale-95 shadow-md flex items-center">
+                                <i data-lucide="search" class="h-5 w-5 mr-2"></i> Buscar
+                            </button>
+                            <button type="button" 
+                                    onclick="handleClearAllFilters()" 
+                                    class="px-6 py-2 rounded-lg transition duration-200 shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300 active:scale-95 flex items-center">
+                                <i data-lucide="rotate-ccw" class="h-5 w-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                    <h2 class="text-xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
+                        <span class="mr-2">📋</span>
+                        Listado de Conductores
+                        <span id="resultsCount" class="ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full">
+                            Cargando...
+                        </span>
+                    </h2>
+
+                    <div class="flex items-center space-x-3">
+                        <button onclick="handleCreateConductor()" 
+                                class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 active:scale-95 shadow-md flex items-center">
+                            <i data-lucide="user-plus" class="h-5 w-5 mr-2"></i> Nuevo Conductor
+                        </button>
+                    </div>
+                </div>
+
+                <div class="shadow-lg rounded-xl border border-gray-100 compact-table overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-primary-link text-white">
+                            <tr>
+                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
+                                    <div class="sortable" onclick="sortTable('licencia')">Licencia<span class="sort-icon" id="sort-licencia"></span></div>
+                                </th>
+                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
+                                    <div class="sortable" onclick="sortTable('conductor')">Nº Conductor<span class="sort-icon" id="sort-conductor"></span></div>
+                                </th>
+                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
+                                    <div class="sortable" onclick="sortTable('nombre')">Nombre<span class="sort-icon" id="sort-nombre"></span></div>
+                                </th>
+                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
+                                    <div class="sortable" onclick="sortTable('email')">Email<span class="sort-icon" id="sort-email"></span></div>
+                                </th>
+                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
+                                    <div class="sortable" onclick="sortTable('telefono')">Teléfono<span class="sort-icon" id="sort-telefono"></span></div>
+                                </th>
+                                <th scope="col" class="px-3 py-2 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="conductorResults" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="6" class="text-center py-4 text-gray-500 italic text-sm">Cargando conductores...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="statusMessage" class="hidden status-message text-sm" role="alert"></div>
+                
+                <div class="flex justify-between items-center mt-4">
+                    <div class="flex items-center space-x-2 text-sm text-gray-600">
+                        <button id="prevPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg" title="Página anterior">
+                            <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                        </button>
+                        <span id="pageInfo" class="text-sm text-gray-600 font-medium px-3 py-1 bg-gray-100 rounded">Página 1 de 1</span>
+                        <button id="nextPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg" title="Página siguiente">
+                            <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        // Funciones de UI que el Header utiliza
+        window.toggleDropdown = (btn) => { 
+            const dropdown = btn.closest('.dropdown'); 
+            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); 
+            dropdown?.classList.toggle('active'); 
+        };
+        window.handleAction = (title, description) => { 
+            const modal = document.getElementById('actionModal');
+            // ... (Lógica del modal)
+        };
+        window.handleLogout = () => { window.location.href = '/login'; };
+        window.toggleMobileMenu = () => {
+             const mobileMenu = document.getElementById('mobileMenu');
+             if (mobileMenu) mobileMenu.classList.toggle('hidden');
+        };
+        
+        // Mapeo de redirección de Conductores (definidas en admin_conductor.js)
+        window.handleCreateConductor = () => { window.location.href = '/admin/conductor/crear'; }; 
+        window.handleCreateActionTitular = window.handleCreateConductor; // Para el botón 'Nuevo' en el header
     </script>
 </body>
 </html>
