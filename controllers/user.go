@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"albaranes/models"
@@ -57,8 +58,6 @@ func RequireRole(role string) gin.HandlerFunc {
 // --- Funciones de Mapeo de Identidad
 // ---------------------------------------------------------------------
 
-// GetUserEmailBySessionID obtiene el email del usuario logueado usando su user_id del token.
-// (Paso 1 del mapeo)
 func GetUserEmailBySessionID(c *gin.Context, db *gorm.DB) (string, error) {
 	userIDVal, exists := c.Get("userID")
 	if !exists {
@@ -68,22 +67,18 @@ func GetUserEmailBySessionID(c *gin.Context, db *gorm.DB) (string, error) {
 	userID, _ := userIDVal.(uint)
 
 	var user models.User
-	// Buscamos solo el campo Email
 	if err := db.Select("email").First(&user, userID).Error; err != nil {
 		return "", err
 	}
 	return user.Email, nil
 }
 
-// GetLicenciaByEmail busca una Licencia por email y devuelve su ID (LicenciaRef).
-// (Paso 2 del mapeo)
 func GetLicenciaByEmail(db *gorm.DB, email string) (uint, error) {
 	if email == "" {
 		return 0, gorm.ErrRecordNotFound
 	}
 
 	var licencia models.Licencia
-	// Buscamos la licencia por el email
 	if err := db.Select("id").Where("email = ?", email).First(&licencia).Error; err != nil {
 		return 0, err
 	}
@@ -91,13 +86,7 @@ func GetLicenciaByEmail(db *gorm.DB, email string) (uint, error) {
 	return licencia.ID, nil
 }
 
-// GetLicenciaRefFromSession implementa el flujo de 3 pasos para el frontend:
-// 1. Obtener User Email (usando user_id del token).
-// 2. Obtener Licencia ID (usando el email).
-// 3. Devolver la Licencia ID como LicenciaRef.
-// Endpoint: /api/v1/user/licencia_ref
 func GetLicenciaRefFromSession(c *gin.Context, db *gorm.DB) {
-	// 1. Obtener Email del usuario logueado
 	userEmail, err := GetUserEmailBySessionID(c, db)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -108,11 +97,9 @@ func GetLicenciaRefFromSession(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 2. Obtener ID de Licencia usando el Email
 	licenciaID, err := GetLicenciaByEmail(db, userEmail)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// Si la licencia no está mapeada, devolvemos 0, que es lo que el frontend espera manejar.
 			c.JSON(http.StatusOK, gin.H{"licencia_ref": 0, "error": "❌ Licencia no encontrada con ese email."})
 			return
 		}
@@ -120,7 +107,6 @@ func GetLicenciaRefFromSession(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 3. Devolver la Licencia ID (LicenciaRef)
 	c.JSON(http.StatusOK, gin.H{
 		"licencia_ref": licenciaID,
 	})
@@ -147,7 +133,6 @@ func Register(c *gin.Context, db *gorm.DB) {
 		Email:    input.Email,
 		Role:     input.Role,
 		Activo:   true,
-		// LicenciaRef se mantendrá en 0 por defecto si no se proporciona.
 	}
 
 	if result := db.Create(&user); result.Error != nil {
@@ -159,7 +144,6 @@ func Register(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Usuario registrado exitosamente", "id": user.ID, "usuario": user.Usuario, "role": user.Role})
 }
 
-// Login: Verifica credenciales y establece el token JWT en una Cookie HttpOnly.
 func Login(c *gin.Context, db *gorm.DB) {
 	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -183,7 +167,6 @@ func Login(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 1. Generar la Cookie HttpOnly con el token JWT
 	authCookie, err := utils.GenerateAuthCookie(user.ID, user.Role)
 	if err != nil {
 		log.Printf("ERROR al generar la cookie JWT: %v", err)
@@ -191,7 +174,6 @@ func Login(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 2. Establecer la cookie en la respuesta HTTP
 	maxAge := int(time.Until(authCookie.Expires).Seconds())
 
 	c.SetCookie(
@@ -204,7 +186,6 @@ func Login(c *gin.Context, db *gorm.DB) {
 		authCookie.HttpOnly,
 	)
 
-	// 3. Devolver solo el rol y el mensaje de éxito (SIN el token en el cuerpo)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "✅ Login exitoso",
 		"role":    user.Role,
@@ -212,15 +193,67 @@ func Login(c *gin.Context, db *gorm.DB) {
 	})
 }
 
-// --- Controladores CRUD (GET/LIST) ---
+// --- Controladores CRUD (GET/LIST/SEARCH) ---
 
+// GetUsers lista todos los usuarios (sin filtros).
 func GetUsers(c *gin.Context, db *gorm.DB) {
 	var users []models.User
-	if err := db.Select("id, usuario, email, role, activo, created_at, updated_at").Find(&users).Error; err != nil {
+	// Incluimos licencia_ref
+	if err := db.Select("id, usuario, email, role, activo, created_at, updated_at, licencia_ref").Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al obtener la lista de usuarios"})
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{"data": users})
+}
+
+// SearchUsers permite buscar y filtrar usuarios por query parameters.
+func SearchUsers(c *gin.Context, db *gorm.DB) {
+	var users []models.User
+	// Incluimos licencia_ref en la selección
+	query := db.Model(&models.User{}).Select("id, usuario, email, role, activo, created_at, updated_at, licencia_ref")
+
+	// --- Lógica de Filtros (usa query params) ---
+
+	// FILTRO por Usuario (Búsqueda parcial, insensible a mayúsculas)
+	usuario := c.Query("usuario")
+	if usuario != "" {
+		searchPattern := "%" + strings.ToLower(usuario) + "%"
+		query = query.Where("LOWER(usuario) LIKE ?", searchPattern)
+	}
+
+	// FILTRO por Email (Búsqueda parcial, insensible a mayúsculas)
+	email := c.Query("email")
+	if email != "" {
+		searchPattern := "%" + strings.ToLower(email) + "%"
+		query = query.Where("LOWER(email) LIKE ?", searchPattern)
+	}
+
+	// FILTRO por Role (Búsqueda exacta, insensible a mayúsculas)
+	role := c.Query("role")
+	if role != "" {
+		query = query.Where("LOWER(role) = ?", strings.ToLower(role))
+	}
+
+	// FILTRO por Activo (Booleano/String "true"/"false")
+	activo := c.Query("activo")
+	if activo != "" {
+		activoBool, err := strconv.ParseBool(activo)
+		if err == nil {
+			query = query.Where("activo = ?", activoBool)
+		} else {
+			log.Printf("⚠️ [SearchUsers] Filtro activo inválido: %s", activo)
+		}
+	}
+
+	// Ejecutar la búsqueda
+	if err := query.Order("id asc").Find(&users).Error; err != nil {
+		log.Printf("🔴 [SearchUsers] Error GORM al buscar usuarios: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al ejecutar la búsqueda de usuarios"})
+		return
+	}
+
+	// Devolver la lista filtrada
 	c.JSON(http.StatusOK, gin.H{"data": users})
 }
 
@@ -233,7 +266,8 @@ func GetUser(c *gin.Context, db *gorm.DB) {
 	}
 
 	var user models.User
-	if err := db.Select("id, usuario, email, role, activo, created_at, updated_at").First(&user, id).Error; err != nil {
+	// Incluimos licencia_ref en la selección
+	if err := db.Select("id, usuario, email, role, activo, created_at, updated_at, licencia_ref").First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Usuario no encontrado"})
 		return
 	}
