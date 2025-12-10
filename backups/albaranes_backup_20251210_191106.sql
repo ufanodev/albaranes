@@ -1,0 +1,3 @@
+-- Backup de la tabla albaranes
+-- Fecha: 2025-12-10 19:11:06.2896795 +0100 CET m=+856.005908201
+-- Contenido simulado de CREATE TABLE y INSERT INTO

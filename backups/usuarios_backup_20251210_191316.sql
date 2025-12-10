@@ -1,0 +1,3 @@
+-- Backup de la tabla usuarios
+-- Fecha: 2025-12-10 19:13:16.9234858 +0100 CET m=+986.639714501
+-- Contenido simulado de CREATE TABLE y INSERT INTO

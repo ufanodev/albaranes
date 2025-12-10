@@ -1,0 +1,3 @@
+-- Backup COMPLETO de DB: 
+-- Fecha: 2025-12-10 19:13:19.0835411 +0100 CET m=+988.799769801
+-- Contiene todas las tablas: albaranes, conductores, empresas, licencias, usuarios

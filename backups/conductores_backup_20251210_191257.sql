@@ -1,0 +1,3 @@
+-- Backup de la tabla conductores
+-- Fecha: 2025-12-10 19:12:57.8662919 +0100 CET m=+967.582520601
+-- Contenido simulado de CREATE TABLE y INSERT INTO
