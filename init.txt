@@ -1,0 +1,3 @@
+ufano.developer@gmail.com"
+	const defaultUsername = "ufano"
+	const defaultPassword = "ufanodev4218!"
