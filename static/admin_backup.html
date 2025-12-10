@@ -1,22 +1,25 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Administración de Backup</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💾 Administración de Backup y Tablas</title>
     <script src="https://cdn.tailwindcss.com"></script>
-
-        <script src="/js/security.js"></script>
-    <script src="/js/utils.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/js/security.js"></script> 	
+    <script src="/js/utils.js"></script> 
+    <script src="/js/admin_backup.js" defer></script> 
     
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
                     colors: {
+                        'primary-pastel': '#FFDAB9', // Naranja Pastel
+                        'primary-link': '#FF8C00',  // Naranja más vivo
+                        'black-pure': '#000000',
+                        'secondary-blue': '#3B82F6', // Azul para elementos secundarios
+                        // Colores específicos para Backup (verde)
                         'backup-primary': '#059669', // Emerald 600
                         'backup-hover': '#047857', // Emerald 700
                     }
@@ -32,156 +35,147 @@
             background-color: #f4f7f9;
             color: #1f2937;
         }
-
-        /* Estilo general de los botones de la página principal */
-        .admin-button {
-            @apply flex flex-col items-center justify-center p-6 rounded-xl shadow-lg 
-                   transition duration-300 transform text-center font-bold text-sm
-                   hover:scale-[1.03] hover:shadow-xl focus:outline-none focus:ring-4;
-        }
-
-        /* Estilo para el mensaje de estado */
-        .status-message {
-            @apply mt-8 p-4 text-center font-semibold rounded-lg text-lg border-2;
+        /* Clases base de tu ejemplo de albaranes */
+        .card { @apply bg-white p-6 rounded-xl shadow-2xl border border-primary-pastel/50; }
+        
+        /* Estilos del mensaje de estado (Adaptados) */
+        .status-message { 
+            @apply mt-6 p-4 rounded-xl font-bold text-center border-2 shadow-inner transition-opacity duration-300; 
         }
         .status-success { @apply bg-green-100 text-green-800 border-green-300; }
         .status-info { @apply bg-blue-100 text-blue-800 border-blue-300; }
         .status-error { @apply bg-red-100 text-red-800 border-red-300; }
 
-        /* Colores de los botones de CRUD para consistencia */
-        .action-button {
-            @apply inline-flex items-center justify-center font-semibold py-2.5 px-6 rounded-lg 
-                   shadow-md cursor-pointer transition duration-300 transform text-white focus:outline-none 
-                   hover:scale-[1.02] focus:ring-4 text-sm;
+        /* Estilo general de los botones de la página principal (Adaptados de tu ejemplo) */
+        .admin-button {
+            @apply flex flex-col items-center justify-center p-4 rounded-xl shadow-lg 
+                   transition duration-300 transform text-center font-bold text-sm h-full
+                   hover:scale-[1.03] hover:shadow-xl focus:outline-none focus:ring-4;
         }
-        
-        .btn-crear {
-            @apply bg-violet-600 hover:bg-violet-700 focus:ring-violet-300 shadow-violet-400/50 text-white;
-        }
-        .btn-modificar {
-            @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-300 shadow-indigo-400/50 text-white;
-        }
-        .btn-borrar {
-            @apply bg-red-600 hover:bg-red-700 focus:ring-red-300 shadow-red-400/50 text-white;
-        }
+
+        /* Estilos para el botón de Volver (Azul Secundario) */
         .btn-volver {
-            @apply bg-gray-500 text-white hover:bg-gray-600 focus:ring-gray-300;
+             @apply bg-secondary-blue text-white hover:bg-blue-700 focus:ring-blue-300;
         }
     </style>
 </head>
-<body class="p-4 sm:p-8 lg:p-12">
+<body class="bg-gray-50 p-4 sm:p-8 lg:p-12 font-inter">
 
-    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 class="text-3xl font-extrabold text-backup-primary text-center mb-10 border-b pb-3">
-            Administración: Copias de Seguridad (Backup) 💾
-        </h1>
+    <div class="max-w-6xl mx-auto">
+        <div class="card mb-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
+                <h1 class="text-3xl font-extrabold text-backup-primary text-center mb-4 sm:mb-0 flex items-center">
+                    <span class="text-4xl mr-3">💾</span>
+                    Administración: Copias de Seguridad (Backup)
+                </h1>
 
-        <div id="statusMessage" class="hidden status-message status-success"></div>
+                <div class="flex flex-wrap gap-3">
+                     <button type="button" onclick="handleAction('volver')"
+                        class="group relative inline-flex items-center justify-center px-4 py-2.5 font-semibold text-white transition-all duration-300 ease-in-out bg-secondary-blue rounded-lg shadow-md hover:bg-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-secondary-blue focus:ring-offset-2">
+                        <span class="mr-2 transition-transform group-hover:scale-105">🔙</span> Volver
+                    </button>
+                </div>
+            </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
+            <div id="statusMessage" class="hidden status-message status-success"></div>
             
-            <button type="button" onclick="handleBackup('Titulares')"
-                    class="admin-button bg-backup-primary text-white hover:bg-backup-hover focus:ring-green-300">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                Titulares
-            </button>
+            <div class="mb-8">
+                 <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center border-b pb-2">
+                    <i data-lucide="table" class="h-5 w-5 mr-2 text-primary-link"></i> Tablas Disponibles para Backup
+                </h2>
+                <div class="flex flex-wrap gap-4 text-sm font-medium text-gray-600">
+                    <span class="bg-gray-100 px-3 py-1 rounded-full border border-gray-200">albaranes</span>
+                    <span class="bg-gray-100 px-3 py-1 rounded-full border border-gray-200">conductores</span>
+                    <span class="bg-gray-100 px-3 py-1 rounded-full border border-gray-200">empresas</span>
+                    <span class="bg-gray-100 px-3 py-1 rounded-full border border-gray-200">licencias</span>
+                    <span class="bg-gray-100 px-3 py-1 rounded-full border border-gray-200">usuarios</span>
+                </div>
+            </div>
 
-            <button type="button" onclick="handleBackup('Albaranes')"
-                    class="admin-button bg-backup-primary text-white hover:bg-backup-hover focus:ring-green-300">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-                Albaranes
-            </button>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            <button type="button" onclick="handleBackup('Conductores')"
-                    class="admin-button bg-backup-primary text-white hover:bg-backup-hover focus:ring-green-300">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>
-                Conductores
-            </button>
+                <div class="p-6 border border-green-300 rounded-xl bg-green-50 shadow-lg">
+                    <h2 class="text-xl font-bold text-green-800 mb-6 flex items-center">
+                        <i data-lucide="archive" class="h-6 w-6 mr-2"></i> 1. Copia de Seguridad (.sql)
+                    </h2>
+                    <p class="text-sm text-gray-700 mb-4">Crea un archivo de backup de la estructura y los datos en la carpeta **./backups**.</p>
+                    <div class="grid grid-cols-3 gap-4">
+                        <button type="button" onclick="handleBackup('albaranes', 'crear', this)" class="admin-button bg-green-600 text-white hover:bg-green-700 focus:ring-green-300">
+                            <i data-lucide="file-text" class="h-5 w-5 mb-1"></i> Albaranes
+                        </button>
+                        <button type="button" onclick="handleBackup('conductores', 'crear', this)" class="admin-button bg-green-600 text-white hover:bg-green-700 focus:ring-green-300">
+                            <i data-lucide="user-square" class="h-5 w-5 mb-1"></i> Conductores
+                        </button>
+                        <button type="button" onclick="handleBackup('empresas', 'crear', this)" class="admin-button bg-green-600 text-white hover:bg-green-700 focus:ring-green-300">
+                            <i data-lucide="building" class="h-5 w-5 mb-1"></i> Empresas
+                        </button>
+                        <button type="button" onclick="handleBackup('licencias', 'crear', this)" class="admin-button bg-green-600 text-white hover:bg-green-700 focus:ring-green-300">
+                            <i data-lucide="contact" class="h-5 w-5 mb-1"></i> Licencias
+                        </button>
+                        <button type="button" onclick="handleBackup('usuarios', 'crear', this)" class="admin-button bg-green-600 text-white hover:bg-green-700 focus:ring-green-300">
+                            <i data-lucide="users" class="h-5 w-5 mb-1"></i> Usuarios
+                        </button>
+                        <button type="button" onclick="handleBackup('todos', 'crear', this)" class="admin-button bg-green-800 text-white hover:bg-green-900 focus:ring-green-400">
+                            <i data-lucide="archive-restore" class="h-5 w-5 mb-1"></i> DB Completa
+                        </button>
+                    </div>
+                </div>
 
-            <button type="button" onclick="handleBackup('Usuarios')"
-                    class="admin-button bg-backup-primary text-white hover:bg-backup-hover focus:ring-green-300">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5L16 19L11.5 14.5"/><path d="M16 19.001V5.001"/><path d="M3.5 12h-2"/><path d="M22.5 12h-2"/><path d="M12 2.5v-2"/><path d="M12 21.5v-2"/></svg>
-                Usuarios
-            </button>
+                <div class="p-6 border border-blue-300 rounded-xl bg-blue-50 shadow-lg">
+                    <h2 class="text-xl font-bold text-blue-800 mb-6 flex items-center">
+                        <i data-lucide="copy-plus" class="h-6 w-6 mr-2"></i> 2. Copia de Tabla (Snapshot)
+                    </h2>
+                     <p class="text-sm text-gray-700 mb-4">Crea una tabla idéntica en la DB para rollback rápido (ej: `tabla_copia_timestamp`).</p>
+                    <div class="grid grid-cols-3 gap-4">
+                        <button type="button" onclick="handleBackup('albaranes', 'copia', this)" class="admin-button bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-300">
+                            <i data-lucide="file-copy" class="h-5 w-5 mb-1"></i> Albaranes
+                        </button>
+                        <button type="button" onclick="handleBackup('conductores', 'copia', this)" class="admin-button bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-300">
+                            <i data-lucide="user-check" class="h-5 w-5 mb-1"></i> Conductores
+                        </button>
+                        <button type="button" onclick="handleBackup('empresas', 'copia', this)" class="admin-button bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-300">
+                            <i data-lucide="warehouse" class="h-5 w-5 mb-1"></i> Empresas
+                        </button>
+                        <button type="button" onclick="handleBackup('licencias', 'copia', this)" class="admin-button bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-300">
+                            <i data-lucide="briefcase" class="h-5 w-5 mb-1"></i> Licencias
+                        </button>
+                        <button type="button" onclick="handleBackup('usuarios', 'copia', this)" class="admin-button bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-300">
+                            <i data-lucide="key" class="h-5 w-5 mb-1"></i> Usuarios
+                        </button>
+                        <div class="admin-button bg-gray-300 text-gray-700 cursor-not-allowed">
+                            <i data-lucide="x-circle" class="h-5 w-5 mb-1"></i> No aplica
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-6 border border-orange-300 rounded-xl bg-orange-50 shadow-lg flex flex-col">
+                    <h2 class="text-xl font-bold text-orange-800 mb-6 flex items-center">
+                        <i data-lucide="list-checks" class="h-6 w-6 mr-2"></i> 3. Backups Recientes / Restaurar
+                    </h2>
+                    <p class="text-sm text-gray-700 mb-4 flex-shrink-0">Archivos .sql disponibles en el servidor (`./backups`).</p>
+                    <div id="backup-list" class="space-y-3 max-h-96 overflow-y-auto pr-2 flex-grow">
+                        <div class="text-center p-4 text-gray-500 italic">Cargando lista de archivos...</div>
+                    </div>
+                    
+                    <button type="button" onclick="handleRestoreGeneric()" 
+                            class="w-full mt-6 flex items-center justify-center px-4 py-3 font-semibold text-white transition-all duration-300 bg-red-600 rounded-lg shadow-md hover:bg-red-700 active:scale-95 focus:outline-none focus:ring-4 focus:ring-red-300 flex-shrink-0">
+                        <i data-lucide="rotate-ccw" class="h-5 w-5 mr-2"></i> 
+                        ⚠️ Iniciar Restauración (Simulación)
+                    </button>
 
-             <button type="button" onclick="handleBackup('Todas las Categorías')"
-                     class="admin-button bg-green-700 text-white hover:bg-green-800 focus:ring-green-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Todas
-            </button>
+                </div>
+
+            </div>
             
-            <button type="button" onclick="handleAction('volver')"
-                    class="admin-button btn-volver">
-                <span class="mr-2">🔙</span> Volver
-            </button>
-
         </div>
-        
     </div>
 
     <script>
-        const statusMessage = document.getElementById('statusMessage');
-
-        // Función para limpiar el estado y mostrar el mensaje
-        function displayMessage(text, type) {
-            statusMessage.textContent = text;
-            statusMessage.classList.remove('hidden', 'status-success', 'status-info', 'status-error');
-            
-            if (type === 'success') {
-                statusMessage.classList.add('status-success');
-            } else if (type === 'info') {
-                statusMessage.classList.add('status-info');
-            } else if (type === 'error') {
-                statusMessage.classList.add('status-error');
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.lucide) {
+                window.lucide.createIcons();
             }
-            
-            // Ocultar el mensaje después de 5 segundos
-            setTimeout(() => {
-                statusMessage.classList.add('hidden');
-            }, 5000);
-        }
-
-        // Maneja la acción de backup para una categoría específica
-        function handleBackup(category) {
-            // El mensaje ahora NO incluye las llaves {}
-            const message = `✅ Backup de ${category} realizado`;
-            displayMessage(message, 'success');
-        }
-
-        // Maneja las acciones genéricas (Crear, Modificar, Borrar, Volver)
-        function handleAction(actionType) {
-            let message = '';
-            let type = 'info'; // Por defecto es info para acciones generales
-
-            switch (actionType) {
-                case 'crear':
-                    message = '➕ Simulación: Proceso de creación/inicialización iniciado correctamente.';
-                    type = 'success';
-                    break;
-                case 'modificar':
-                    message = '⚙️ Simulación: Configuración modificada. Se requieren permisos de administrador.';
-                    type = 'info';
-                    break;
-                case 'borrar':
-                    if (confirm('⚠️ ¿Desea continuar con la acción de limpieza?')) {
-                        message = '❌ Simulación: Logs o datos temporales han sido limpiados.';
-                        type = 'error';
-                    } else {
-                        return;
-                    }
-                    break;
-                case 'volver':
-                    // Redirige al usuario a la página 'admin.html'
-                    window.location.href = 'admin.html';
-                    return; 
-                default:
-                    return;
-            }
-            // Muestra el mensaje solo si no es la acción 'volver'
-            if (actionType !== 'volver') {
-                displayMessage(message, type);
-            }
-        }
+        });
     </script>
 </body>
 </html>

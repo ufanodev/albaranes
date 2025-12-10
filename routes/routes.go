@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"albaranes/controllers"
+	"albaranes/controllers" // Asegúrate de que esta ruta de importación sea correcta
 	"albaranes/utils"
 
 	"github.com/gin-gonic/gin"
@@ -55,6 +55,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r.Static("/css", "./static/css")
 	r.Static("/js", "./static/js")
 	r.Static("/Imagenes", "./static/Imagenes")
+
+	// Permite servir los archivos .sql de backup estáticamente para descarga
+	// Es CRÍTICO asegurar que solo usuarios autenticados y autorizados puedan acceder a este directorio.
+	r.Static("/backups", "./backups")
+
 	r.LoadHTMLGlob("static/*.html")
 
 	// Grupo de Vistas (Frontend): Aplica middlewares de NoCache y redirección de autenticación.
@@ -95,20 +100,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/albaranes", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_busqueda.html", nil) })
 			adminViews.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
 
-			// GESTIÓN PRINCIPAL DE TITULARES (Tabla)
+			// GESTIÓN PRINCIPAL DE TABLAS
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
-
-			// GESTIÓN PRINCIPAL DE EMPRESAS (Tabla)
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
+			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
 
-			// RUTAS DE VISTA GESTIÓN DE USUARIOS
-			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) }) // Lista Principal
-			adminViews.GET("/usuarios/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
-			adminViews.GET("/usuarios/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
-			adminViews.GET("/usuarios/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
-			adminViews.GET("/usuarios/delete/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
-
+			// 💾 VISTA DE BACKUP
 			adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
+
 			adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) }) // 🔑 Lista Principal Conductores
 			adminViews.GET("/pago_emp", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_emp.html", nil) })
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
@@ -217,6 +216,18 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				userGroup.GET("/:id", func(c *gin.Context) { controllers.GetUser(c, db) })
 				userGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateUser(c, db) })
 				userGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
+			}
+
+			// 💾 RUTAS DE BACKUP Y COPIA DE TABLA (Admin)
+			backupGroup := protected.Group("/backup")
+			backupGroup.Use(controllers.RequireRole("admin"))
+			{
+				// GET /api/v1/backup/list - Lista archivos de backup
+				backupGroup.GET("/list", controllers.ObtenerBackupsList)
+
+				// POST /api/v1/backup/:tipo/:accion
+				// :accion = crear (backup .sql), copia (tabla espejo), cargar (restaurar - simulación)
+				backupGroup.POST("/:tipo/:accion", controllers.RealizarBackup)
 			}
 
 			// --- CRUD ALBARANES ---
