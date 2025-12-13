@@ -1,5 +1,21 @@
 // Archivo: static/js/usuarios_cargar.js
-// Lógica de negocio para la carga de datos de usuario en el formulario CRUD.
+// Lógica de negocio para la carga y guardado de datos de usuario en el formulario CRUD.
+
+// Función de utilidad para obtener los encabezados de autenticación
+function getAuthHeaders() {
+    // ⚠️ CRÍTICO: Comprueba que getJWTToken() existe en /js/security.js
+    if (typeof getJWTToken === 'undefined') {
+        console.error("❌ ERROR: La función getJWTToken() no está definida. Revise /js/security.js");
+        return { 'Content-Type': 'application/json' }; 
+    }
+    
+    // Si hay token, lo incluimos en el encabezado Authorization
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getJWTToken()
+    };
+}
+
 
 /**
  * Rellena el formulario con los datos de un usuario.
@@ -15,12 +31,14 @@ function fillFormWithUserData(userData) {
     
     // Campos de selección
     document.getElementById('role').value = userData.role || 'user';
+    // GORM devuelve `true` o `false` (booleanos), pero HTML usa strings.
     document.getElementById('activo').value = String(userData.activo || false);
 
     // Campo de referencia opcional
+    // Si es null en Go, lo convertimos a string vacío o 0.
     document.getElementById('licencia_ref').value = userData.licencia_ref || '';
     
-    // El campo de contraseña SIEMPRE se deja vacío por seguridad
+    // El campo de contraseña SIEMPRE se deja vacío en edición por seguridad
     document.getElementById('password').value = '';
 }
 
@@ -36,7 +54,9 @@ async function loadUserDataFromAPI(userId) {
     try {
         console.log(`[Cargar] 🌐 Pidiendo datos del usuario ID: ${userId} a /api/v1/users/${userId}`);
         
-        const response = await fetch(`/api/v1/users/${userId}`);
+        const response = await fetch(`/api/v1/users/${userId}`, {
+            headers: getAuthHeaders() // Incluir JWT
+        });
         
         if (response.status === 404) {
             console.error(`[Cargar] Error 404: Usuario ID ${userId} no encontrado.`);
@@ -48,7 +68,7 @@ async function loadUserDataFromAPI(userId) {
         }
         
         const data = await response.json();
-        return data.data; // Asumiendo que la respuesta es {data: userObject}
+        return data.data; // Tu controlador GetUser(c, db) devuelve {data: userObject}
 
     } catch (error) {
         console.error(`[Cargar] ❌ Fallo al cargar datos:`, error);
@@ -72,15 +92,15 @@ async function saveUserToAPI(mode, formData) {
     for (const key in formData) {
         let value = formData[key];
 
-        // Excluir ID nulo y password vacío en edición
+        // 1. Excluir ID nulo y password vacío en edición
         if (key === 'id' && !value) continue;
-        if (key === 'password' && !value) continue;
+        if (mode === 'edit' && key === 'password' && !value) continue;
         
-        // Convertir strings 'true'/'false' a booleanos para el DTO
+        // 2. Convertir 'activo' a booleano real para el DTO
         if (key === 'activo') {
             payload[key] = value === 'true';
         } else if (key === 'licencia_ref') {
-            // Convertir a número o nulo para Go
+            // 3. Convertir a número o nulo (si es string vacío) para el modelo Go
             const numValue = parseInt(value);
             payload[key] = isNaN(numValue) || numValue === 0 ? null : numValue;
         } else {
@@ -88,11 +108,14 @@ async function saveUserToAPI(mode, formData) {
         }
     }
 
+    // Nota: El controlador Register maneja los campos 'usuario', 'email', 'password' y 'role'.
+    // El controlador UpdateUser maneja un DTO que espera 'activo' y otros campos opcionales.
+
     console.log(`[API] 🌐 ${method} ${url} | Payload:`, payload);
 
     const response = await fetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(), // Incluir JWT
         body: JSON.stringify(payload)
     });
     

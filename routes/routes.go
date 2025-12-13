@@ -57,7 +57,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r.Static("/Imagenes", "./static/Imagenes")
 
 	// Permite servir los archivos .sql de backup estáticamente para descarga
-	// Es CRÍTICO asegurar que solo usuarios autenticados y autorizados puedan acceder a este directorio.
 	r.Static("/backups", "./backups")
 
 	r.LoadHTMLGlob("static/*.html")
@@ -100,15 +99,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/albaranes", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_busqueda.html", nil) })
 			adminViews.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
 
-			// GESTIÓN PRINCIPAL DE TABLAS
+			// GESTIÓN PRINCIPAL DE TABLAS (Vistas de lista)
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
-			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
+			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) }) // Lista Principal
 
-			// 💾 VISTA DE BACKUP
+			// VISTAS VARIAS
 			adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
-
-			adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) }) // 🔑 Lista Principal Conductores
+			adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) })
 			adminViews.GET("/pago_emp", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_emp.html", nil) })
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
 		}
@@ -125,6 +123,20 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		})
 		viewGroup.GET("/admin/conductor/delete/:licencia", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
+		})
+
+		// ✅ RUTAS CRUD de USUARIOS (CORREGIDO el error 404 para /crear)
+		viewGroup.GET("/admin/usuarios/crear", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil)
+		})
+		viewGroup.GET("/admin/usuarios/update/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil)
+		})
+		viewGroup.GET("/admin/usuarios/view/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil)
+		})
+		viewGroup.GET("/admin/usuarios/delete/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil)
 		})
 
 		// RUTAS CRUD de TITULARES (Usando admin_titular_crud.html)
@@ -226,7 +238,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				backupGroup.GET("/list", controllers.ObtenerBackupsList)
 
 				// POST /api/v1/backup/:tipo/:accion
-				// :accion = crear (backup .sql), copia (tabla espejo), cargar (restaurar - simulación)
 				backupGroup.POST("/:tipo/:accion", controllers.RealizarBackup)
 			}
 
