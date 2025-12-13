@@ -1,27 +1,30 @@
 // Archivo: static/js/admin_conductor.js
-// ✅ CRUD Gestor Conductores - Lógica de Búsqueda y Renderizado de TABLA (Corregido)
+// ✅ CRUD Gestor Conductores - Lógica de Búsqueda y Renderizado de TABLA (Listado)
 // =================================================================================
 
 const APP = {
     elements: {
         conductorResults: document.getElementById('conductorResults'),
         searchForm: document.getElementById('searchForm'),
+        // Inputs de filtro:
         licenciaFiltro: document.getElementById('licencia_filtro'),
         dniFiltro: document.getElementById('dni_filtro'),
         nombreFiltro: document.getElementById('nombre_filtro'),
-        choferFiltro: document.getElementById('chofer_filtro'),
+        choferFiltro: document.getElementById('chofer_filtro'), // Usado como filtro Activo/Inactivo
+        
         resultsCount: document.getElementById('resultsCount'),
         activeFiltersCount: document.getElementById('activeFiltersCount'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
-        recordsSelect: document.getElementById('recordsPerPage'),
+        // No hay recordsPerPage en el HTML, pero mantenemos la lógica por si se añade
+        recordsSelect: document.getElementById('recordsPerPage'), 
         pageInfo: document.getElementById('pageInfo'),
     },
     state: {
         allConductores: [],
         filteredConductores: [],
         currentPage: 1,
-        pageSize: 10,
+        pageSize: 10, // Default page size
         totalPages: 1,
         currentSort: { key: 'licencia', direction: 'asc' }, 
     }
@@ -31,31 +34,32 @@ const APP = {
 // 🎨 UI HELPERS
 // =================================================================================
 const UI = {
+    // Retorna HTML para el estado Activo/Inactivo
     getBooleanHtml(value) {
+        // En el modelo Go, el campo es 'activo' (bool). En MySQL es tinyint(1)
         const isTrue = (value === 1 || value === '1' || value === true);
         return isTrue
-            ? `<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">SÍ</span>`
-            : `<span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">NO</span>`;
+            ? `<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">ACTIVO</span>`
+            : `<span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">INACTIVO</span>`;
     },
     alertMessage(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
         const statusMessage = document.getElementById('statusMessage');
         if (!statusMessage) return;
+        
         statusMessage.textContent = message;
+        statusMessage.classList.remove('status-success', 'status-error', 'status-info', 'status-neutral', 'hidden');
         statusMessage.className = `status-message status-${type}`;
-        statusMessage.classList.remove('hidden');
+        
         setTimeout(() => statusMessage.classList.add('hidden'), 5000);
     },
     updatePageInfo() {
         const totalFiltered = APP.state.filteredConductores.length;
         APP.state.totalPages = Math.ceil(totalFiltered / APP.state.pageSize);
         APP.state.currentPage = Math.max(1, Math.min(APP.state.currentPage, APP.state.totalPages || 1));
-        const start = totalFiltered > 0 ? (APP.state.currentPage - 1) * APP.state.pageSize + 1 : 0;
-        const end = Math.min(APP.state.currentPage * APP.state.pageSize, totalFiltered);
         
+        // Actualizar contador y paginación
         if (APP.elements.pageInfo) APP.elements.pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
         if (APP.elements.resultsCount) APP.elements.resultsCount.textContent = `${totalFiltered} resultados`;
-        if (document.getElementById('totalLabel')) document.getElementById('totalLabel').textContent = `(${start}-${end} de ${totalFiltered} registros)`;
         
         UI.updatePaginationButtons();
     },
@@ -66,12 +70,18 @@ const UI = {
     updateActiveFiltersCount() {
         const { searchForm, activeFiltersCount } = APP.elements;
         if (!searchForm || !activeFiltersCount) return;
+        
         const formData = new FormData(searchForm);
         let count = 0;
-        if (formData.get('licencia')) count++;
-        if (formData.get('dni')) count++;
-        if (formData.get('nombre')) count++;
-        if (formData.get('chofer')) count++;
+        
+        // Contar filtros activos
+        ['licencia', 'dni', 'nombre', 'chofer'].forEach(field => {
+            const value = formData.get(field);
+            if (value && String(value).trim() !== '' && String(value) !== 'Todos') {
+                count++;
+            }
+        });
+        
         activeFiltersCount.textContent = `${count} filtro(s) activo(s)`;
     }
 };
@@ -86,12 +96,18 @@ const Filters = {
         const formData = new FormData(form);
         const filters = {};
         
+        // Recoger solo si el valor no está vacío
         if (formData.get('licencia')) filters.licencia = formData.get('licencia');
         if (formData.get('dni')) filters.dni = formData.get('dni');
         if (formData.get('nombre')) filters.nombre = formData.get('nombre');
-        if (formData.get('chofer')) filters.chofer = formData.get('chofer');
+        
+        // Filtro Activo/Inactivo (chofer_filtro en el HTML)
+        const choferFiltroValue = formData.get('chofer');
+        if (choferFiltroValue !== "" && choferFiltroValue !== null) {
+             // Convertir 1/0 a booleano, o usar el valor si viene como booleano en la data
+             filters.activo = choferFiltroValue === '1' || choferFiltroValue === 'true';
+        }
 
-        console.log('[FILTERS] Filtros aplicados (FE):', filters); // LOG
         return filters;
     },
     
@@ -99,16 +115,20 @@ const Filters = {
         return conductores.filter(conductor => {
             let matches = true;
             
+            // 1. Filtrar por Licencia
             if (filters.licencia && conductor.licencia && !conductor.licencia.toLowerCase().includes(filters.licencia.toLowerCase())) matches = false;
             
-            if (filters.dni && conductor.dni && !conductor.dni.toLowerCase().includes(filters.dni.toLowerCase())) matches = false;
+            // 2. Filtrar por Nº Conductor (asumimos que 'dni' en el filtro mapea a 'conductor' en el modelo)
+            if (filters.dni && conductor.conductor && !conductor.conductor.toLowerCase().includes(filters.dni.toLowerCase())) matches = false;
             
+            // 3. Filtrar por Nombre
             if (filters.nombre && conductor.nombre && !conductor.nombre.toLowerCase().includes(filters.nombre.toLowerCase())) matches = false;
             
-            if (filters.chofer !== undefined && filters.chofer !== '') {
-                // Usamos conductor.chofer directamente del objeto si está disponible, sino asumimos el valor de la Licencia
-                const conductorChofer = String(conductor.chofer || conductor.socio || 0); // Adaptación: usar socio/chofer si vienen
-                if (conductorChofer !== filters.chofer) matches = false;
+            // 4. Filtrar por Estado (activo)
+            if (filters.activo !== undefined && filters.activo !== null) {
+                // Compara el valor booleano del filtro con el valor booleano del conductor
+                const conductorActivo = conductor.activo === true; 
+                if (conductorActivo !== filters.activo) matches = false;
             }
             
             return matches;
@@ -124,10 +144,21 @@ const Filters = {
             let valA = a[key] || '';
             let valB = b[key] || '';
             
-            const comparison = valA.toString().localeCompare(valB.toString());
+            // Tratamiento de strings
+            const comparison = valA.toString().localeCompare(valB.toString(), 'es', { sensitivity: 'base' });
             
             return direction === 'asc' ? comparison : comparison * -1;
         });
+        
+        // Actualizar íconos de ordenación
+        document.querySelectorAll('.sort-icon').forEach(icon => icon.innerHTML = '');
+        const sortIcon = document.getElementById(`sort-${key}`);
+        if (sortIcon) {
+            sortIcon.innerHTML = direction === 'asc' 
+                ? '<i data-lucide="chevron-up" class="h-4 w-4 inline ml-1"></i>' 
+                : '<i data-lucide="chevron-down" class="h-4 w-4 inline ml-1"></i>';
+            if (window.lucide) window.lucide.createIcons();
+        }
 
         APP.state.currentSort = { key, direction };
         APP.state.currentPage = 1;
@@ -136,10 +167,12 @@ const Filters = {
     
     handleClearAllFilters() {
         const { searchForm } = APP.elements;
-        searchForm.reset();
-        // Recargar con filtros vacíos
-        API.loadAllConductores(Filters.getFiltersFromForm());
-        UI.alertMessage('✅ Filtros limpiados', 'info');
+        if (searchForm) {
+            searchForm.reset();
+            // Recargar con filtros vacíos (lo que equivale a todos los conductores)
+            API.loadAllConductores(Filters.getFiltersFromForm());
+            UI.alertMessage('✅ Filtros limpiados. Recargando listado completo.', 'info');
+        }
     }
 };
 
@@ -150,14 +183,20 @@ const API = {
     async loadAllConductores(filters = {}) {
         const tbody = APP.elements.conductorResults;
         UI.updateActiveFiltersCount();
-        console.log('[API] 🌐 Pidiendo lista de conductores...'); // LOG
-
+        
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500 italic text-sm">Cargando datos de la API...</td></tr>';
+        
         try {
-            const response = await fetch('/api/v1/conductores'); // RUTA GET /conductores
+            // Llama al endpoint GET /api/v1/conductores
+            const response = await fetch('/api/v1/conductores'); 
             
+            if (response.status === 401) { 
+                 window.location.href = '/login'; // Redirigir si no está autenticado
+                 return;
+            }
             if (!response.ok) {
-                 console.error('[API] ❌ Fallo HTTP:', response.status); // LOG
-                 throw new Error(`Error ${response.status} al cargar conductores.`);
+                const error = await response.json().catch(() => ({ error: 'Respuesta no JSON' }));
+                throw new Error(`Error ${response.status}: ${error.error || 'Fallo de servidor'}`);
             }
             
             const data = await response.json();
@@ -165,19 +204,23 @@ const API = {
             
             APP.state.allConductores = conductores;
             
+            // Aplicar filtros de frontend
             APP.state.filteredConductores = Filters.applyFrontendFilters(conductores, filters);
 
-            Filters.sortTable(APP.state.currentSort.key);
-            UI.updatePageInfo();
-
+            // Ordenar por el criterio actual (por defecto Licencia ASC)
+            Filters.sortTable(APP.state.currentSort.key); 
+            
             if (conductores.length === 0) {
                  UI.alertMessage('ℹ️ No se encontraron conductores.', 'info');
             }
             
         } catch (error) {
-            console.error('[API] 🛑 Error cargando conductores:', error); // LOG
-            UI.alertMessage(`❌ Error de red al cargar conductores: ${error.message}`, 'error');
-            if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-red-500">❌ Error al cargar.</td></tr>';
+            console.error('[API] 🛑 Error cargando conductores:', error); 
+            UI.alertMessage(`❌ Error al cargar conductores: ${error.message}`, 'error');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-500">❌ Error al cargar listado.</td></tr>';
+            
+            APP.state.filteredConductores = []; // Limpiar para que la UI se actualice
+            UI.updatePageInfo();
         }
     }
 };
@@ -199,35 +242,37 @@ const DOM = {
 
         const pageData = DOM.getCurrentPageData();
 
-        if (pageData.length === 0 && APP.state.filteredConductores.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron conductores.</td></tr>';
+        if (pageData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron conductores con los filtros aplicados.</td></tr>';
             UI.updatePageInfo();
             return;
         }
 
         pageData.forEach(conductor => {
-            // 🔑 CORRECCIÓN: Declarar la variable row como un elemento HTML
             const row = document.createElement('tr'); 
-            row.className = 'hover:bg-gray-50';
+            row.className = 'hover:bg-gray-50 border-b border-gray-100';
 
             const licencia = conductor.licencia;
             
             row.innerHTML = `
-                <td class="px-3 py-2 text-xs font-medium text-primary-link">${licencia || '-'}</td>
-                <td class="px-3 py-2 text-xs text-gray-800">${conductor.conductor || '-'}</td>
-                <td class="px-3 py-2 text-xs text-gray-800">${conductor.nombre || '-'}</td>
-                <td class="px-3 py-2 text-xs text-gray-600">${conductor.email || '-'}</td>
-                <td class="px-3 py-2 text-xs text-gray-600">${conductor.telefono || '-'}</td>
+                <td class="px-3 py-2 text-xs font-medium text-primary-link whitespace-nowrap">${licencia || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-800 whitespace-nowrap">${conductor.conductor || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-800 whitespace-nowrap">${conductor.nombre || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">${conductor.email || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">${conductor.telefono || '-'}</td>
+                
                 <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-medium">
-                    <button onclick="handleViewConductor('${licencia}')" class="text-blue-600 hover:text-blue-900 mx-1" title="Ver">
-                        <i data-lucide="eye" class="h-4 w-4 inline"></i>
-                    </button>
-                    <button onclick="handleUpdateConductor('${licencia}')" class="text-yellow-600 hover:text-yellow-900 mx-1" title="Editar">
-                        <i data-lucide="edit" class="h-4 w-4 inline"></i>
-                    </button>
-                    <button onclick="handleDeleteConductor('${licencia}')" class="text-red-600 hover:text-red-900 mx-1" title="Eliminar">
-                        <i data-lucide="trash-2" class="h-4 w-4 inline"></i>
-                    </button>
+                    <div class="flex space-x-2 justify-center">
+                        <button onclick="handleViewConductor('${licencia}')" class="text-blue-600 hover:text-blue-900 mx-1 p-1 rounded-full hover:bg-blue-100 transition" title="Ver detalle">
+                            <i data-lucide="eye" class="h-4 w-4 inline"></i>
+                        </button>
+                        <button onclick="handleUpdateConductor('${licencia}')" class="text-primary-link hover:text-orange-700 mx-1 p-1 rounded-full hover:bg-orange-100 transition" title="Editar">
+                            <i data-lucide="edit" class="h-4 w-4 inline"></i>
+                        </button>
+                        <button onclick="handleDeleteConductor('${licencia}')" class="text-red-600 hover:text-red-900 mx-1 p-1 rounded-full hover:bg-red-100 transition" title="Desactivar/Eliminar">
+                            <i data-lucide="trash-2" class="h-4 w-4 inline"></i>
+                        </button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(row);
@@ -246,7 +291,7 @@ function handleCreateConductor() { window.location.href = '/admin/conductor/crea
 function handleUpdateConductor(licencia) { window.location.href = `/admin/conductor/update/${licencia}`; }
 function handleViewConductor(licencia) { window.location.href = `/admin/conductor/view/${licencia}`; }
 function handleDeleteConductor(licencia) {
-    if (confirm(`¿Está seguro de ELIMINAR al conductor con Licencia: ${licencia}? Esta acción es irreversible.`)) {
+    if (confirm(`¿Está seguro de DESACTIVAR (Borrado Lógico) al conductor con Licencia: ${licencia}?`)) {
         window.location.href = `/admin/conductor/delete/${licencia}`;
     }
 }
@@ -270,13 +315,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (APP.elements.nextBtn) APP.elements.nextBtn.addEventListener('click', () => {
         if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); }
     });
-    if (APP.elements.recordsSelect) {
-        APP.elements.recordsSelect.innerHTML = `<option value="10" selected>10</option><option value="20">20</option><option value="50">50</option><option value="100">100</option>`;
-        APP.elements.recordsSelect.addEventListener('change', (e) => {
-            APP.state.pageSize = parseInt(e.target.value);
-            APP.state.currentPage = 1;
-            DOM.renderResults();
-        });
+    
+    // Asignar el submit del formulario de búsqueda
+    if (APP.elements.searchForm) {
+        APP.elements.searchForm.addEventListener('submit', handleSearch);
+        // También puedes usar 'change' en los inputs si quieres que filtre automáticamente al cambiar.
     }
 
     // Exposición global (para el HTML y eventos)

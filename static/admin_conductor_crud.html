@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gestión de Conductores</title>
+    <title id="pageTitle">Gestión de Conductores</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     
     <script src="/js/security.js"></script>
     <script src="/js/utils.js"></script>
-    <script src="/js/conductores_cargar.js"></script> 
+    <script src="/js/conductor_cargar.js"></script> 
     <script src="/js/admin_conductor_crud.js" defer></script> 
     
     <style>
@@ -48,14 +50,16 @@
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                <div>
-                    <label for="licencia" class="block text-sm font-medium text-gray-600 mb-1">
-                        LICENCIA *
-                    </label>
-                    <input type="text" id="licencia" name="licencia" required
-                            placeholder="Ej: 007"
-                            class="input-field font-bold text-teal-700">
-                </div>
+            <div>
+                <label for="licencia" class="block text-sm font-medium text-gray-600 mb-1">
+                    LICENCIA *
+                </label>
+                <select id="licencia" name="licencia" required
+                        class="input-field font-bold text-teal-700">
+                    <option value="">Cargando Licencias...</option>
+                </select>
+                <p class="text-xs text-gray-400 mt-1">Seleccione o introduzca (si es modo Crear).</p>
+            </div>
 
                 <div>
                     <label for="conductor" class="block text-sm font-medium text-gray-600 mb-1">
@@ -92,6 +96,20 @@
                 </div>
             </div>
 
+            <div class="section-title">Estado del Conductor</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                
+                <div class="md:col-span-1">
+                    <label for="activo" class="block text-sm font-medium text-gray-600 mb-1">
+                        ESTADO (Activo / Baja Lógica)
+                    </label>
+                    <select id="activo" name="activo" class="input-field">
+                        <option value="true">Activo</option>
+                        <option value="false">Inactivo (Baja Lógica)</option>
+                    </select>
+                </div>
+                </div>
+
 
             <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
                 
@@ -121,7 +139,12 @@
         </form>
     </div>
 
-    <script src="/js/conductores_cargar.js"></script> 
-    <script src="/js/admin_conductor_crud.js" defer></script> 
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
 </body>
 </html>
