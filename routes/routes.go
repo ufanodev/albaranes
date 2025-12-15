@@ -115,15 +115,40 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		viewGroup.GET("/admin/conductor/crear", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
 		})
+
+		// 🎯 RUTAS DE EDICIÓN Y VISTA PRECISA (Licencia + Nº Conductor)
+		// Estas DEBEN ir antes que las rutas de Licencia sola para la prioridad del router.
+
+		// ✅ Edición/Vista PRECISA (Licencia + Nº Conductor)
+		viewGroup.GET("/admin/conductor/update/:licencia/:nconductor", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
+		})
+		viewGroup.GET("/admin/conductor/view/:licencia/:nconductor", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
+		})
+
+		// Edición/Vista LEGACY (Licencia sola, fallback)
 		viewGroup.GET("/admin/conductor/update/:licencia", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
 		})
 		viewGroup.GET("/admin/conductor/view/:licencia", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
 		})
+
+		// --- Rutas de DELETE Híbridas ---
+		// Borrado Preciso (Por Licencia + Nº Conductor - Ruta alternativa, aunque Legacy se usa más)
+		viewGroup.GET("/admin/conductor/delete_lc/:licencia/:nconductor", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
+		})
+		// Borrado por ID Único (Recomendado)
+		viewGroup.GET("/admin/conductor/delete_by_id/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
+		})
+		// Borrado Legacy (Por Licencia - primer registro)
 		viewGroup.GET("/admin/conductor/delete/:licencia", func(c *gin.Context) {
 			c.HTML(http.StatusOK, "admin_conductor_crud.html", nil)
 		})
+		// 🔑 FIN RUTAS CRUD de CONDUCTORES
 
 		// ✅ RUTAS CRUD de USUARIOS (CORREGIDO el error 404 para /crear)
 		viewGroup.GET("/admin/usuarios/crear", func(c *gin.Context) {
@@ -188,10 +213,25 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			conductorGroup.Use(controllers.RequireRole("admin"))
 			{
 				conductorGroup.POST("/", func(c *gin.Context) { controllers.CreateConductor(c, db) })
+
+				// GET Legacy
 				conductorGroup.GET("/:licencia", func(c *gin.Context) { controllers.GetConductor(c, db) })
+
+				// PUT Legacy
 				conductorGroup.PUT("/:licencia", func(c *gin.Context) { controllers.UpdateConductor(c, db) })
+
+				// RUTA API GET PRECISA (Carga de datos)
+				conductorGroup.GET("/licencia_conductor/:licencia/:nconductor", func(c *gin.Context) { controllers.GetConductorByLicenciaYNumero(c, db) })
+
+				// ✅ CORRECCIÓN FINAL: RUTA API PUT PRECISA (Actualización de datos)
+				conductorGroup.PUT("/licencia_conductor/:licencia/:conductor", func(c *gin.Context) { controllers.UpdateConductorByLicenciaYConductor(c, db) })
+
+				// Borrado híbrido
 				conductorGroup.DELETE("/:licencia", func(c *gin.Context) { controllers.DeleteConductor(c, db) })
+				conductorGroup.DELETE("/id/:id", func(c *gin.Context) { controllers.DeleteConductorByID(c, db) })
+				conductorGroup.DELETE("/licencia_conductor/:licencia/:nconductor", func(c *gin.Context) { controllers.DeleteConductorByLicenciaYNumero(c, db) })
 			}
+			// --- FIN CRUD CONDUCTORES (Admin) ---
 
 			// --- CRUD LICENCIAS (Admin) ---
 			licenciaGroup := protected.Group("/licencias")

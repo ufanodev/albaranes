@@ -14,7 +14,7 @@
             btnBorrar: document.getElementById('btnBorrar'),
             btnVolver: document.getElementById('btnVolver'),
             
-            // CRÍTICO: Elementos de Input/Select (añadidos para inyección directa de valor)
+            // CRÍTICO: Elementos de Input/Select
             inputLicencia: document.getElementById('licencia'), 
             inputConductor: document.getElementById('conductor'), 
             inputNombre: document.getElementById('nombre'),       
@@ -24,8 +24,11 @@
         },
         state: {
             mode: 'create', 
-            licenciaId: null,
-            isSubmitting: false
+            licenciaId: null,      // Licencia (clave URL)
+            nConductorId: null,    // Número de Conductor (clave URL)
+            idUnico: null,         // ID único (para borrado)
+            isSubmitting: false,
+            originalConductorData: null // Almacena datos cargados para el PUT preciso
         }
     };
 
@@ -92,7 +95,7 @@
     }
 
 
-    /** Habilita/Deshabilita todos los campos de entrada del formulario. */
+    /** * Habilita/Deshabilita todos los campos de entrada del formulario. */
     function toggleFormFields(enable) {
         if (!CRUD_APP.elements.allInputs) return;
 
@@ -100,28 +103,29 @@
             const isLicenciaField = input.id === 'licencia';
             const isActivoField = input.id === 'activo';
             
-            // 1. La Licencia (SELECT) se bloquea en modos de edición/visualización/eliminación
-            if (isLicenciaField) {
-                 if (CRUD_APP.state.mode !== 'create') {
-                     input.disabled = true; 
-                     return;
-                 }
-                 input.disabled = !enable;
-                 return;
-            }
-            
-            // 2. El campo 'activo' (borrado lógico) solo es editable en modo 'edit'
-            if (isActivoField) {
-                 input.disabled = CRUD_APP.state.mode !== 'edit' || !enable;
-                 return;
-            }
+            if (enable) {
+                // Habilitación General (para CREATE o EDIT)
+                
+                // 1. Licencia: Solo editable en modo 'create'.
+                if (isLicenciaField && CRUD_APP.state.mode !== 'create') {
+                    input.disabled = true;
+                    return;
+                }
 
-            // 3. Habilita/deshabilita el resto de campos 
-            if (input.tagName.toLowerCase() === 'select') {
-                 input.disabled = !enable;
+                // 2. Campo 'activo' (Estado): Solo editable en modo 'edit'.
+                if (isActivoField && CRUD_APP.state.mode !== 'edit') {
+                    input.disabled = true;
+                    return;
+                }
+                
+                // 3. El resto de campos (incluyendo Email, Teléfono, NConductor) se habilitan.
+                input.disabled = false;
+                input.readOnly = false;
+
             } else {
-                 input.disabled = !enable;
-                 input.readOnly = !enable;
+                // Deshabilitación Total (para VIEW o DELETE)
+                input.disabled = true;
+                input.readOnly = true;
             }
         });
     }
@@ -129,8 +133,12 @@
     /** Actualiza la UI y la visibilidad de botones según el modo. */
     function updateUIForMode(mode, conductorData = null) {
         const { mainTitle, btnCrear, btnModificar, btnBorrar, btnVolver } = CRUD_APP.elements;
-        const licencia = CRUD_APP.state.licenciaId;
+        const { licenciaId, nConductorId, idUnico } = CRUD_APP.state;
         
+        let displayId = licenciaId; 
+        if (idUnico) displayId = `ID: ${idUnico}`;
+        else if (licenciaId && nConductorId && mode !== 'create') displayId = `${licenciaId} / ${nConductorId}`; 
+
         // 1. Ocultar todos los botones de acción principal
         [btnCrear, btnModificar, btnBorrar, btnVolver].forEach(btn => {
             if (btn) btn.style.display = 'none';
@@ -139,18 +147,17 @@
         // 2. Deshabilitar formulario por defecto
         toggleFormFields(false); 
 
-        // 3. Lógica específica por modo
         switch (mode) {
             case 'create':
                 mainTitle.textContent = '➕ Crear Nuevo Conductor';
                 if (btnCrear) btnCrear.style.display = ''; 
                 if (btnVolver) btnVolver.style.display = '';
-                toggleFormFields(true); 
+                toggleFormFields(true); // 🎯 HABILITA TODO
                 crudAlertMessage("Modo Creación. Complete los datos.", 'info');
                 break;
 
             case 'edit':
-                mainTitle.textContent = `✏️ Modificar Conductor [${licencia}]`;
+                mainTitle.textContent = `✏️ Modificar Conductor [${displayId}]`;
                 if (btnModificar) {
                     btnModificar.textContent = '💾 Guardar Cambios';
                     btnModificar.style.display = ''; 
@@ -158,12 +165,12 @@
                 }
                 if (btnBorrar) btnBorrar.style.display = ''; 
                 if (btnVolver) btnVolver.style.display = '';
-                toggleFormFields(true); 
+                toggleFormFields(true); // Habilita campos editables
                 crudAlertMessage("Modo Edición. Modifique los campos necesarios.", 'neutral');
                 break;
                 
             case 'view':
-                mainTitle.textContent = `👁️ Detalle Conductor [${licencia}]`;
+                mainTitle.textContent = `👁️ Detalle Conductor [${displayId}]`;
                 if (btnModificar) {
                     btnModificar.textContent = '✏️ Ir a Edición';
                     btnModificar.style.display = ''; 
@@ -175,40 +182,69 @@
                 break;
 
             case 'delete':
-                mainTitle.textContent = `🗑️ Eliminar Conductor [${licencia}]`;
+                mainTitle.textContent = `🗑️ Eliminar Conductor [${displayId}]`;
                 if (btnBorrar) {
-                    btnBorrar.textContent = '🗑️ CONFIRMAR ELIMINACIÓN'; 
+                    btnBorrar.textContent = '🗑️ CONFIRMAR DESACTIVACIÓN'; 
                     btnBorrar.style.display = ''; 
                     btnBorrar.disabled = false;
                 }
                 if (btnVolver) btnVolver.style.display = '';
-                crudAlertMessage(`ATENCIÓN: Confirme la ELIMINACIÓN de [${licencia}].`, 'error');
+                crudAlertMessage(`ATENCIÓN: Confirme la DESACTIVACIÓN de [${displayId}].`, 'error');
                 break;
         }
     }
 
-    /** Carga los datos del conductor (si hay licencia) y actualiza la UI. */
-    async function loadAndFillConductorData(licencia, mode) {
+    /** * Carga los datos del conductor, priorizando la búsqueda precisa.
+     * 🎯 CORRECCIÓN: Si estamos en modo DELETE por ID, evitamos la llamada API.
+     */
+    async function loadAndFillConductorData(licencia, nConductor, mode) {
         
-        console.log(`[LOG FE] 7. Inicio de carga de datos para modo: ${mode}`); 
+        console.log(`[LOG FE] 7. Inicio de carga de datos para modo: ${mode}. Clave: ${licencia}/${nConductor}`); 
         
-        await loadLicenciasToSelect(licencia); 
+        // 1. Manejar modo DELETE por ID: No necesita API GET, solo UI.
+        if (mode === 'delete' && CRUD_APP.state.idUnico) {
+            updateUIForMode(mode);
+            crudAlertMessage(`Listo para desactivar el conductor ID ${CRUD_APP.state.idUnico}.`, 'error');
+            return;
+        }
+        
+        // 2. Cargar lista de licencias (para SELECT)
+        if (mode === 'create' || mode === 'view' || mode === 'edit') {
+            await loadLicenciasToSelect(licencia); 
+        }
 
         if (licencia && mode !== 'create') {
             crudAlertMessage("⏳ Cargando datos del conductor...", 'neutral');
             
-            if (typeof loadConductorDataFromAPI !== 'function' || typeof fillFormWithConductorData !== 'function') {
+            if (typeof fillFormWithConductorData !== 'function') {
                  console.error("Error: Dependencias de conductor_cargar.js no cargadas.");
                  crudAlertMessage("Error crítico: No se puede cargar el API.", 'error');
                  return;
             }
 
-            const conductorData = await loadConductorDataFromAPI(licencia); 
+            let conductorData = null;
+            
+            // 3. Determinar el método de carga (Preciso vs. Legacy)
+            if (nConductor && typeof loadConductorDataFromAPIPrecisa === 'function') {
+                conductorData = await loadConductorDataFromAPIPrecisa(licencia, nConductor);
+            } else if (typeof loadConductorDataFromAPI === 'function') {
+                conductorData = await loadConductorDataFromAPI(licencia); 
+            } else {
+                 console.error("Error: loadConductorDataFromAPI o Precisa no están definidos.");
+                 crudAlertMessage("Error crítico: No se puede cargar el API.", 'error');
+                 return;
+            }
+
 
             if (conductorData) {
+                CRUD_APP.state.originalConductorData = conductorData; 
+                CRUD_APP.state.idUnico = conductorData.id; 
+                
                 fillFormWithConductorData(conductorData); 
                 updateUIForMode(mode, conductorData);
             } else {
+                // Fallo si el conductor preciso o el conductor legacy no se encuentran
+                crudAlertMessage(`❌ Conductor [${licencia}/${nConductor || 'Legacy'}] no encontrado.`, 'error');
                 setTimeout(() => window.location.href = '/admin/conductor', 1000);
             }
         } else {
@@ -231,40 +267,25 @@
         const form = event.target;
         const formData = {};
         
-        // 1. Recoger datos del formulario (lo que no está disabled)
+        // 1. Recoger datos del formulario
         new FormData(form).forEach((value, key) => { formData[key] = value; });
         
-        // 2. 🔑 CORRECCIÓN CLAVE PARA MODO EDIT: Inyectar campos deshabilitados
-        
-        // Inyectar Licencia (siempre disabled en EDIT/VIEW)
+        // 2. Asegurar que la Licencia se incluya en el payload (si está deshabilitada en edit, no se recoge con FormData)
         if (mode !== 'create' && CRUD_APP.state.licenciaId && !formData.licencia) {
              formData.licencia = CRUD_APP.state.licenciaId;
-             console.log(`[LOG FE] Inyectando Licencia ${formData.licencia} desde el estado global.`);
         }
         
-        // Inyectar Nombre y Conductor (aunque no deberían fallar, lo hacemos por si hay un bug en el DOM/FormData)
-        if (mode !== 'create') {
-            // Utilizamos el valor actual del elemento DOM, no el estado antiguo.
-            if (!formData.nombre && CRUD_APP.elements.inputNombre) {
-                formData.nombre = CRUD_APP.elements.inputNombre.value;
-            }
-             if (!formData.conductor && CRUD_APP.elements.inputConductor) {
-                formData.conductor = CRUD_APP.elements.inputConductor.value;
-            }
-        }
-        
-        // 🚨 LOG DE DEPURACIÓN 🚨
-        console.log('[LOG FE] Datos FINALES a enviar (formData):', formData);
+        // --- Validación de campos requeridos (FRONTEND) ---
         const nombreTrim = (formData.nombre || '').trim();
         const conductorTrim = (formData.conductor || '').trim();
-        console.log(`[LOG FE] Validación: Licencia='${formData.licencia}', Nombre='${nombreTrim}', Conductor='${conductorTrim}'`);
-
-        // 3. Validación de campos obligatorios básicos (Licencia, Nombre, Nº Conductor)
-        if (!formData.licencia || !nombreTrim || !conductorTrim) {
-             CRUD_APP.state.isSubmitting = false;
-             return crudAlertMessage('❌ Error: Licencia, Nombre y Nº Conductor son obligatorios.', 'error');
-        }
+        const emailTrim = (formData.email || '').trim();
         
+        if (!formData.licencia || !nombreTrim || !conductorTrim || !emailTrim) {
+             CRUD_APP.state.isSubmitting = false;
+             return crudAlertMessage('❌ Error: Licencia, Nombre, Nº Conductor y Email son obligatorios.', 'error');
+        }
+        // ------------------
+
         if (typeof saveConductorToAPI !== 'function') {
              CRUD_APP.state.isSubmitting = false;
              return crudAlertMessage('❌ Error: API de guardado no disponible.', 'error');
@@ -273,7 +294,10 @@
         try {
             crudAlertMessage(`⏳ Enviando solicitud de ${mode}...`, 'neutral');
             
-            const result = await saveConductorToAPI(mode, formData);
+            // CLAVE: Usamos el NConductor original cargado del estado para construir el PUT preciso.
+            const nConductorOriginal = CRUD_APP.state.originalConductorData ? CRUD_APP.state.originalConductorData.conductor : null;
+            
+            const result = await saveConductorToAPI(mode, formData, nConductorOriginal);
             
             crudAlertMessage(`✅ Operación de ${mode} exitosa! [${result.licencia || formData.licencia}]`, 'success');
             
@@ -288,41 +312,50 @@
     }
 
     /** Maneja las acciones de botones (Modificar/Ir a Editar, Borrar, Volver). */
-    window.handleAction = function(actionType) {
-        const licencia = CRUD_APP.state.licenciaId;
+    window.handleAction = async function(actionType) {
+        const { licenciaId, nConductorId, idUnico, mode } = CRUD_APP.state;
         
         switch (actionType) {
             case 'modificar':
-                if (CRUD_APP.state.mode === 'edit') {
+                if (mode === 'edit') {
                     // MODO EDIT: El botón Modificar actúa como GUARDAR (submit)
                     CRUD_APP.elements.form.dispatchEvent(new Event('submit', { cancelable: true }));
-                } else if (CRUD_APP.state.mode === 'view') {
+                } else if (mode === 'view') {
                     // MODO VIEW: El botón Modificar actúa como IR A EDICIÓN
-                    window.location.href = `/admin/conductor/update/${licencia}`;
+                    const targetUrl = (licenciaId && nConductorId) 
+                        ? `/admin/conductor/update/${licenciaId}/${nConductorId}` // Preciso
+                        : `/admin/conductor/update/${licenciaId}`; // Legacy
+                    window.location.href = targetUrl;
                 }
                 break;
                 
             case 'borrar':
-                if (CRUD_APP.state.mode === 'delete' && licencia) {
+                if (mode === 'delete') {
+                    // Lógica de borrado híbrido
+                    if (typeof deleteConductorFromAPI !== 'function') {
+                        return crudAlertMessage('❌ Error: API de borrado no disponible.', 'error');
+                    }
                     
-                    crudAlertMessage(`🗑️ Enviando solicitud de DESACTIVACIÓN para [${licencia}]...`, 'neutral');
+                    const deleteParams = {
+                        id: idUnico, 
+                        licencia: licenciaId,
+                        nconductor: nConductorId
+                    };
                     
-                    fetch(`/api/v1/conductores/${licencia}`, { 
-                        method: 'DELETE',
-                        headers: typeof getAuthHeaders === 'function' ? getAuthHeaders() : {}
-                    })
-                    .then(response => {
-                        if (!response.ok) return response.json().then(err => { throw new Error(err.error || `HTTP ${response.status}`); });
-                        return response.json();
-                    })
-                    .then(() => {
-                        crudAlertMessage(`✅ Conductor [${licencia}] DESACTIVADO.`, 'success');
+                    crudAlertMessage(`🗑️ Enviando solicitud de DESACTIVACIÓN...`, 'neutral');
+                    
+                    try {
+                        await deleteConductorFromAPI(deleteParams);
+                        
+                        let displayId = idUnico ? `ID: ${idUnico}` : (licenciaId && nConductorId ? `${licenciaId}/${nConductorId}` : licenciaId);
+                        crudAlertMessage(`✅ Conductor [${displayId}] DESACTIVADO.`, 'success');
+                        
                         setTimeout(() => window.location.href = '/admin/conductor', 1500);
-                    })
-                    .catch(error => {
+                        
+                    } catch (error) {
                         crudAlertMessage(`❌ Falló la desactivación: ${error.message}`, 'error');
                         console.error("Error Delete:", error);
-                    });
+                    }
                 }
                 break;
                 
@@ -347,29 +380,49 @@
              return; 
         }
         
-        // 2. Determinar Licencia y Modo a partir del path
+        // 2. Determinar Licencia, ID y Modo a partir del path (Soporte Híbrido)
         const url = window.location.pathname;
         const parts = url.split('/').filter(p => p.length > 0);
         
         let mode = 'create';
         let licencia = null;
+        let idUnico = null;
+        let nconductor = null; 
 
         if (parts.length >= 3 && parts[1] === 'conductor') {
             const action = parts[2];
-            licencia = parts.length > 3 ? parts[3] : null; 
-
-            if (action === 'view') mode = 'view';
-            else if (action === 'update') mode = 'edit';
-            else if (action === 'delete') mode = 'delete';
-            else if (action === 'crear') mode = 'create';
+            
+            if (action === 'update' || action === 'view' || action === 'delete') {
+                 licencia = parts.length > 3 ? parts[3] : null;
+                 nconductor = parts.length > 4 ? parts[4] : null; 
+                 
+                 if (action === 'update') mode = 'edit';
+                 else if (action === 'view') mode = 'view';
+                 else if (action === 'delete') mode = 'delete';
+                 
+            } else if (action === 'delete_by_id') {
+                idUnico = parts.length > 3 ? parseInt(parts[3]) : null;
+                licencia = String(idUnico || '');
+                mode = 'delete';
+            } else if (action === 'delete_lc') {
+                licencia = parts.length > 3 ? parts[3] : null;
+                nconductor = parts.length > 4 ? parts[4] : null;
+                mode = 'delete';
+            } else if (action === 'crear') {
+                mode = 'create';
+            }
         }
 
-        // 3. Establecer modo y Licencia en el estado global
+        // 3. Establecer modo y IDs en el estado global
         CRUD_APP.state.licenciaId = licencia;
+        CRUD_APP.state.nConductorId = nconductor;
+        CRUD_APP.state.idUnico = (typeof idUnico === 'number' && !isNaN(idUnico)) ? idUnico : null;
         CRUD_APP.state.mode = mode;
         
+        console.log(`[DEBUG] IDs: Licencia: ${CRUD_APP.state.licenciaId}, NConductor: ${CRUD_APP.state.nConductorId}, ID Único: ${CRUD_APP.state.idUnico}`);
+
         // 4. Cargar datos y actualizar la interfaz (asíncrono)
-        loadAndFillConductorData(CRUD_APP.state.licenciaId, mode);
+        loadAndFillConductorData(CRUD_APP.state.licenciaId, CRUD_APP.state.nConductorId, mode);
         
         console.log(`✅ CRUD Conductor Inicializado. Modo: ${mode.toUpperCase()}`);
     });

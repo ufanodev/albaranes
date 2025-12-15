@@ -184,7 +184,7 @@ const API = {
         const tbody = APP.elements.conductorResults;
         UI.updateActiveFiltersCount();
         
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500 italic text-sm">Cargando datos de la API...</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500 italic text-sm">Cargando datos de la API...</td></tr>';
         
         try {
             // Llama al endpoint GET /api/v1/conductores
@@ -217,7 +217,7 @@ const API = {
         } catch (error) {
             console.error('[API] 🛑 Error cargando conductores:', error); 
             UI.alertMessage(`❌ Error al cargar conductores: ${error.message}`, 'error');
-            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-500">❌ Error al cargar listado.</td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-red-500">❌ Error al cargar listado.</td></tr>';
             
             APP.state.filteredConductores = []; // Limpiar para que la UI se actualice
             UI.updatePageInfo();
@@ -243,7 +243,7 @@ const DOM = {
         const pageData = DOM.getCurrentPageData();
 
         if (pageData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron conductores con los filtros aplicados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron conductores con los filtros aplicados.</td></tr>';
             UI.updatePageInfo();
             return;
         }
@@ -252,24 +252,41 @@ const DOM = {
             const row = document.createElement('tr'); 
             row.className = 'hover:bg-gray-50 border-b border-gray-100';
 
+            // Extraemos los identificadores clave, incluyendo ID único.
+            const id = conductor.id;
             const licencia = conductor.licencia;
+            const conductorNum = conductor.conductor; // <-- ¡CLAVE! Número de Conductor
+            const nombreCompleto = conductor.nombre; // 🔑 CAPTURAMOS EL NOMBRE
+            const activoHtml = UI.getBooleanHtml(conductor.activo);
+
+            // 🔧 ESCAPAR caracteres especiales para onclick
+            const safeLicencia = (licencia || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+            const safeConductorNum = (conductorNum || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+            const safeNombre = (nombreCompleto || '').replace(/'/g, "\\'").replace(/"/g, '\\"'); // 🔑 ESCAPAMOS EL NOMBRE
             
             row.innerHTML = `
                 <td class="px-3 py-2 text-xs font-medium text-primary-link whitespace-nowrap">${licencia || '-'}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 whitespace-nowrap">${conductor.conductor || '-'}</td>
-                <td class="px-3 py-2 text-xs text-gray-800 whitespace-nowrap">${conductor.nombre || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-800 whitespace-nowrap">${conductorNum || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-800 whitespace-nowrap">${nombreCompleto || '-'}</td>
                 <td class="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">${conductor.email || '-'}</td>
                 <td class="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">${conductor.telefono || '-'}</td>
+                <td class="px-3 py-2 text-center">${activoHtml}</td>
                 
                 <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-medium">
                     <div class="flex space-x-2 justify-center">
-                        <button onclick="handleViewConductor('${licencia}')" class="text-blue-600 hover:text-blue-900 mx-1 p-1 rounded-full hover:bg-blue-100 transition" title="Ver detalle">
+                        <button onclick="handleViewConductor('${safeLicencia}', '${safeConductorNum}')" 
+                                class="text-blue-600 hover:text-blue-900 mx-1 p-1 rounded-full hover:bg-blue-100 transition" 
+                                title="Ver detalle">
                             <i data-lucide="eye" class="h-4 w-4 inline"></i>
                         </button>
-                        <button onclick="handleUpdateConductor('${licencia}')" class="text-primary-link hover:text-orange-700 mx-1 p-1 rounded-full hover:bg-orange-100 transition" title="Editar">
+                        <button onclick="handleUpdateConductor('${safeLicencia}', '${safeConductorNum}')" 
+                                class="text-primary-link hover:text-orange-700 mx-1 p-1 rounded-full hover:bg-orange-100 transition" 
+                                title="Editar">
                             <i data-lucide="edit" class="h-4 w-4 inline"></i>
                         </button>
-                        <button onclick="handleDeleteConductor('${licencia}')" class="text-red-600 hover:text-red-900 mx-1 p-1 rounded-full hover:bg-red-100 transition" title="Desactivar/Eliminar">
+                        <button onclick="handleDeleteConductorByID(${id}, '${safeNombre}')" 
+                                class="text-red-600 hover:text-red-900 mx-1 p-1 rounded-full hover:bg-red-100 transition" 
+                                title="Desactivar/Eliminar">
                             <i data-lucide="trash-2" class="h-4 w-4 inline"></i>
                         </button>
                     </div>
@@ -284,42 +301,88 @@ const DOM = {
 };
 
 // =================================================================================
-// 🎯 EVENTOS GLOBALES (Mapeo de Rutas y Navegación)
+// 🎯 EVENTOS GLOBALES (Mapeo de Rutas y Navegación) - SISTEMA HÍBRIDO
 // =================================================================================
 
-function handleCreateConductor() { window.location.href = '/admin/conductor/crear'; }
-function handleUpdateConductor(licencia) { window.location.href = `/admin/conductor/update/${licencia}`; }
-function handleViewConductor(licencia) { window.location.href = `/admin/conductor/view/${licencia}`; }
-function handleDeleteConductor(licencia) {
-    if (confirm(`¿Está seguro de DESACTIVAR (Borrado Lógico) al conductor con Licencia: ${licencia}?`)) {
-        window.location.href = `/admin/conductor/delete/${licencia}`;
+function handleCreateConductor() { 
+    window.location.href = '/admin/conductor/crear'; 
+}
+
+/**
+ * 👁️ VER (preciso: licencia + conductor)
+ */
+function handleViewConductor(licencia, conductorNum) { 
+    const url = `/admin/conductor/view/${licencia}/${conductorNum}`;
+    console.log('🔗 Navegando a VER:', url);
+    window.location.href = url;
+}
+
+/**
+ * ✏️ EDITAR (preciso: licencia + conductor)
+ */
+function handleUpdateConductor(licencia, conductorNum) { 
+    const url = `/admin/conductor/update/${licencia}/${conductorNum}`;
+    console.log('🔗 Navegando a EDITAR:', url);
+    window.location.href = url;
+}
+
+/**
+ * 🗑️ BORRADO POR ID (Recomendado para listado)
+ * ✅ Muestra el nombre en la confirmación.
+ */
+function handleDeleteConductorByID(id, nombre = 'desconocido') {
+    if (confirm(`¿Está seguro de DESACTIVAR (Borrado Lógico) al conductor ID: ${id} (${nombre})?`)) {
+        const url = `/admin/conductor/delete_by_id/${id}`;
+        console.log('🔗 Navegando a BORRAR (por ID):', url);
+        window.location.href = url;
     }
 }
+
+// Nota: Las funciones handleDeleteConductorPrecise y handleDeleteConductorLegacy 
+// se mantienen en el script por si el usuario las necesita, pero la tabla usa handleDeleteConductorByID.
+
+// 🔍 BUSCAR
 function handleSearch(e) {
     if (e) e.preventDefault();
     APP.state.currentPage = 1;
     API.loadAllConductores(Filters.getFiltersFromForm());
 }
 
-
 // =================================================================================
 // 🚀 INICIALIZACIÓN
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 Iniciando Gestor de Conductores...');
+    console.log('🚀 Iniciando Gestor de Conductores (sistema híbrido)...');
+
+    // Asignamos la función legacy original al nombre legacy (para la compatibilidad manual)
+    const originalDeleteHandler = window.handleDeleteConductor || ((lic) => {
+        if (confirm(`¿Está seguro de DESACTIVAR (Borrado Lógico) al conductor con Licencia: ${lic}? (LEGACY)`)) {
+             window.location.href = `/admin/conductor/delete/${lic}`;
+        }
+    });
 
     // Asignar listeners de paginación
-    if (APP.elements.prevBtn) APP.elements.prevBtn.addEventListener('click', () => {
-        if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); }
-    });
-    if (APP.elements.nextBtn) APP.elements.nextBtn.addEventListener('click', () => {
-        if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); }
-    });
+    if (APP.elements.prevBtn) {
+        APP.elements.prevBtn.addEventListener('click', () => {
+            if (APP.state.currentPage > 1) { 
+                APP.state.currentPage--; 
+                DOM.renderResults(); 
+            }
+        });
+    }
+    
+    if (APP.elements.nextBtn) {
+        APP.elements.nextBtn.addEventListener('click', () => {
+            if (APP.state.currentPage < APP.state.totalPages) { 
+                APP.state.currentPage++; 
+                DOM.renderResults(); 
+            }
+        });
+    }
     
     // Asignar el submit del formulario de búsqueda
     if (APP.elements.searchForm) {
         APP.elements.searchForm.addEventListener('submit', handleSearch);
-        // También puedes usar 'change' en los inputs si quieres que filtre automáticamente al cambiar.
     }
 
     // Exposición global (para el HTML y eventos)
@@ -329,8 +392,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.handleCreateConductor = handleCreateConductor;
     window.handleUpdateConductor = handleUpdateConductor;
     window.handleViewConductor = handleViewConductor;
-    window.handleDeleteConductor = handleDeleteConductor;
-
+    
+    // 🎯 Reemplazo de DELETE: Exponemos los nuevos handlers, manteniendo el legacy si era necesario.
+    window.handleDeleteConductor = originalDeleteHandler; // Mantiene el handler legacy si el HTML antiguo lo usaba
+    window.handleDeleteConductorByID = handleDeleteConductorByID; 
+    
     // Carga inicial
     API.loadAllConductores(Filters.getFiltersFromForm());
+    
+    // Logs de confirmación
+    console.log('✅ Sistema híbrido activado:');
+    console.log('    - Botón Editar/Ver: Navega a /update/:licencia/:nconductor (Preciso)');
+    console.log('    - Botón Borrar: Navega a /delete_by_id/:id (Recomendado)');
 });
