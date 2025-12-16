@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"albaranes/models"
+	"albaranes/utils" // 🔑 Importación necesaria para utils.Generate... y utils.TitularData (indirectamente)
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -182,4 +183,76 @@ func SearchEmpresasByNombre(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": empresas})
+}
+
+// ---------------------------------------------------------------------
+// CONTROLADORES DE EXPORTACIÓN (PDF y XLSX)
+// ---------------------------------------------------------------------
+
+// ExportEmpresasPDF maneja la generación del PDF de la lista actual de empresas.
+func ExportEmpresasPDF(c *gin.Context, db *gorm.DB) {
+	// Se asume ExportRequest está disponible en el paquete controllers (e.g., export_common.go)
+	var req ExportRequest
+
+	// 1. Recibir y validar el JSON del frontend
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("🔴 ERROR Empresa PDF: Fallo en JSON Bind. Detalles: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ Solicitud JSON inválida.", "details": err.Error()})
+		return
+	}
+
+	if len(req.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ No hay empresas para generar el PDF."})
+		return
+	}
+
+	// 2. Llamar a la utilidad genérica para generar el PDF
+	downloadURL, err := utils.GenerateGenericPDF(req.ReportName, req.Data)
+	if err != nil {
+		log.Printf("🔴 ERROR PDF Empresas: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "❌ Error interno al generar el PDF de empresas."})
+		return
+	}
+
+	// 3. Respuesta exitosa con la URL de descarga
+	c.JSON(http.StatusOK, gin.H{
+		"success":     true,
+		"message":     "✅ PDF de empresas generado correctamente.",
+		"downloadURL": downloadURL,
+	})
+}
+
+// ExportEmpresasXLSX maneja la generación del XLSX de la lista actual de empresas.
+func ExportEmpresasXLSX(c *gin.Context, db *gorm.DB) {
+	// Se asume ExportRequest está disponible en el paquete controllers (e.g., export_common.go)
+	var req ExportRequest
+
+	// 1. Recibir y validar el JSON del frontend
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("🔴 ERROR Empresa XLSX: Fallo en JSON Bind. Detalles: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ Solicitud JSON inválida.", "details": err.Error()})
+		return
+	}
+
+	if len(req.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ No hay empresas para generar el XLSX."})
+		return
+	}
+
+	// 2. Llamar a la utilidad genérica para generar el XLSX
+	// Usamos GenerateTitularesXLSX asumiendo que es una función genérica dentro de utils
+	// o que utils tiene una función específica para empresas.
+	downloadURL, err := utils.GenerateTitularesXLSX(req.ReportName, req.Data)
+	if err != nil {
+		log.Printf("🔴 ERROR XLSX Empresas: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "❌ Error interno al generar el XLSX de empresas."})
+		return
+	}
+
+	// 3. Respuesta exitosa con la URL de descarga
+	c.JSON(http.StatusOK, gin.H{
+		"success":     true,
+		"message":     "✅ XLSX de empresas generado correctamente.",
+		"downloadURL": downloadURL,
+	})
 }

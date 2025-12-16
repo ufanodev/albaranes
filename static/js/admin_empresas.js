@@ -30,7 +30,7 @@ const APP = {
         ].filter(el => el !== null),
     },
     state: {
-        allEmpresas: [],      // Lista completa (data de la API)
+        allEmpresas: [],      // Lista completa (data de la API)
         filteredEmpresas: [], // Lista actual mostrada
         currentPage: 1,
         pageSize: 10,
@@ -175,17 +175,18 @@ const API = {
             const response = await fetch('/api/v1/empresas'); 
             
             if (response.status === 401) {
+                console.log("⚠️ Sesión expirada o no autorizada. Redirigiendo a /login.");
                 window.location.href = '/login';
                 return;
             }
             
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error(`🔴 Error HTTP ${response.status} en la API: ${errorText}`);
                 throw new Error(`Error ${response.status} en la API: ${errorText}`);
             }
             
             const data = await response.json();
-            // Asumimos que la API devuelve { data: [...] }
             const empresas = Array.isArray(data.data) ? data.data : data; 
             
             APP.state.allEmpresas = empresas;
@@ -197,12 +198,96 @@ const API = {
             UI.alertMessage(`Cargadas ${empresas.length} empresas disponibles`, 'success');
             
         } catch (error) {
-            console.error('Error en carga inicial de empresas:', error);
+            console.error('❌ Error en carga inicial de empresas:', error);
             UI.alertMessage(`Error de red al cargar empresas. ¿API iniciada?`, 'error');
             DOM.showNoResults();
         }
     },
 };
+
+// =================================================================================
+// 📄 EXPORTATION LOGIC (PDF and XLSX)
+// =================================================================================
+(function() {
+    const Exportation = {
+        /** Formatea los datos de Empresas para el backend de exportación genérica. */
+        formatDataForExport() {
+             return APP.state.filteredEmpresas.map(e => ({
+                // CLAVES LIMPIAS y ID forzado a String para compatibilidad con Go map[string]string
+                "ID": String(e.id || e.ID || 'N/A'), 
+                "NIF": e.nif || '-',
+                "Nombre": e.nombre || '-',
+                "Direccion": e.direccion || '-',
+                "CP": e.cp || '-',
+                "Telefono": e.telefono || '-',
+                "Email": e.email || '-',
+                "Observaciones": e.observaciones || '-',
+            }));
+        },
+
+        /**
+         * Prepara los datos y llama a la API de Go para generar el archivo.
+         * @param {string} format 'pdf' o 'xlsx'
+         */
+        async exportEmpresas(format) {
+            if (!APP.state.filteredEmpresas.length) {
+                UI.alertMessage(`No hay empresas filtradas para exportar a ${format.toUpperCase()}.`, 'info');
+                return;
+            }
+
+            // Endpoint: /api/v1/empresas/export/pdf o /xlsx
+            const endpoint = `/api/v1/empresas/export/${format}`; 
+            UI.alertMessage(`Generando ${format.toUpperCase()}. Por favor, espere...`, 'info');
+
+            const dataToExport = this.formatDataForExport();
+            
+            const titleElement = document.querySelector('h1');
+            const reportName = (titleElement ? titleElement.textContent.trim() : 'Empresas').replace('🏢 ', '').trim() + ` (${format.toUpperCase()})`;
+
+            const payload = { 
+                reportName: reportName, 
+                data: dataToExport
+            };
+
+            try {
+                // 🔑 LOG de ENVÍO (para depuración)
+                console.log("➡️ JSON Enviando al Backend (Empresas):", JSON.stringify(payload));
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                // 🔑 LOG y Manejo de Errores de API
+                if (!response.ok) {
+                    const errorJson = await response.json();
+                    console.error(`🔴 Error HTTP ${response.status} en la API de exportación.`, errorJson);
+                    
+                    const message = errorJson.message || `Error desconocido (Código: ${response.status}).`;
+                    throw new Error(`[${response.status}] ${message}`);
+                }
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(`[200 OK] ${result.message || 'Error de procesamiento en el servidor.'}`);
+                }
+
+                UI.alertMessage(`✅ Archivo ${format.toUpperCase()} generado con éxito. Iniciando descarga...`, 'success');
+                window.open(result.downloadURL, '_blank');
+                
+            } catch (error) {
+                console.error(`❌ Error final al generar ${format.toUpperCase()}:`, error);
+                UI.alertMessage(`❌ Error al generar el ${format.toUpperCase()}: ${error.message}`, 'error');
+            }
+        }
+    };
+
+    // Exposición global inmediata de los handlers (Resuelve ReferenceError)
+    window.handleGeneratePDF = () => { Exportation.exportEmpresas('pdf'); };
+    window.handleGenerateXLSX = () => { Exportation.exportEmpresas('xlsx'); }; 
+})();
 
 // =================================================================================
 // 🖼️ DOM RENDER
@@ -272,7 +357,7 @@ const DOM = {
                     <td class="px-3 py-2 text-xs text-gray-600 text-truncate" title="${empresa.direccion || '-'}">${empresa.direccion || '-'}</td>
                     <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${empresa.telefono || '-'}</td>
                     <td class="px-3 py-2 text-xs text-blue-500 text-truncate" title="${empresa.email || '-'}">
-                         ${empresa.email ? `<a href="mailto:${empresa.email}" class="hover:underline">${empresa.email}</a>` : '-'}
+                        ${empresa.email ? `<a href="mailto:${empresa.email}" class="hover:underline">${empresa.email}</a>` : '-'}
                     </td>
                     <td class="px-3 py-2 whitespace-nowrap text-center text-xs font-medium">
                         <div class="flex justify-center space-x-1">
@@ -393,6 +478,7 @@ const Events = {
 
         if (searchForm) {
             searchForm.addEventListener('submit', this.handleSearch.bind(this));
+            // Aseguramos que los listeners de cambio están asociados
             searchForm.addEventListener('change', this.handleFilterChange.bind(this));
             searchForm.addEventListener('input', this.handleFilterChange.bind(this));
         }
@@ -408,7 +494,8 @@ const Events = {
 };
 
 // =================================================================================
-// 🌍 FUNCIONES GLOBALES (Redirecciones a CRUD)
+// 🌍 FUNCIONES GLOBALES (Redirecciones a CRUD y Navegación)
+// Definidas en el ámbito global del script, fuera de DOMContentLoaded, para resolver ReferenceError.
 // =================================================================================
 
 /** Redirige a la creación de una nueva empresa (CRUD) */
@@ -428,8 +515,25 @@ window.handleDeleteActionEmpresa = (empresaId, nombre) => {
      }
 };
 
+// Las funciones handleAction, handleLogout, toggleDropdown, toggleMobileMenu se definen aquí para
+// ser accesibles desde el HTML, incluso si el script se carga con 'defer'.
 
-// Funciones de cabecera de Navegación (Asumidas globales)
+/** Maneja el modal de acción (simulado) */
+window.handleAction = (title, description) => { 
+    if (typeof UI !== 'undefined' && UI.alertMessage) {
+        UI.alertMessage(`Acción: ${title}`, 'info'); 
+    }
+}; 
+
+/** Lógica de Cierre de Sesión (simulada) */
+window.handleLogout = () => { 
+    if (typeof UI !== 'undefined' && UI.alertMessage) {
+        UI.alertMessage('Cerrar Sesión simulado...', 'info'); 
+    }
+    setTimeout(() => window.location.href = '/login', 1500); 
+};
+
+/** Alterna el menú desplegable (Asumida global) */
 window.toggleDropdown = (button) => { 
     const parentDropdown = button.closest('.dropdown'); 
     document.querySelectorAll('.dropdown').forEach(dropdown => {
@@ -437,13 +541,101 @@ window.toggleDropdown = (button) => {
     });
     if (parentDropdown) { parentDropdown.classList.toggle('active'); }
 };
-window.handleAction = (title, description) => { /* Simulación de modal */ UI.alertMessage(`Acción: ${title}`, 'info'); };
-window.handleLogout = () => { UI.alertMessage('Cerrar Sesión simulado...', 'info'); setTimeout(() => window.location.href = '/login', 1500); };
-window.toggleMobileMenu = () => { const mobileMenu = document.getElementById('mobileMenu'); if (mobileMenu) mobileMenu.classList.toggle('hidden'); };
+
+/** Alterna el menú móvil (Asumida global) */
+window.toggleMobileMenu = () => { 
+    const mobileMenu = document.getElementById('mobileMenu'); 
+    if (mobileMenu) mobileMenu.classList.toggle('hidden'); 
+};
 
 
 // =================================================================================
-// 🚀 INICIALIZACIÓN
+// LÓGICA DE EXPORTACIÓN (Definición Global de handleGeneratePDF/XLSX)
+// =================================================================================
+(function() {
+    const Exportation = {
+        /** Formatea los datos de Empresas para el backend de exportación genérica. */
+        formatDataForExport() {
+             return APP.state.filteredEmpresas.map(e => ({
+                // CLAVES LIMPIAS y ID forzado a String para compatibilidad con Go map[string]string
+                "ID": String(e.id || e.ID || 'N/A'), 
+                "NIF": e.nif || '-',
+                "Nombre": e.nombre || '-',
+                "Direccion": e.direccion || '-',
+                "CP": e.cp || '-',
+                "Telefono": e.telefono || '-',
+                "Email": e.email || '-',
+                "Observaciones": e.observaciones || '-',
+            }));
+        },
+
+        /**
+         * Prepara los datos y llama a la API de Go para generar el archivo.
+         * @param {string} format 'pdf' o 'xlsx'
+         */
+        async exportEmpresas(format) {
+            if (!APP.state.filteredEmpresas.length) {
+                UI.alertMessage(`No hay empresas filtradas para exportar a ${format.toUpperCase()}.`, 'info');
+                return;
+            }
+
+            // Endpoint: /api/v1/empresas/export/pdf o /xlsx
+            const endpoint = `/api/v1/empresas/export/${format}`; 
+            UI.alertMessage(`Generando ${format.toUpperCase()}. Por favor, espere...`, 'info');
+
+            const dataToExport = this.formatDataForExport();
+            
+            const titleElement = document.querySelector('h1');
+            const reportName = (titleElement ? titleElement.textContent.trim() : 'Empresas').replace('🏢 ', '').trim() + ` (${format.toUpperCase()})`;
+
+            const payload = { 
+                reportName: reportName, 
+                data: dataToExport
+            };
+
+            try {
+                // 🔑 LOG de ENVÍO
+                console.log("➡️ JSON Enviando al Backend (Empresas):", JSON.stringify(payload));
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                // 🔑 LOG y Manejo de Errores de API
+                if (!response.ok) {
+                    const errorJson = await response.json();
+                    console.error(`🔴 Error HTTP ${response.status} en la API de exportación.`, errorJson);
+                    
+                    const message = errorJson.message || `Error desconocido (Código: ${response.status}).`;
+                    throw new Error(`[${response.status}] ${message}`);
+                }
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(`[200 OK] ${result.message || 'Error de procesamiento en el servidor.'}`);
+                }
+
+                UI.alertMessage(`✅ Archivo ${format.toUpperCase()} generado con éxito. Iniciando descarga...`, 'success');
+                window.open(result.downloadURL, '_blank');
+                
+            } catch (error) {
+                console.error(`❌ Error final al generar ${format.toUpperCase()}:`, error);
+                UI.alertMessage(`❌ Error al generar el ${format.toUpperCase()}: ${error.message}`, 'error');
+            }
+        }
+    };
+
+    // Exposición global inmediata de los handlers (Resuelve ReferenceError)
+    window.handleGeneratePDF = () => { Exportation.exportEmpresas('pdf'); };
+    window.handleGenerateXLSX = () => { Exportation.exportEmpresas('xlsx'); }; 
+})();
+
+
+// =================================================================================
+// 🚀 INICIALIZACIÓN (Carga el contenido principal)
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('---[ admin_empresas.js ]---------------------------------');
