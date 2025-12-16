@@ -59,6 +59,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	// Permite servir los archivos .sql de backup estáticamente para descarga
 	r.Static("/backups", "./backups")
 
+	// 📄 NUEVA RUTA ESTÁTICA: Permite servir los PDF/XLSX generados para descarga
+	r.Static("/documentos", "./documentos")
+
 	r.LoadHTMLGlob("static/*.html")
 
 	// Grupo de Vistas (Frontend): Aplica middlewares de NoCache y redirección de autenticación.
@@ -117,7 +120,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		})
 
 		// 🎯 RUTAS DE EDICIÓN Y VISTA PRECISA (Licencia + Nº Conductor)
-		// Estas DEBEN ir antes que las rutas de Licencia sola para la prioridad del router.
 
 		// ✅ Edición/Vista PRECISA (Licencia + Nº Conductor)
 		viewGroup.GET("/admin/conductor/update/:licencia/:nconductor", func(c *gin.Context) {
@@ -244,6 +246,14 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				licenciaGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
 				licenciaGroup.PUT("/softdelete/:id", func(c *gin.Context) { controllers.SoftDeleteLicencia(c, db) })
 				licenciaGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
+
+				// 📄 RUTA DE EXPORTACIÓN DE PDF
+				licenciaGroup.POST("/export/pdf", controllers.ExportTitularesPDFHandler)
+
+				// 📊 RUTA DE EXPORTACIÓN DE XLSX (Excel) - ¡CORRECCIÓN CRÍTICA A CONTINUACIÓN!
+				// ANTES: licenciaGroup.POST("/export/xlsx", controllers.ExportTitularesXLSXHandler) // Error porque requiere 'db'
+				// DESPUÉS: Usamos una función anónima para pasar la base de datos 'db'
+				licenciaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportTitularesXLSX(c, db) })
 			}
 
 			// --- CRUD EMPRESAS (Admin) ---

@@ -32,7 +32,7 @@ const APP = {
         ],
     },
     state: {
-        allTitulares: [],      // Lista completa (data de la API)
+        allTitulares: [],       // Lista completa (data de la API)
         filteredTitulares: [], // Lista actual mostrada
         currentPage: 1,
         pageSize: 10,
@@ -299,7 +299,7 @@ const DOM = {
                     <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${titular.cp || '-'}</td>
                     <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${titular.telefono || '-'}</td>
                     <td class="px-3 py-2 text-xs text-blue-500 text-truncate max-w-[100px]" title="${titular.email || '-'}">
-                         ${titular.email ? `<a href="mailto:${titular.email}" class="hover:underline">${titular.email}</a>` : '-'}
+                         ${titular.email ? `<a href="mailto:${titular.email}" class="hover:underline">${titular.email}</a>` : '-'}
                     </td>
                     <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${UI.getBooleanHtml(titular.socio)}</td>
                     <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${UI.getBooleanHtml(titular.chofer)}</td>
@@ -344,6 +344,131 @@ const DOM = {
             APP.state.currentPage = 1;
             DOM.renderResults();
         });
+    }
+};
+
+// =================================================================================
+// 📄 EXPORTATION LOGIC (PDF and XLSX)
+// =================================================================================
+const PDF = { // Renombrado a Exportation o mantener PDF/Excel para simplificar
+    
+    /** * Prepara los datos actuales (filtrados y ordenados) y llama a la API de Go 
+     * para generar el PDF.
+     */
+    async generateTitularesPDF() {
+        UI.alertMessage('Generando PDF. Por favor, espere...', 'info');
+
+        // 1. Obtener y Formatear la data filtrada y ordenada actualmente.
+        const dataToExport = APP.state.filteredTitulares.map(t => ({
+            "Licencia": t.licencia || 'N/A', 
+            "DNI": t.dni || '-',
+            "Nombre": t.nombre || '-',
+            "Dirección": t.direccion || '-', 
+            "CP": t.cp || '-',
+            "Teléfono": t.telefono || '-',
+            "Email": t.email || '-',
+            "Socio": t.socio ? 'Sí' : 'No',
+            "Chófer": t.chofer ? 'Sí' : 'No',
+        }));
+
+        if (dataToExport.length === 0) {
+            UI.alertMessage('No hay titulares para exportar en el listado actual.', 'error');
+            return;
+        }
+
+        // 2. Obtener el nombre del reporte del título de la página
+        const titleElement = document.querySelector('title');
+        const reportName = titleElement ? titleElement.textContent.trim().split(' / ')[0].replace('🏢 ', '') : 'Titulares/Licencias';
+        
+        try {
+            // 3. Llamada al endpoint de Go para PDF: POST /api/v1/licencias/export/pdf
+            const response = await fetch('/api/v1/licencias/export/pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reportName: reportName, 
+                    data: dataToExport
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                const message = result.message || 'Error desconocido al generar el PDF.';
+                throw new Error(`[${response.status}] ${message}`);
+            }
+
+            // 4. Iniciar la descarga del archivo generado
+            UI.alertMessage('✅ PDF generado con éxito. Iniciando descarga...', 'success');
+            console.log('PDF generado en:', result.downloadURL);
+            
+            window.open(result.downloadURL, '_blank');
+            
+        } catch (error) {
+            console.error('Error al generar el PDF:', error);
+            UI.alertMessage(`❌ Error al generar el PDF: ${error.message}`, 'error');
+        }
+    },
+
+    /** * Prepara los datos y llama a la API de Go para generar el archivo XLSX (Excel).
+     */
+    async generateTitularesXLSX() {
+        UI.alertMessage('Generando Excel. Por favor, espere...', 'info');
+
+        // 1. Obtener y Formatear la data filtrada y ordenada actualmente.
+        const dataToExport = APP.state.filteredTitulares.map(t => ({
+            "Licencia": t.licencia || 'N/A', 
+            "DNI": t.dni || '-',
+            "Nombre": t.nombre || '-',
+            "Dirección": t.direccion || '-', 
+            "CP": t.cp || '-',
+            "Teléfono": t.telefono || '-',
+            "Email": t.email || '-',
+            "Socio": t.socio ? 'Sí' : 'No',
+            "Chófer": t.chofer ? 'Sí' : 'No',
+        }));
+
+        if (dataToExport.length === 0) {
+            UI.alertMessage('No hay titulares para exportar en el listado actual.', 'error');
+            return;
+        }
+
+        // 2. Obtener el nombre del reporte del título de la página
+        const titleElement = document.querySelector('title');
+        const reportName = titleElement ? titleElement.textContent.trim().split(' / ')[0].replace('🏢 ', '') : 'Titulares/Licencias';
+        
+        try {
+            // 3. Llamada al endpoint de Go para XLSX: POST /api/v1/licencias/export/xlsx
+            const response = await fetch('/api/v1/licencias/export/xlsx', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reportName: reportName, 
+                    data: dataToExport
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                const message = result.message || 'Error desconocido al generar el Excel.';
+                throw new Error(`[${response.status}] ${message}`);
+            }
+
+            // 4. Iniciar la descarga del archivo generado
+            UI.alertMessage('✅ Excel generado con éxito. Iniciando descarga...', 'success');
+            console.log('XLSX generado en:', result.downloadURL);
+            
+            window.open(result.downloadURL, '_blank');
+            
+        } catch (error) {
+            console.error('Error al generar el Excel:', error);
+            UI.alertMessage(`❌ Error al generar el Excel: ${error.message}`, 'error');
+        }
     }
 };
 
@@ -434,26 +559,19 @@ const Events = {
 };
 
 // =================================================================================
-// 🚀 INICIALIZACIÓN
+// 🌍 FUNCIONES GLOBALES (Redirecciones y Modales y Exportación)
 // =================================================================================
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('---[ admin_titular.js ]---------------------------------');
-    console.log('✅ 1. Inicio de carga de la página principal de Titulares.');
-    
-    Events.init();
-    
-    await API.loadAllTitulares();
-    
-    Events.updateSortIcons();
-    Filters.sortTable('licencia');
-    
-    UI.updateActiveFiltersCount();
-    console.log('✅ 2. Carga de datos inicial y UI completada.');
-});
 
-// =================================================================================
-// 🌍 FUNCIONES GLOBALES (Redirecciones y Modales)
-// =================================================================================
+/** Permite que el botón HTML llame a la función de generación de PDF */
+window.handleGeneratePDF = () => {
+    PDF.generateTitularesPDF();
+};
+
+/** Permite que el botón HTML llame a la función de generación de XLSX */
+window.handleGenerateXLSX = () => {
+    PDF.generateTitularesXLSX();
+};
+
 
 /** Redirige a la vista del titular (Acción 'Ver Detalle') */
 window.handleViewActionTitular = (titularId) => {
@@ -525,3 +643,21 @@ window.toggleMobileMenu = () => {
     const mobileMenu = document.getElementById('mobileMenu');
     mobileMenu.classList.toggle('hidden');
 };
+
+// =================================================================================
+// 🚀 INICIALIZACIÓN
+// =================================================================================
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('---[ admin_titular.js ]---------------------------------');
+    console.log('✅ 1. Inicio de carga de la página principal de Titulares.');
+    
+    Events.init();
+    
+    await API.loadAllTitulares();
+    
+    Events.updateSortIcons();
+    Filters.sortTable('licencia');
+    
+    UI.updateActiveFiltersCount();
+    console.log('✅ 2. Carga de datos inicial y UI completada.');
+});
