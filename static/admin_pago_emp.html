@@ -7,6 +7,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
     <script src="/js/utils.js"></script>
+    
+    <script>
+        // Definiciones de funciones globales mínimas que serán sobrescritas por admin_pago_emp.js
+        window.handleGeneratePDF = function() { console.warn('PDF handler not yet loaded.'); };
+        window.handleGenerateXLSX = function() { console.warn('XLSX handler not yet loaded.'); };
+        window.handleAction = function(t, d) { console.log(t, d); };
+        window.handleLogout = function() { window.location.href = '/login'; };
+        window.toggleDropdown = function() {};
+    </script>
     <script src="/js/admin_pago_emp.js" defer></script> 
     
     <script>
@@ -16,7 +25,7 @@
                 extend: {
                     colors: {
                         'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
+                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
                         'black-pure': '#000000',
                     }
                 }
@@ -109,12 +118,16 @@
                     </div>
 
                     <div class="flex space-x-3 mt-4 sm:mt-0">
-                        <button title="Imprimir PDF" class="btn btn-gray rounded-full p-2" onclick="handleAction('Imprimir PDF', 'Se imprimirá todo el listado actual')">
+                        <button title="Imprimir PDF" class="btn btn-gray rounded-full p-2" onclick="handleGeneratePDF()">
                             <i data-lucide="printer" class="h-6 w-6"></i>
                         </button>
-                        <button title="Exportar a Excel" class="btn bg-emerald-500 text-white hover:bg-emerald-600 rounded-full p-2" onclick="handleAction('Exportar Excel', 'Se exportará el listado actual')">
+                        <button title="Exportar a Word" class="btn bg-indigo-500 text-white hover:bg-indigo-600 rounded-full p-2" onclick="handleAction('Exportar Word', 'Se exportará el listado actual a formato Word')">
+                            <i data-lucide="file-text" class="h-6 w-6"></i>
+                        </button>
+                        <button title="Exportar a Excel" class="btn bg-emerald-500 text-white hover:bg-emerald-600 rounded-full p-2" onclick="handleGenerateXLSX()">
                             <i data-lucide="file-spreadsheet" class="h-6 w-6"></i>
                         </button>
+                        
                         <button onclick="handleLogout()" 
                             title="Salir y cerrar sesión"
                             class="btn bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full">
@@ -166,7 +179,7 @@
                                 id="btn-mode-campos"
                                 onclick="UI.setSearchModeManual('campos')"
                                 class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                     bg-blue-600 text-white hover:bg-blue-700 active:scale-95">
+                                        bg-blue-600 text-white hover:bg-blue-700 active:scale-95">
                             <span class="mr-2">📝</span> Búsqueda por Campos
                         </button>
 
@@ -174,7 +187,7 @@
                                 id="btn-mode-palabra"
                                 onclick="UI.setSearchModeManual('palabra')"
                                 class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                     bg-primary-pastel text-black-pure hover:bg-orange-300 active:scale-95">
+                                        bg-primary-pastel text-black-pure hover:bg-orange-300 active:scale-95">
                             <span class="mr-2">💬</span> Búsqueda por Palabra
                         </button>
 
@@ -241,36 +254,36 @@
                     </div>
                     
                     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-2">
-                         <label for="palabra" class="filter-label block text-xs font-medium text-gray-700 mb-1">
-                            🔍 Búsqueda Global (Licencia, Ref, Obs.)
-                        </label>
-                        <div class="flex gap-2">
-                            <input type="text" id="palabra" name="palabra" placeholder="Buscar texto libre..." class="input-field flex-1 search-highlight">
-                            <button type="button" 
-                                    onclick="document.getElementById('palabra').value = '';"
-                                    class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
-                                    title="Limpiar búsqueda">
-                                <i data-lucide="x" class="h-4 w-4"></i>
-                            </button>
-                        </div>
-
-                        <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
-                            <div class="font-medium text-gray-700 flex items-center">
-                                Tipo de búsqueda de texto:
+                            <label for="palabra" class="filter-label block text-xs font-medium text-gray-700 mb-1">
+                                🔍 Búsqueda Global (Licencia, Ref, Obs.)
+                            </label>
+                            <div class="flex gap-2">
+                                <input type="text" id="palabra" name="palabra" placeholder="Buscar texto libre..." class="input-field flex-1 search-highlight">
+                                <button type="button" 
+                                        onclick="document.getElementById('palabra').value = '';"
+                                        class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
+                                        title="Limpiar búsqueda">
+                                    <i data-lucide="x" class="h-4 w-4"></i>
+                                </button>
                             </div>
-                            <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link" checked>
-                                <span class="ml-2 font-medium">Frase Exacta</span>
-                            </label>
-                            <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                <span class="ml-2 font-medium">Todas las palabras</span>
-                            </label>
-                            <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                <span class="ml-2 font-medium">Cualquier palabra</span>
-                            </label>
-                        </div>
+
+                            <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
+                                <div class="font-medium text-gray-700 flex items-center">
+                                    Tipo de búsqueda de texto:
+                                </div>
+                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
+                                    <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link" checked>
+                                    <span class="ml-2 font-medium">Frase Exacta</span>
+                                </label>
+                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
+                                    <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
+                                    <span class="ml-2 font-medium">Todas las palabras</span>
+                                </label>
+                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
+                                    <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
+                                    <span class="ml-2 font-medium">Cualquier palabra</span>
+                                </label>
+                            </div>
                     </div>
                 </form>
             </div>

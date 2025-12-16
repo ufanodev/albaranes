@@ -1,5 +1,5 @@
 // Archivo: static/js/admin_pago_emp.js
-// ✅ VERSIÓN CORREGIDA - Filtra por cobrado=0 correctamente
+// ✅ VERSIÓN FINAL - Gestión de Cobros a Empresas (Bulk Charge)
 // =================================================================================
 
 const APP = {
@@ -35,12 +35,12 @@ const APP = {
         searchMode: 'campos',
         selectedIds: new Set(),
         isBulkProcessing: false,
-        currentFilters: {} // Para guardar los filtros actuales
+        currentFilters: {}
     }
 };
 
 // =================================================================================
-// 🎨 UI HELPERS
+// 🎨 UI HELPERS & UTILITIES
 // =================================================================================
 const UI = {
     formatDate(isoString) { 
@@ -73,7 +73,7 @@ const UI = {
         
         statusMessage.textContent = message;
         statusMessage.className = `status-message ${type === 'success' ? 'status-success' : 
-                                 type === 'error' ? 'status-error' : 'status-info'}`;
+                                     type === 'error' ? 'status-error' : 'status-info'}`;
         statusMessage.classList.remove('hidden');
         setTimeout(() => statusMessage.classList.add('hidden'), 5000);
     },
@@ -115,13 +115,13 @@ const UI = {
 };
 
 // =================================================================================
-// 🔍 FILTROS Y ORDENACIÓN - CORREGIDOS PARA USAR cobrado
+// 🔍 FILTROS Y ORDENACIÓN
 // =================================================================================
 const Filters = {
     getFiltersFromForm() {
         const formData = new FormData(APP.elements.searchForm);
         const filters = {
-            enviado: 1,
+            enviado: 1, // Siempre se filtra por enviados
             licencia_ref: formData.get('licencia') || '',
             empresa_ref: formData.get('empresa') || '',
             referencia: formData.get('referencia') || '',
@@ -131,19 +131,19 @@ const Filters = {
         
         const cobrado = formData.get('cobrado');
         
-        // ✅ CORRECTO: Usar cobrado, NO pagado
         if (cobrado === 'si') {
-            filters.cobrado = 1;      // Solo COBRADOS
+            filters.cobrado = 1; 
         } else if (cobrado === 'no') {
-            filters.cobrado = 0;      // Solo PENDIENTES (por defecto)
-        } else if (cobrado === '' || cobrado === null) {
-            // Si está vacío o "todos", NO incluir filtro cobrado
-            // Así mostrará todos (cobrados y pendientes)
+            filters.cobrado = 0;      
+        } 
+        
+        // Asumiendo que el filtro inicial no está en el formulario y queremos 'no' por defecto
+        if (!cobrado) {
+             filters.cobrado = 0; // Mostrar solo pendientes de cobro inicialmente
         }
         
         console.log('[FILTERS] Aplicados:', filters);
         
-        // Guardar filtros actuales para recargar después
         APP.state.currentFilters = { ...filters };
         
         return filters;
@@ -166,11 +166,9 @@ const Filters = {
 };
 
 // =================================================================================
-// 🔥 CHECKBOX PRINCIPAL
+// 🔥 CHECKBOX PRINCIPAL & GUARDADO INDIVIDUAL
 // =================================================================================
 function handleCobroToggle(albaranId) {
-    console.log(`🔄 [TOGGLE ${albaranId}] Checkbox cambiado`);
-    
     const row = document.querySelector(`tr[data-id="${albaranId}"]`);
     if (!row) return console.error(`❌ Row no encontrada: ${albaranId}`);
 
@@ -184,46 +182,32 @@ function handleCobroToggle(albaranId) {
     }
 
     const isChecked = checkbox.checked;
-    console.log(`📋 [TOGGLE ${albaranId}] ${isChecked ? '✅ COBRADO' : '❌ PENDIENTE'}`);
-
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = UI.formatDate(new Date().toISOString());
 
     if (isChecked) {
-        checkbox.checked = true;
         fechaCobroInput.disabled = false;
         fechaPagoInput.disabled = false;
         
         if (!fechaCobroInput.value) fechaCobroInput.value = hoy;
         if (!fechaPagoInput.value) fechaPagoInput.value = hoy;
         
-        console.log(`✅ [${albaranId}] Campos desbloqueados`);
     } else {
-        checkbox.checked = false;
         fechaCobroInput.disabled = true;
         fechaPagoInput.disabled = true;
-        console.log(`🔒 [${albaranId}] Campos bloqueados`);
     }
 
     cobradoDisplay.innerHTML = UI.getBooleanHtml(isChecked);
-    saveCobroState(albaranId, isChecked);
+    saveCobroState(albaranId, isChecked, fechaCobroInput.value, fechaPagoInput.value);
 }
 
-// =================================================================================
-// 💾 FUNCIONES DE GUARDADO
-// =================================================================================
-async function saveCobroState(id, isPaid) {
-    console.log(`💾 [SAVE STATE ${id}] cobrado=${isPaid ? 1 : 0}`);
-    
+async function saveCobroState(id, isPaid, fCobro, fPago) {
     const payload = { 
         id: parseInt(id),
         cobrado: isPaid ? 1 : 0,
-        pagado: isPaid ? 1 : 0
+        pagado: isPaid ? 1 : 0, // Cobro implica pago al titular
+        fecha_cobro: isPaid ? (fCobro || UI.formatDate(new Date().toISOString())) : null,
+        fecha_pago: isPaid ? (fPago || UI.formatDate(new Date().toISOString())) : null
     };
-    
-    if (!isPaid) {
-        payload.fecha_cobro = null;
-        payload.fecha_pago = null;
-    }
     
     console.log(`📤 [SAVE STATE ${id}] Payload:`, payload);
 
@@ -242,21 +226,14 @@ async function saveCobroState(id, isPaid) {
         const idx = APP.state.filteredAlbaranes.findIndex(a => a.id == id);
         if (idx !== -1) {
             const albaran = APP.state.filteredAlbaranes[idx];
-            albaran.cobrado = isPaid ? 1 : 0;
-            albaran.pagado = isPaid ? 1 : 0;
+            albaran.cobrado = payload.cobrado;
+            albaran.pagado = payload.pagado;
+            albaran.fecha_cobro = payload.fecha_cobro;
+            albaran.fecha_pago = payload.fecha_pago;
             
-            if (!isPaid) {
-                albaran.fecha_cobro = null;
-                albaran.fecha_pago = null;
-            }
-            
-            // Si el filtro actual es cobrado=0 y acabamos de marcar como cobrado,
-            // debemos recargar la tabla para que desaparezca
+            // Recargar si hemos cobrado y el filtro es "solo pendientes"
             if (isPaid && APP.state.currentFilters.cobrado === 0) {
-                console.log(`🔄 Albarán #${id} marcado como cobrado, recargando tabla...`);
-                setTimeout(() => {
-                    API.searchAlbaranes(APP.state.currentFilters);
-                }, 500);
+                setTimeout(() => { API.searchAlbaranes(APP.state.currentFilters); }, 500);
             } else {
                 DOM.renderResults();
             }
@@ -269,114 +246,27 @@ async function saveCobroState(id, isPaid) {
     }
 }
 
+// --------------------------------------------------------------------------------
+// Funciones de guardado de fecha individuales (llamadas desde el evento onchange)
+// --------------------------------------------------------------------------------
 async function saveFechaCobro(id, fecha) {
-    console.log(`💾 [SAVE FECHA COBRO ${id}] fecha=${fecha}`);
-    
-    const payload = { 
-        id: parseInt(id),
-        fecha_cobro: fecha || null,
-        cobrado: 1,
-        pagado: 1
-    };
-    
-    console.log(`📤 [SAVE FECHA COBRO ${id}] Payload:`, payload);
-
-    try {
-        const response = await fetch(`/api/v1/albaranes/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || `HTTP ${response.status}`);
-        }
-
-        const idx = APP.state.filteredAlbaranes.findIndex(a => a.id == id);
-        if (idx !== -1) {
-            const albaran = APP.state.filteredAlbaranes[idx];
-            albaran.fecha_cobro = fecha;
-            albaran.cobrado = 1;
-            albaran.pagado = 1;
-            
-            // Si el filtro actual es cobrado=0, recargar tabla
-            if (APP.state.currentFilters.cobrado === 0) {
-                console.log(`🔄 Fecha cobro actualizada para #${id}, recargando tabla...`);
-                setTimeout(() => {
-                    API.searchAlbaranes(APP.state.currentFilters);
-                }, 500);
-            } else {
-                DOM.renderResults();
-            }
-        }
-
-        UI.alertMessage(`✅ Fecha cobro #${id}: ${fecha}`, 'success');
-    } catch (error) {
-        console.error(`❌ [SAVE FECHA COBRO ${id}]`, error);
-        UI.alertMessage(`❌ Error fecha cobro #${id}: ${error.message}`, 'error');
-    }
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    const fechaPagoInput = row?.querySelector('.fecha-pago-input');
+    await saveCobroState(id, true, fecha, fechaPagoInput?.value);
 }
 
 async function saveFechaPago(id, fecha) {
-    console.log(`💾 [SAVE FECHA PAGO ${id}] fecha=${fecha}`);
-    
-    const payload = { 
-        id: parseInt(id),
-        fecha_pago: fecha || null,
-        pagado: 1,
-        cobrado: 1
-    };
-    
-    console.log(`📤 [SAVE FECHA PAGO ${id}] Payload:`, payload);
-
-    try {
-        const response = await fetch(`/api/v1/albaranes/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || `HTTP ${response.status}`);
-        }
-
-        const idx = APP.state.filteredAlbaranes.findIndex(a => a.id == id);
-        if (idx !== -1) {
-            const albaran = APP.state.filteredAlbaranes[idx];
-            albaran.fecha_pago = fecha;
-            albaran.pagado = 1;
-            albaran.cobrado = 1;
-            
-            // Si el filtro actual es cobrado=0, recargar tabla
-            if (APP.state.currentFilters.cobrado === 0) {
-                console.log(`🔄 Fecha pago actualizada para #${id}, recargando tabla...`);
-                setTimeout(() => {
-                    API.searchAlbaranes(APP.state.currentFilters);
-                }, 500);
-            } else {
-                DOM.renderResults();
-            }
-        }
-
-        UI.alertMessage(`✅ Fecha pago #${id}: ${fecha}`, 'success');
-    } catch (error) {
-        console.error(`❌ [SAVE FECHA PAGO ${id}]`, error);
-        UI.alertMessage(`❌ Error fecha pago #${id}: ${error.message}`, 'error');
-    }
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    const fechaCobroInput = row?.querySelector('.fecha-cobro-input');
+    await saveCobroState(id, true, fechaCobroInput?.value, fecha);
 }
 
 // =================================================================================
-// 🔥 BULK PAY - CON RECARGA AUTOMÁTICA
+// 🔥 BULK PAY / BULK CHARGE
 // =================================================================================
-async function handleBulkPay() {
-    console.log('🚀 [BULK PAY] Botón clickeado');
-    
+async function handleBulkCharge() {
     const checkboxes = document.querySelectorAll('#albaranResults .cobro-checkbox:checked');
     const ids = Array.from(checkboxes).map(cb => parseInt(cb.closest('tr').dataset.id));
-    
-    console.log(`📋 [BULK] IDs: [${ids.join(', ')}] (${ids.length})`);
     
     if (ids.length === 0) {
         return UI.alertMessage('❌ Seleccione albaranes', 'info');
@@ -384,74 +274,37 @@ async function handleBulkPay() {
 
     const albaranes = ids.map(id => APP.state.filteredAlbaranes.find(a => a.id === id)).filter(Boolean);
     const total = albaranes.reduce((sum, a) => sum + parseFloat(a.importe_total || 0), 0).toFixed(2);
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = UI.formatDate(new Date().toISOString());
     
-    // Obtener fechas de cada fila
-    const albaranesConFechas = ids.map(id => {
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        const fechaCobroInput = row?.querySelector('.fecha-cobro-input');
-        const fechaPagoInput = row?.querySelector('.fecha-pago-input');
-        
-        return {
-            id,
-            fecha_cobro: fechaCobroInput?.value || hoy,
-            fecha_pago: fechaPagoInput?.value || hoy
-        };
-    });
-    
-    console.log('[BULK] Albaranes con fechas:', albaranesConFechas);
-    
-    // Validar fechas
-    const fechasInvalidas = albaranesConFechas.filter(a => {
-        if (a.fecha_cobro && a.fecha_pago) {
-            return new Date(a.fecha_pago) < new Date(a.fecha_cobro);
-        }
-        return false;
-    });
-    
-    if (fechasInvalidas.length > 0) {
-        const errores = fechasInvalidas.map(a => 
-            `#${a.id}: Cobro ${a.fecha_cobro} > Pago ${a.fecha_pago}`
-        ).join('\n');
-        
-        UI.alertMessage(`❌ Fechas inválidas:\n${errores}\n\nLa fecha de pago no puede ser anterior a la de cobro.`, 'error');
-        return;
-    }
-    
-    const confirmMsg = `🔥 COBRO MASIVO ${ids.length} albaranes\n💰 €${total}\n\n¿Confirmar cobro?`;
+    const confirmMsg = `🔥 COBRO MASIVO ${ids.length} albaranes\n💰 ${UI.formatCurrency(total)}\n\n¿Confirmar cobro y pago (Fecha: ${hoy})?`;
     if (!confirm(confirmMsg)) return;
 
     try {
         UI.showLoading('Procesando cobro masivo...');
         UI.alertMessage('⏳ Procesando cobro masivo...', 'info');
         
-        // Usar bulk-pay del backend
+        // Usar bulk-charge (PUT /api/v1/albaranes/bulk-charge)
         const payload = { 
             ids: ids,
             fecha_cobro: hoy,
-            fecha_pago: hoy
+            fecha_pago: hoy 
         };
         
-        console.log('[BULK] Usando endpoint bulk-pay:', payload);
-        
-        const response = await fetch('/api/v1/albaranes/bulk-pay', {
+        const response = await fetch('/api/v1/albaranes/bulk-charge', { 
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
         const result = await response.json();
-        console.log('[BULK] Resultado:', result);
+        console.log('[BULK CHARGE] Resultado:', result);
 
         if (!response.ok) {
             throw new Error(result.error || 'Error servidor');
         }
 
-        // ✅ RECARGAR TABLA DESPUÉS DEL COBRO
-        console.log('[BULK] Recargando tabla con filtros actuales...');
-        
-        // Recargar desde servidor con los mismos filtros
-        await API.searchAlbaranes(APP.state.currentFilters);
+        // ✅ RECARGAR TABLA DESPUÉS DEL COBRO para aplicar filtros
+        await API.searchAlbaranes(Filters.getFiltersFromForm());
         
         const mensaje = `✅ ${result.updated || ids.length} albaranes cobrados\n`;
         mensaje += `💰 Importe total: ${UI.formatCurrency(total)}`;
@@ -459,13 +312,13 @@ async function handleBulkPay() {
         UI.alertMessage(mensaje, 'success');
         
     } catch (error) {
-        console.error('[BULK] Error:', error);
+        console.error('[BULK CHARGE] Error:', error);
         UI.alertMessage(`❌ ${error.message}`, 'error');
     }
 }
 
 // =================================================================================
-// 🌐 API SERVICES
+// 🌐 API SERVICES (Carga de selects y Search)
 // =================================================================================
 const API = {
     async loadEmpresas() {
@@ -477,9 +330,7 @@ const API = {
             const empresas = Array.isArray(data.data) ? data.data : data;
             select.innerHTML = '<option value="">Todas</option>' + 
                 empresas.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
-        } catch (e) {
-            console.error('Empresas error:', e);
-        }
+        } catch (e) { console.error('Empresas error:', e); }
     },
     
     async loadLicencias() {
@@ -491,9 +342,7 @@ const API = {
             const licencias = Array.isArray(data.data) ? data.data : data;
             select.innerHTML = '<option value="">Todas</option>' + 
                 licencias.map(l => `<option value="${l.id}">${l.licencia}</option>`).join('');
-        } catch (e) {
-            console.error('Licencias error:', e);
-        }
+        } catch (e) { console.error('Licencias error:', e); }
     },
     
     async searchAlbaranes(filters) {
@@ -507,13 +356,12 @@ const API = {
                 }
             });
             
-            console.log('[SEARCH] Parámetros enviados:', params.toString());
+            params.append('pageSize', 5000); // Forzar carga de todos para filtrado local
+            params.append('page', 1);
             
             const res = await fetch(`/api/v1/albaranes/search?${params}`);
             const data = await res.json();
             const albaranes = data.data || [];
-            
-            console.log(`[SEARCH] ${albaranes.length} albaranes recibidos`);
             
             APP.state.allAlbaranes = albaranes;
             APP.state.filteredAlbaranes = albaranes;
@@ -533,9 +381,10 @@ const API = {
 };
 
 // =================================================================================
-// 🖼️ DOM RENDER
+// 🖼️ DOM RENDER (Paginación y Tabla)
 // =================================================================================
 const DOM = {
+    // ... (DOM.getCurrentPageData se mantiene igual) ...
     getCurrentPageData() {
         const data = APP.state.filteredAlbaranes || [];
         const start = (APP.state.currentPage - 1) * APP.state.pageSize;
@@ -563,12 +412,12 @@ const DOM = {
 
             const row = document.createElement('tr');
             row.dataset.id = albaran.id;
-            row.className = `${albaran.id % 2 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50`;
+            row.className = `${albaran.id % 2 ? 'bg-gray-50' : 'bg-white'} hover:bg-primary-pastel/30`;
 
             row.innerHTML = `
                 <td class="px-4 py-3 text-center">
                     <input type="checkbox" class="cobro-checkbox h-5 w-5 rounded border-gray-300" 
-                           ${isCobrado ? 'checked' : ''} onclick="handleCobroToggle(${albaran.id})">
+                            ${isCobrado ? 'checked' : ''} onclick="handleCobroToggle(${albaran.id})">
                 </td>
                 <td class="px-4 py-2 text-sm font-medium">${albaran.id}</td>
                 <td class="px-4 py-2 text-sm">${albaran.numero_albaran}</td>
@@ -580,15 +429,15 @@ const DOM = {
                 <td class="px-4 py-2 text-center"><span class="cobrado-display">${UI.getBooleanHtml(isCobrado)}</span></td>
                 <td class="px-4 py-2">
                     <input type="date" class="fecha-cobro-input w-28 p-1 border rounded text-sm" 
-                           value="${fCobro}" ${isCobrado ? '' : 'disabled'}
-                           onchange="saveFechaCobro(${albaran.id}, this.value)"
-                           title="Fecha de cobro (puede ser diferente a fecha de pago)">
+                            value="${fCobro}" ${isCobrado ? '' : 'disabled'}
+                            onchange="saveFechaCobro(${albaran.id}, this.value)"
+                            title="Fecha de cobro">
                 </td>
                 <td class="px-4 py-2">
                     <input type="date" class="fecha-pago-input w-28 p-1 border rounded text-sm" 
-                           value="${fPago}" ${isCobrado ? '' : 'disabled'}
-                           onchange="saveFechaPago(${albaran.id}, this.value)"
-                           title="Fecha de pago (debe ser igual o posterior a fecha de cobro)">
+                            value="${fPago}" ${isCobrado ? '' : 'disabled'}
+                            onchange="saveFechaPago(${albaran.id}, this.value)"
+                            title="Fecha de pago">
                 </td>
                 <td class="px-4 py-2 text-sm text-gray-600 max-w-xs truncate">${albaran.observaciones_admin || '-'}</td>
             `;
@@ -598,6 +447,17 @@ const DOM = {
         UI.updatePageInfo();
         UI.updatePaginationButtons();
         if (window.lucide) window.lucide.createIcons();
+    },
+
+    initRecordsSelect() {
+        const select = document.getElementById('recordsPerPage');
+        if (!select) return;
+        select.innerHTML = `<option value="10" selected>10</option><option value="30">30</option><option value="50">50</option><option value="9999">Todos</option>`;
+        select.addEventListener('change', (e) => {
+            APP.state.pageSize = e.target.value === '9999' ? 9999 : +e.target.value;
+            APP.state.currentPage = 1;
+            DOM.renderResults();
+        });
     }
 };
 
@@ -606,73 +466,113 @@ const DOM = {
 // =================================================================================
 const Events = {
     init() {
-        // Paginación
-        document.getElementById('recordsPerPage')?.addEventListener('change', (e) => {
-            APP.state.pageSize = e.target.value === '9999' ? 9999 : +e.target.value;
-            APP.state.currentPage = 1;
-            DOM.renderResults();
-        });
+        // Inicialización de selectores
+        DOM.initRecordsSelect();
+
+        // Paginación y Búsqueda
+        document.getElementById('prevPageBtn')?.addEventListener('click', () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } });
+        document.getElementById('nextPageBtn')?.addEventListener('click', () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } });
+        APP.elements.searchForm?.addEventListener('submit', (e) => { e.preventDefault(); API.searchAlbaranes(Filters.getFiltersFromForm()); });
         
-        document.getElementById('prevPageBtn')?.addEventListener('click', () => {
-            if (APP.state.currentPage > 1) {
-                APP.state.currentPage--;
-                DOM.renderResults();
-            }
-        });
-        
-        document.getElementById('nextPageBtn')?.addEventListener('click', () => {
-            if (APP.state.currentPage < APP.state.totalPages) {
-                APP.state.currentPage++;
-                DOM.renderResults();
-            }
-        });
-        
-        APP.elements.searchForm?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            API.searchAlbaranes(Filters.getFiltersFromForm());
-        });
-        
-        // Botón para recargar manualmente
-        document.getElementById('reloadBtn')?.addEventListener('click', () => {
-            API.searchAlbaranes(APP.state.currentFilters);
-            UI.alertMessage('🔄 Recargando datos...', 'info');
-        });
+        // Recargar (Asumiendo que hay un botón de limpiar que llama a handleClearAllFilters)
+        window.handleClearAllFilters = () => {
+             APP.elements.searchForm?.reset();
+             // Forzar el filtro inicial (pendientes)
+             const initialFilters = Filters.getFiltersFromForm();
+             initialFilters.cobrado = 0; 
+             API.searchAlbaranes(initialFilters);
+        };
         
         window.sortTable = Filters.sortTable;
     }
 };
 
+
 // =================================================================================
 // 🚀 INICIALIZACIÓN
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 admin_pago_emp.js CARGADO - Filtra por cobrado=0 correctamente');
+    console.log('🚀 admin_pago_emp.js CARGADO - Inicializando Cobros a Empresas');
     
-    // Funciones globales
-    window.handleBulkPay = handleBulkPay;
-    window.handleCobroToggle = handleCobroToggle;
-    window.saveCobroState = saveCobroState;
-    window.saveFechaCobro = saveFechaCobro;
-    window.saveFechaPago = saveFechaPago;
-    
-    // Cargar datos
+    // 1. Cargar datos de selects
     await Promise.all([API.loadEmpresas(), API.loadLicencias()]);
+    
+    // 2. Inicializar eventos
     Events.init();
     
-    // Cargar inicialmente PENDIENTES (cobrado=0)
+    // 3. Cargar inicialmente PENDIENTES (cobrado=0)
     const initialFilters = Filters.getFiltersFromForm();
-    // Asegurar que por defecto sea cobrado=0
-    if (!initialFilters.hasOwnProperty('cobrado')) {
-        initialFilters.cobrado = 0;
-    }
+    initialFilters.cobrado = 0; 
     await API.searchAlbaranes(initialFilters);
     
-    console.log('✅ Sistema listo - Filtra por cobrado=0 (pendientes)');
+    console.log('✅ Sistema listo - Cobros a Empresas');
 });
 
-// Utilidades UI
-window.toggleDropdown = (btn) => {
-    const dropdown = btn.closest('.dropdown');
-    document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
-    dropdown?.classList.toggle('active');
-};
+
+// =================================================================================
+// 🌍 FUNCIONES GLOBALES (Exportación y Navegación) - Definición en ámbito raíz
+// =================================================================================
+
+// Funciones de guardado de fecha individuales (llamadas desde el evento onchange)
+window.saveFechaCobro = saveFechaCobro;
+window.saveFechaPago = saveFechaPago;
+
+// Exportación masiva / Cobro masivo
+window.handleBulkPay = handleBulkCharge; 
+window.handleCobroToggle = handleCobroToggle;
+
+// Utilidades UI (Sobrescribe las dummies del HTML)
+window.handleAction = (title, description) => { if (typeof UI !== 'undefined') UI.alertMessage(`Acción: ${title}`, 'info'); }; 
+window.handleLogout = () => { if (typeof UI !== 'undefined') UI.alertMessage('Cerrar Sesión simulado...', 'info'); setTimeout(() => window.location.href = '/login', 1500); };
+window.toggleDropdown = (btn) => { const dropdown = btn.closest('.dropdown'); document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); dropdown?.classList.toggle('active'); };
+
+// Lógica de Exportación (PDF/XLSX)
+(function() {
+    const Exportation = {
+        formatDataForExport() {
+             return APP.state.filteredAlbaranes.map(a => ({
+                "ID": String(a.id || 'N/A'), 
+                "N_Alb": a.numero_albaran || '-',
+                "Licencia": a.LicenciaData?.licencia || `ID ${a.licencia_ref || 'N/A'}`,
+                "Fecha_Emision": UI.formatDate(a.fecha) || '-',
+                "Empresa": a.EmpresaData?.nombre || `ID ${a.empresa_ref || 'N/A'}`,
+                "Referencia": a.referencia || '-',
+                "Importe_Total": parseFloat(a.importe_total || 0).toFixed(2), 
+                "Cobrado": a.cobrado ? 'Sí' : 'No',
+                "Pagado": a.pagado ? 'Sí' : 'No',
+                "Fecha_Cobro": UI.formatDate(a.fecha_cobro) || '-',
+                "Fecha_Pago": UI.formatDate(a.fecha_pago) || '-',
+                "Observaciones": a.observaciones_admin || '-',
+            }));
+        },
+        async exportAlbaranes(format) {
+            // ... (Lógica de exportación) ...
+            if (!APP.state.filteredAlbaranes.length) { UI.alertMessage(`No hay albaranes para exportar a ${format.toUpperCase()}.`, 'info'); return; }
+            const endpoint = `/api/v1/albaranes/export/${format}`; 
+            UI.alertMessage(`Generando ${format.toUpperCase()}. Por favor, espere...`, 'info');
+            const payload = { reportName: `Cobros_Empresas_(${format.toUpperCase()})`, data: this.formatDataForExport() };
+            try {
+                console.log("➡️ JSON Enviando al Backend (Export Cobros):", JSON.stringify(payload));
+                const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                
+                if (!response.ok) {
+                    const errorText = await response.text(); 
+                    let errorJson = { message: errorText };
+                    try { errorJson = JSON.parse(errorText); } catch (e) { }
+                    console.error(`🔴 Error HTTP ${response.status} en la API de exportación.`, errorJson);
+                    throw new Error(`[${response.status}] ${errorJson.message || 'Error desconocido'}`);
+                }
+                const result = await response.json();
+                UI.alertMessage(`✅ Archivo ${format.toUpperCase()} generado con éxito.`, 'success');
+                window.open(result.downloadURL, '_blank');
+            } catch (error) {
+                console.error(`❌ Error final al generar ${format.toUpperCase()}:`, error);
+                UI.alertMessage(`❌ Error al generar el ${format.toUpperCase()}: ${error.message}`, 'error');
+            }
+        }
+    };
+    
+    window.handleGeneratePDF = () => { Exportation.exportAlbaranes('pdf'); };
+    window.handleGenerateXLSX = () => { Exportation.exportAlbaranes('xlsx'); }; 
+    window.toggleMobileMenu = () => { const mobileMenu = document.getElementById('mobileMenu'); if (mobileMenu) mobileMenu.classList.toggle('hidden'); }; 
+})();
