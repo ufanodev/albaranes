@@ -1,11 +1,10 @@
-// Archivo: ./utils/export_common.go
-
 package utils
 
 // Constante para la ruta base de documentos (Usada por PDF y XLSX)
 const DocumentsDir = "./documentos"
 
 // TitularData es la estructura genérica para una fila de datos de la tabla.
+// Se usa para pasar datos del frontend (JSON) a los generadores de reportes.
 type TitularData map[string]string
 
 // GetHeaders extrae las cabeceras del primer elemento de la data.

@@ -1,12 +1,11 @@
 package controllers
 
 import (
+	"albaranes/models"
+	"albaranes/utils" // Asume que 'albaranes' es el nombre de tu módulo Go
 	"log"
 	"net/http"
 	"strconv"
-
-	"albaranes/models"
-	"albaranes/utils" // Asume que 'albaranes' es el nombre de tu módulo Go
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -43,12 +42,6 @@ type UpdateLicenciaInput struct {
 }
 
 // --- Estructuras para la Exportación Genérica (PDF/XLSX) ---
-
-// ExportRequest es la estructura que recibe los datos de la tabla desde el frontend (JS).
-type ExportRequest struct {
-	ReportName string              `json:"reportName" binding:"required"`
-	Data       []utils.TitularData `json:"data" binding:"required"`
-}
 
 // --- Handlers CRUD para Licencias ---
 

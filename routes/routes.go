@@ -250,9 +250,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				// 📄 RUTA DE EXPORTACIÓN DE PDF
 				licenciaGroup.POST("/export/pdf", controllers.ExportTitularesPDFHandler)
 
-				// 📊 RUTA DE EXPORTACIÓN DE XLSX (Excel) - ¡CORRECCIÓN CRÍTICA A CONTINUACIÓN!
-				// ANTES: licenciaGroup.POST("/export/xlsx", controllers.ExportTitularesXLSXHandler) // Error porque requiere 'db'
-				// DESPUÉS: Usamos una función anónima para pasar la base de datos 'db'
+				// 📊 RUTA DE EXPORTACIÓN DE XLSX (Excel)
 				licenciaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportTitularesXLSX(c, db) })
 			}
 
@@ -305,6 +303,12 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albaranGroup.PUT("/bulk-pay", func(c *gin.Context) { controllers.BulkChargeAlbaranes(c, db) })
 
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
+
+				// 📄 RUTA DE EXPORTACIÓN DE PDF (Albaranes) - ¡AÑADIDA!
+				albaranGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
+
+				// 📊 RUTA DE EXPORTACIÓN DE XLSX (Excel) (Albaranes) - ¡AÑADIDA!
+				albaranGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
 			}
 		}
 	}

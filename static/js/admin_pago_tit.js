@@ -1,8 +1,5 @@
-// 📄 static/js/admin_pago_tit.js
-
 const APP = {
     elements: {
-        // ... (Elementos de Paginación y Filtros, sin cambios)
         resultsBody: document.getElementById('albaranResults'),
         recordsSelect: document.getElementById('recordsPerPage'),
         statusMessage: document.getElementById('statusMessage'),
@@ -35,7 +32,7 @@ const APP = {
 };
 
 // =================================================================================
-// 🎨 UI HELPERS & UTILITIES (Sin cambios en las funciones pequeñas)
+// 🎨 UI HELPERS & UTILITIES
 // =================================================================================
 
 const UI = {
@@ -60,7 +57,6 @@ const UI = {
         }
     },
     
-    // FUNCIÓN DE PAGINACIÓN CLAVE (Asegurada)
     updatePageInfo() {
         const { pageInfo, totalLabel } = APP.elements;
         
@@ -90,12 +86,9 @@ const UI = {
 // =================================================================================
 
 function simulateSavePago(id, isPaid, dateString) {
-    const isPaidInt = isPaid ? 1 : 0;
-    
-    // Actualizar estado interno y re-renderizar
     const albaranIndex = APP.state.filteredAlbaranes.findIndex(a => a.id === id);
     if (albaranIndex !== -1) {
-        APP.state.filteredAlbaranes[albaranIndex].pagado = isPaidInt;
+        APP.state.filteredAlbaranes[albaranIndex].pagado = isPaid ? 1 : 0;
         APP.state.filteredAlbaranes[albaranIndex].fecha_pago = dateString;
         DOM.renderResults(APP.state.filteredAlbaranes);
     }
@@ -152,13 +145,12 @@ const Filters = {
         
         filters.enviado = 1; // 🔑 FILTRO CLAVE: Forzar solo ENVIADOS
 
-        // PENDIENTES: Si el select es 'no' o 'todos'/'vacío', buscamos 'pagado=0'
         if (filters.pagado === 'si') {
             filters.pagado = 1; 
         } else if (filters.pagado === 'no') {
             filters.pagado = 0; 
         } else {
-            filters.pagado = 0; // Mostrar pendientes (default)
+            filters.pagado = ''; 
         }
 
         if (filters.empresa !== '' && !isNaN(parseInt(filters.empresa))) {
@@ -170,7 +162,6 @@ const Filters = {
         return filters;
     },
     
-    // 🔑 FUNCIÓN DE ORDENACIÓN
     sortTable(key, dataType = 'string') {
         const { currentSort } = APP.state;
         let direction = 'asc';
@@ -216,10 +207,17 @@ const API = {
         try {
             const params = new URLSearchParams({});
             
-            params.append('enviado', filters.enviado); 
-            if (filters.pagado !== '') params.append('pagado', filters.pagado); 
-            // ... (otros filtros)
+            Object.keys(filters).forEach(key => {
+                if (filters[key] !== '' && filters[key] !== null) {
+                    params.append(key, filters[key]);
+                }
+            });
             
+            if (filters.pagado === '') {
+                 params.delete('pagado');
+            }
+
+
             params.append('pageSize', 5000); 
             params.append('page', 1); 
             
@@ -262,7 +260,7 @@ const API = {
 };
 
 // =================================================================================
-// 🖼️ DOM RENDER (Ajustado para Paginación y Checkbox)
+// 🖼️ DOM RENDER
 // =================================================================================
 const DOM = {
     getCurrentPageData() {
@@ -300,10 +298,10 @@ const DOM = {
             row.innerHTML = `
                 <td class="px-4 py-3 whitespace-nowrap text-xs font-medium text-center">
                     <input type="checkbox" 
-                           class="pago-checkbox form-checkbox h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500" 
-                           ${isPaid ? 'checked' : ''}
-                           onclick="handlePagoToggle(${albaran.id})"
-                           title="Marcar/Desmarcar Pago">
+                            class="pago-checkbox form-checkbox h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500" 
+                            ${isPaid ? 'checked' : ''}
+                            onclick="handlePagoToggle(${albaran.id})"
+                            title="Marcar/Desmarcar Pago">
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-700">${albaran.id}</td> 
                 <td class="px-4 py-3 text-sm text-gray-700">${albaran.numero_albaran}</td>
@@ -317,11 +315,11 @@ const DOM = {
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-500">
                     <input type="date" 
-                           class="fecha-pago-input input-field w-32 text-sm" 
-                           value="${fechaPagoActual}"
-                           ${isPaid ? '' : 'disabled'}
-                           data-id="${albaran.id}"
-                           onchange="simulateSavePago(${albaran.id}, 1, this.value)">
+                            class="fecha-pago-input input-field w-32 text-sm" 
+                            value="${fechaPagoActual}"
+                            ${isPaid ? '' : 'disabled'}
+                            data-id="${albaran.id}"
+                            onchange="simulateSavePago(${albaran.id}, 1, this.value)">
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-600 text-truncate max-w-xs">${albaran.observaciones_admin || '-'}</td>
             `;
@@ -392,12 +390,10 @@ const Events = {
         if (window.lucide) { window.lucide.createIcons(); }
     },
 
-    // 💰 FUNCIÓN DE PAGO MASIVO (MEJORADA CON DETALLE DE REFERENCIAS)
     async handleBulkPay() {
         const visibleAlbaranes = DOM.getCurrentPageData();
         const visibleIDs = visibleAlbaranes.map(a => a.id);
         
-        // 🔑 Modificación clave: Leer SÓLO los IDs de los checkboxes marcados
         const checkedCheckboxes = document.querySelectorAll('#albaranResults .pago-checkbox:checked');
         const selectedIDs = Array.from(checkedCheckboxes).map(checkbox => {
              const row = checkbox.closest('tr');
@@ -413,7 +409,6 @@ const Events = {
             return;
         }
 
-        // Construir la lista detallada para el mensaje de confirmación
         const refList = selectedAlbaranes.map(a => a.referencia || `ALB #${a.id}`).join(', ');
         const confirmationMessage = 
             `¿Está seguro que desea marcar ${selectedIDs.length} albarán(es) como PAGADOS con la fecha de hoy?\n\n` +
@@ -426,13 +421,12 @@ const Events = {
         UI.alertMessage("Procesando pago masivo...", 'neutral');
 
         try {
-            // 🌐 LLAMADA API: PUT /api/v1/albaranes/bulk-pay
             const response = await fetch('/api/v1/albaranes/bulk-pay', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ ids: selectedIDs }) // Enviar SÓLO los IDs seleccionados
+                body: JSON.stringify({ ids: selectedIDs }) 
             });
 
             const result = await response.json();
@@ -441,7 +435,6 @@ const Events = {
                 throw new Error(result.error || `Error ${response.status} al procesar el pago.`);
             }
             
-            // 🔑 Actualizar estado de los albaranes en el frontend
             const currentDate = UI.formatDate(new Date().toISOString());
             selectedIDs.forEach(id => {
                  const index = APP.state.filteredAlbaranes.findIndex(a => a.id === id);
@@ -476,6 +469,85 @@ const Events = {
 };
 
 // =================================================================================
+// 📄 EXPORTATION LOGIC (IIFE para garantizar la definición inmediata y corregir JSON)
+// =================================================================================
+(function() {
+    const Exportation = {
+        /** Formatea los datos de Albaranes para el backend de exportación genérica. */
+        formatDataForExport() {
+             return APP.state.filteredAlbaranes.map(a => ({
+                // 🛑 CORRECCIÓN CLAVE: Forzar String() para ID.
+                "ID": String(a.id || 'N/A'), 
+                "N_Alb": a.numero_albaran || '-', 
+                "Licencia": a.LicenciaData?.licencia || `ID ${a.licencia_ref || 'N/A'}`,
+                "Fecha_Emision": UI.formatDate(a.fecha) || '-', 
+                "Empresa": a.EmpresaData?.nombre || `ID ${a.empresa_ref || 'N/A'}`,
+                "Referencia": a.referencia || '-',
+                
+                // Importe Total debe ser String para map[string]string
+                "Importe_Total": parseFloat(a.importe_total || 0).toFixed(2), 
+                
+                "Pagado": a.pagado ? 'Sí' : 'No',
+                "Fecha_Pago": UI.formatDate(a.fecha_pago) || '-', 
+                "Observaciones": a.observaciones_admin || '-',
+            }));
+        },
+
+        /**
+         * Prepara los datos y llama a la API de Go para generar el archivo.
+         * @param {string} format 'pdf' o 'xlsx'
+         */
+        async exportAlbaranes(format) {
+            if (!APP.state.filteredAlbaranes.length) {
+                UI.alertMessage(`No hay albaranes filtrados para exportar a ${format.toUpperCase()}.`, 'info');
+                return;
+            }
+
+            const endpoint = `/api/v1/albaranes/export/${format}`; 
+            UI.alertMessage(`Generando ${format.toUpperCase()}. Por favor, espere...`, 'info');
+
+            const dataToExport = this.formatDataForExport();
+            
+            const titleElement = document.querySelector('title');
+            const reportName = (titleElement ? titleElement.textContent.trim().replace('🚕', '').replace('🏢', '') : 'Pagos/Albaranes').trim() + ' (' + format.toUpperCase() + ')';
+
+            try {
+                // Logueamos el JSON de salida antes de enviar (para depuración)
+                console.log("➡️ JSON Enviando al Backend:", JSON.stringify({ reportName: reportName, data: dataToExport }));
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reportName: reportName, 
+                        data: dataToExport
+                    }),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    const message = result.message || `Error desconocido al generar el ${format.toUpperCase()}.`;
+                    throw new Error(`[${response.status}] ${result.message}`);
+                }
+
+                UI.alertMessage(`✅ Archivo ${format.toUpperCase()} generado con éxito. Iniciando descarga...`, 'success');
+                window.open(result.downloadURL, '_blank');
+                
+            } catch (error) {
+                console.error(`Error al generar ${format.toUpperCase()}:`, error);
+                UI.alertMessage(`❌ Error al generar el ${format.toUpperCase()}: ${error.message}`, 'error');
+            }
+        }
+    };
+
+    // Exportación inmediata de los handlers al objeto window (Resuelve ReferenceError)
+    window.handleGeneratePDF = () => { Exportation.exportAlbaranes('pdf'); };
+    window.handleGenerateXLSX = () => { Exportation.exportAlbaranes('xlsx'); }; 
+})();
+
+
+// =================================================================================
 // 🚀 INICIALIZACIÓN
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -484,19 +556,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     Events.init();
     
     window.handlePagoToggle = handlePagoToggle;
-    window.handleBulkPay = Events.handleBulkPay.bind(Events); // Exponer PAGO MASIVO
+    window.handleBulkPay = Events.handleBulkPay.bind(Events); 
     
-    // Cargar datos iniciales para los SELECTs
-    // await API.loadSelectData();
-    
-    // Cargar tabla inicial (API CALL con filtro ENVIADO=1 y PAGADO=0)
+    // Cargar tabla inicial
     await API.searchAlbaranes(Filters.getFiltersFromForm()); 
     
     console.log('✅ Aplicación Pagos Titulares lista');
 });
 
 // =================================================================================
-// 🌍 FUNCIONES GLOBALES (Menú y Modal) - Copiadas para consistencia de scope
+// 🌍 FUNCIONES GLOBALES (Menú y Modal) 
 // =================================================================================
 
 /** Muestra/oculta el modal de mensajes (expuesta globalmente). */
