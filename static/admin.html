@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏢  Administrador</title>
     <script src="/js/security.js"></script>    
-    <script src="/js/admin.js" defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         // Configuración para usar colores personalizados (Naranja Pastel)
@@ -59,8 +58,8 @@
   }
 
     /* ==============================
-       DROPDOWNS / MENÚS DESPLEGABLES
-       ============================== */
+        DROPDOWNS / MENÚS DESPLEGABLES
+        ============================== */
     .dropdown-content {
         display: none;
         position: absolute;
@@ -111,19 +110,15 @@
 </head>
 <body class="bg-gray-50 font-inter">
 
-    <!-- Cabecera de Navegación -->
     <header class="bg-primary-link text-white shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-4">
-                <!-- Logo y Título -->
                 <div class="flex items-center space-x-3">
                     <span class="text-3xl">🏢 </span>
                     <h1 class="text-xl font-bold">Administrador</h1>
                 </div>
 
-                <!-- Menú de Navegación -->
                 <nav class="hidden md:flex items-center space-x-6">
-                    <!-- Menú Titulares -->
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Titulares</span>
@@ -137,7 +132,6 @@
                         </div>
                     </div>
 
-                    <!-- Menú Albaranes -->
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Albaranes</span>
@@ -149,7 +143,6 @@
                         </div>
                     </div>
 
-                    <!-- Menú Empresas -->
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Empresas</span>
@@ -163,7 +156,6 @@
                         </div>
                     </div>
 
-                    <!-- Menú Sistema -->
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Sistema</span>
@@ -179,16 +171,15 @@
                     </div>
 
                     <div class="flex space-x-3 mt-4 sm:mt-0">
-                        <button title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Imprimir PDF', 'Se imprimirá todo el listado actual de albaranes')">
+                        <button title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleGeneratePDF()">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
                         </button>
-                        <button title="Exportar a Word" class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Word', 'Se exportará el listado actual a formato Word')">
+                        <button title="Exportar a Word" class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Word', 'Función no implementada')">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
                         </button>
-                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Excel', 'Se exportará el listado actual a formato Excel')">
+                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleGenerateXLSX()">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M11 15h6"/><path d="M14 12v6"/><path d="M8 12h2"/><path d="M8 15h2"/><path d="M8 18h2"/></svg>
                         </button>
-                        <!-- Botón Salir -->
                         <button onclick="handleLogout()" 
                             title="Salir y cerrar sesión"
                             class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
@@ -198,7 +189,6 @@
                     
                 </nav>
 
-                <!-- Botón menú móvil -->
                 <button class="md:hidden p-2 rounded-lg hover:bg-orange-600 transition duration-200" onclick="toggleMobileMenu()">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -208,7 +198,6 @@
                 </button>
             </div>
 
-            <!-- Menú móvil -->
             <div id="mobileMenu" class="md:hidden hidden py-4 border-t border-orange-300">
                 <div class="space-y-2">
                     <a href="/admin/titulares" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Titulares Gestión</a>
@@ -230,7 +219,6 @@
 
     </header>
 
-    <!-- Modal de Acciones -->
     <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="showModal(false)">
         <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
             <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure">Acción Realizada</h3>
@@ -239,11 +227,9 @@
         </div>
     </div>
 
-    <!-- Contenido Principal -->
     <main class="p-4 sm:p-6 lg:p-8">
         <div class="max-w-[1800px] mx-auto">
 
-            <!-- Tarjeta Principal -->
             <div class="card mb-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-4">
                     <h1 class="text-2xl font-bold text-black-pure mb-3 sm:mb-0 flex items-center">
@@ -257,8 +243,7 @@
                
             </div>
 
-            <!-- Filtros de Búsqueda -->
-  <div class="card mb-8 filter-section">
+            <div class="card mb-8 filter-section">
             <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center">
                 <span class="mr-2">🔍</span>
                 Filtros de Búsqueda Avanzada
@@ -298,8 +283,6 @@
 
                 </div>
 
-                </div>
-                
                 <hr class="mb-6 border-gray-100">
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
@@ -358,8 +341,7 @@
                         <input type="date" 
                                id="fecha_desde" 
                                name="fecha_desde" 
-                               class="input-field text-xs"
-                               max="<?php echo date('Y-m-d'); ?>">
+                               class="input-field text-xs">
                     </div>
 
                     <div>
@@ -370,8 +352,7 @@
                         <input type="date" 
                                id="fecha_hasta" 
                                name="fecha_hasta" 
-                               class="input-field text-xs"
-                               max="<?php echo date('Y-m-d'); ?>">
+                               class="input-field text-xs">
                     </div>
                 </div>
 
@@ -391,9 +372,9 @@
                                        class="input-field flex-1 search-highlight"
                                        title="Busca en: nº albarán, referencia, conductor, DNI, matrícula, cliente, origen, destino, observaciones...">
                                 <button type="button" 
-                                        onclick="document.getElementById('palabra').value = '';"
-                                        class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
-                                        title="Limpiar búsqueda">
+                                         onclick="document.getElementById('palabra').value = '';"
+                                         class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
+                                         title="Limpiar búsqueda">
                                     <i data-lucide="x" class="h-4 w-4"></i>
                                 </button>
                             </div>
@@ -461,7 +442,6 @@
             </div>
 
 
-            <!-- Tabla de Resultados - Compacta -->
             <div class="shadow-lg rounded-xl border border-gray-100 compact-table">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-primary-link text-white">
@@ -486,473 +466,46 @@
                         </tr>
                     </thead>
                     <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
-                        <!-- Los resultados se cargan aquí mediante JavaScript -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
             <div id="statusMessage" class="hidden status-message text-sm" role="alert"></div>
         </div>
     </main>
-    
-    <script>
-        // Mocks de datos ACTUALIZADOS con 10 elementos y campos específicos de la BD
-        let mockAlbaranes = [
-            { 
-                id: 1,
-                numero_albaran: 'ENERO2025-804-1',
-                fecha: '2024-01-15', 
-                licencia_ref: 1,
-                empresa_ref: 1,
-                licencia: '001A', 
-                empresa_nombre: 'Mapfre', 
-                referencia: 'R45678', 
-                num_factura: 'FAC-2024-001',
-                enviado: 1,
-                cobrado: 1,
-                fecha_cobro: '2024-01-20',
-                pagado: 1,
-                fecha_pago: '2024-01-20',
-                observaciones_admin: 'Cobrado por transferencia',
-                created_at: '2024-01-15 10:30:00',
-                updated_at: '2024-01-20 14:45:00'
-            },
-            { 
-                id: 2,
-                numero_albaran: 'ENERO2025-804-2',
-                fecha: '2024-01-16', 
-                licencia_ref: 2,
-                empresa_ref: 2,
-                licencia: '002B', 
-                empresa_nombre: 'RACE', 
-                referencia: 'E90123', 
-                num_factura: null,
-                enviado: 1,
-                cobrado: 0,
-                fecha_cobro: null,
-                pagado: 0,
-                fecha_pago: null,
-                observaciones_admin: 'Pendiente de pago',
-                created_at: '2024-01-16 09:15:00',
-                updated_at: '2024-01-16 09:15:00'
-            },
-            { 
-                id: 3,
-                numero_albaran: 'ENERO2025-804-3',
-                fecha: '2024-01-17', 
-                licencia_ref: 3,
-                empresa_ref: 3,
-                licencia: '003C', 
-                empresa_nombre: 'Mutua Madrileña', 
-                referencia: 'M54321', 
-                num_factura: 'FAC-2024-003',
-                enviado: 1,
-                cobrado: 1,
-                fecha_cobro: '2024-01-25',
-                pagado: 1,
-                fecha_pago: '2024-01-25',
-                observaciones_admin: 'Servicio completado',
-                created_at: '2024-01-17 11:20:00',
-                updated_at: '2024-01-25 16:30:00'
-            },
-            { 
-                id: 4,
-                numero_albaran: 'ENERO2025-804-4',
-                fecha: '2024-01-18', 
-                licencia_ref: 4,
-                empresa_ref: 1,
-                licencia: '004D', 
-                empresa_nombre: 'Mapfre', 
-                referencia: 'R99887', 
-                num_factura: null,
-                enviado: 0,
-                cobrado: 0,
-                fecha_cobro: null,
-                pagado: 0,
-                fecha_pago: null,
-                observaciones_admin: 'Borrador inicial',
-                created_at: '2024-01-18 14:10:00',
-                updated_at: '2024-01-18 14:10:00'
-            },
-            { 
-                id: 5,
-                numero_albaran: 'ENERO2025-804-5',
-                fecha: '2024-01-19', 
-                licencia_ref: 5,
-                empresa_ref: 2,
-                licencia: '005E', 
-                empresa_nombre: 'RACE', 
-                referencia: 'E11223', 
-                num_factura: 'FAC-2024-005',
-                enviado: 1,
-                cobrado: 1,
-                fecha_cobro: '2024-01-22',
-                pagado: 1,
-                fecha_pago: '2024-01-22',
-                observaciones_admin: 'Cobrado en efectivo',
-                created_at: '2024-01-19 08:45:00',
-                updated_at: '2024-01-22 12:15:00'
-            },
-            { 
-                id: 6,
-                numero_albaran: 'ENERO2025-804-6',
-                fecha: '2024-01-14', 
-                licencia_ref: 6,
-                empresa_ref: 3,
-                licencia: '006F', 
-                empresa_nombre: 'Mutua Madrileña', 
-                referencia: 'A00001', 
-                num_factura: null,
-                enviado: 0,
-                cobrado: 0,
-                fecha_cobro: null,
-                pagado: 0,
-                fecha_pago: null,
-                observaciones_admin: 'Borrador pendiente de revisión',
-                created_at: '2024-01-14 16:30:00',
-                updated_at: '2024-01-14 16:30:00'
-            },
-            { 
-                id: 7,
-                numero_albaran: 'ENERO2025-804-7',
-                fecha: '2024-01-20', 
-                licencia_ref: 7,
-                empresa_ref: 1,
-                licencia: '007G', 
-                empresa_nombre: 'Mapfre', 
-                referencia: 'Z99999', 
-                num_factura: null,
-                enviado: 1,
-                cobrado: 0,
-                fecha_cobro: null,
-                pagado: 0,
-                fecha_pago: null,
-                observaciones_admin: 'Pendiente de pago',
-                created_at: '2024-01-20 13:25:00',
-                updated_at: '2024-01-20 13:25:00'
-            },
-            { 
-                id: 8,
-                numero_albaran: 'ENERO2025-804-8',
-                fecha: '2024-01-21', 
-                licencia_ref: 8,
-                empresa_ref: 2,
-                licencia: '008H', 
-                empresa_nombre: 'RACE', 
-                referencia: 'B22222', 
-                num_factura: 'FAC-2024-008',
-                enviado: 1,
-                cobrado: 1,
-                fecha_cobro: '2024-01-28',
-                pagado: 1,
-                fecha_pago: '2024-01-28',
-                observaciones_admin: 'Pagado con tarjeta',
-                created_at: '2024-01-21 10:00:00',
-                updated_at: '2024-01-28 11:30:00'
-            },
-            { 
-                id: 9,
-                numero_albaran: 'ENERO2025-804-9',
-                fecha: '2024-01-22', 
-                licencia_ref: 9,
-                empresa_ref: 3,
-                licencia: '009I', 
-                empresa_nombre: 'Mutua Madrileña', 
-                referencia: 'C33333', 
-                num_factura: null,
-                enviado: 0,
-                cobrado: 0,
-                fecha_cobro: null,
-                pagado: 0,
-                fecha_pago: null,
-                observaciones_admin: 'En proceso de creación',
-                created_at: '2024-01-22 15:45:00',
-                updated_at: '2024-01-22 15:45:00'
-            },
-            { 
-                id: 10,
-                numero_albaran: 'ENERO2025-804-10',
-                fecha: '2024-01-23', 
-                licencia_ref: 10,
-                empresa_ref: 1,
-                licencia: '010J', 
-                empresa_nombre: 'Mapfre', 
-                referencia: 'D44444', 
-                num_factura: 'FAC-2024-010',
-                enviado: 1,
-                cobrado: 1,
-                fecha_cobro: '2024-01-30',
-                pagado: 1,
-                fecha_pago: '2024-01-30',
-                observaciones_admin: 'Procesado correctamente',
-                created_at: '2024-01-23 09:20:00',
-                updated_at: '2024-01-30 17:00:00'
-            }
-        ];
-        
-        // Objeto para mantener el estado de la ordenación
-        let sortState = {
-            column: 'numero_albaran',
-            direction: 'asc' // 'asc' o 'desc'
-        };
 
+    <script src="/js/admin.js"></script>
+
+    <script>
         /**
-         * Alterna el menú desplegable
+         * Funciones de interfaz que dependen del layout (Header/Menús)
          */
         function toggleDropdown(button) {
-            // Cerrar todos los demás menús
             document.querySelectorAll('.dropdown').forEach(dropdown => {
-                if (dropdown !== button.parentElement) {
-                    dropdown.classList.remove('active');
-                }
+                if (dropdown !== button.parentElement) dropdown.classList.remove('active');
             });
-            
-            // Alternar el menú actual
             button.parentElement.classList.toggle('active');
         }
 
-        /**
-         * Cierra todos los menús desplegables
-         */
-        function closeAllDropdowns() {
-            document.querySelectorAll('.dropdown').forEach(dropdown => {
-                dropdown.classList.remove('active');
-            });
-        }
-
-        /**
-         * Alterna el menú móvil
-         */
         function toggleMobileMenu() {
             const mobileMenu = document.getElementById('mobileMenu');
             mobileMenu.classList.toggle('hidden');
         }
 
-        // Cerrar menús al hacer clic fuera de ellos
         document.addEventListener('click', function(event) {
             if (!event.target.closest('.dropdown')) {
-                closeAllDropdowns();
+                document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
             }
         });
 
-        /**
-         * Muestra/oculta el modal de mensajes
-         */
         function showModal(show, title = '', body = '') {
             const modal = document.getElementById('actionModal');
             document.getElementById('modalTitle').textContent = title;
             document.getElementById('modalBody').textContent = body;
             modal.classList.toggle('hidden', !show);
-            if (show) {
-                setTimeout(() => {
-                    modal.querySelector('div').classList.remove('scale-90');
-                }, 10);
-            } else {
-                modal.querySelector('div').classList.add('scale-90');
-            }
         }
 
-        /**
-         * Simula una acción y muestra el resultado en un modal.
-         */
-        function handleAction(action, itemId) {
-            let title = `${action} de Albarán`;
-            let message = `Se ha solicitado la acción "${action}" para el albarán/listado: ${itemId}.`;
-
-            if (action === 'Eliminar') {
-                 title = 'Confirmación de Eliminación';
-                 message = `ATENCIÓN: Se ha simulado la eliminación del albarán ${itemId}. En un entorno real, se requeriría una confirmación adicional.`;
-            } else if (action.includes('Exportar') || action.includes('Imprimir')) {
-                 title = 'Exportación Simulada';
-                 message = `El documento para "${itemId}" ha sido generado para ${action}.`;
-            }
-            
-            showModal(true, title, message);
-        }
-        
-        /**
-         * Devuelve la representación HTML del estado booleano.
-         */
-        function getBooleanHtml(value) {
-            if (value === 1 || value === true) {
-                return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-green-100 text-green-800">Sí</span>`;
-            } else {
-                return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-red-100 text-red-800">No</span>`;
-            }
-        }
-
-        /**
-         * Función principal de ordenación.
-         */
-        function sortTable(column) {
-            if (sortState.column === column) {
-                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortState.column = column;
-                sortState.direction = 'asc';
-            }
-
-            const sortedData = [...mockAlbaranes].sort((a, b) => {
-                let comparison = 0;
-                let aValue = a[column];
-                let bValue = b[column];
-
-                if (column === 'numero_albaran' || column === 'referencia' || column === 'num_factura') {
-                    if (aValue < bValue) {
-                        comparison = -1;
-                    } else if (aValue > bValue) {
-                        comparison = 1;
-                    }
-                } else if (column === 'fecha') {
-                    if (aValue < bValue) {
-                        comparison = -1;
-                    } else if (aValue > bValue) {
-                        comparison = 1;
-                    }
-                } else if (column === 'enviado' || column === 'cobrado' || column === 'pagado') {
-                    comparison = (aValue === bValue) ? 0 : aValue ? -1 : 1;
-                }
-
-                return sortState.direction === 'asc' ? comparison : comparison * -1;
-            });
-
-            mockAlbaranes = sortedData;
-            renderAlbaranes(mockAlbaranes);
-        }
-
-        /**
-         * Renderiza los iconos de ordenación en la tabla.
-         */
-        function renderSortIcons() {
-            document.querySelectorAll('.sort-icon').forEach(icon => {
-                icon.innerHTML = '';
-            });
-
-            const activeIconElement = document.getElementById(`sort-${sortState.column}`);
-            if (activeIconElement) {
-                if (sortState.direction === 'asc') {
-                    activeIconElement.innerHTML = `<svg data-lucide="chevron-up" class="h-3 w-3"></svg>`;
-                } else {
-                    activeIconElement.innerHTML = `<svg data-lucide="chevron-down" class="h-3 w-3"></svg>`;
-                }
-                lucide.createIcons();
-            }
-        }
-
-        /**
-         * Renderiza la tabla de albaranes.
-         */
-        function renderAlbaranes(data = mockAlbaranes) {
-            const resultsBody = document.getElementById('albaranResults');
-            resultsBody.innerHTML = '';
-
-            if (data.length === 0) {
-                resultsBody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron resultados que coincidan con los filtros.</td></tr>`;
-            } else {
-                data.forEach(albaran => {
-                    const row = `
-                        <tr class="hover:bg-primary-pastel/30 ${albaran.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
-                            <td class="px-3 py-2 whitespace-nowrap text-xs font-medium text-gray-900">${albaran.numero_albaran}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${albaran.fecha}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700">${albaran.licencia}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${albaran.empresa_nombre}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500 text-truncate">${albaran.referencia || '-'}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500 text-truncate">${albaran.num_factura || '-'}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${getBooleanHtml(albaran.enviado)}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${getBooleanHtml(albaran.cobrado)}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${getBooleanHtml(albaran.pagado)}</td>
-                            <td class="px-3 py-2 text-xs text-gray-600 text-truncate max-w-[120px]">${albaran.observaciones_admin || ''}</td>
-                            <td class="px-3 py-2 whitespace-nowrap text-center text-xs font-medium">
-                                <div class="flex justify-center space-x-1">
-                                    <button onclick="handleAction('Ver', '${albaran.numero_albaran}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-0.5 rounded-full hover:bg-blue-100 transition active:scale-90">
-                                        <i data-lucide="eye" class="h-3 w-3"></i>
-                                    </button>
-                                    <button onclick="handleAction('Editar', '${albaran.numero_albaran}')" title="Editar albarán" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
-                                        <i data-lucide="pencil" class="h-3 w-3"></i>
-                                    </button>
-                                    <button onclick="handleAction('Copiar', '${albaran.numero_albaran}')" title="Duplicar albarán" class="text-purple-500 hover:text-purple-700 p-0.5 rounded-full hover:bg-purple-100 transition active:scale-90">
-                                        <i data-lucide="copy" class="h-3 w-3"></i>
-                                    </button>
-                                    <button onclick="handleAction('Eliminar', '${albaran.numero_albaran}')" title="Eliminar albarán" class="text-red-500 hover:text-red-700 p-0.5 rounded-full hover:bg-red-100 transition active:scale-90">
-                                        <i data-lucide="trash-2" class="h-3 w-3"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                    resultsBody.insertAdjacentHTML('beforeend', row);
-                });
-            }
-
-            lucide.createIcons();
-            renderSortIcons();
-        }
-
-        /**
-         * Maneja el envío del formulario de búsqueda (simulado).
-         */
-        function handleSearch(event) {
-            event.preventDefault();
-            const form = event.target;
-            const formData = new FormData(form);
-            const searchParams = Object.fromEntries(formData.entries());
-
-            const statusMessage = document.getElementById('statusMessage');
-            
-            console.log("Parámetros de búsqueda:", searchParams);
-
-            const filteredResults = mockAlbaranes.filter(albaran => {
-                const matchCompany = !searchParams.empresa || albaran.empresa_nombre.toLowerCase() === searchParams.empresa;
-                const matchState = !searchParams.state || albaran.state === searchParams.state;
-                const matchLicencia = !searchParams.licencia || albaran.licencia.toLowerCase().includes(searchParams.licencia.toLowerCase());
-                const matchReferencia = !searchParams.referencia || (albaran.referencia && albaran.referencia.toLowerCase().includes(searchParams.referencia.toLowerCase()));
-                
-                return matchCompany && matchState && matchLicencia && matchReferencia;
-            });
-            
-            mockAlbaranes = filteredResults; 
-            renderAlbaranes(mockAlbaranes);
-
-            statusMessage.textContent = `Búsqueda realizada con éxito. Mostrando ${filteredResults.length} resultados.`;
-            statusMessage.className = 'status-message status-success';
-            statusMessage.classList.remove('hidden');
-
-            setTimeout(() => {
-                statusMessage.classList.add('hidden');
-            }, 3000);
-        }
-
-        /**
-         * Muestra un mensaje de alerta en la parte inferior de la tabla.
-         */
-        function alertMessage(message, type) {
-            const statusMessage = document.getElementById('statusMessage');
-            
-            statusMessage.className = 'hidden status-message'; 
-
-            const alertClasses = {
-                success: 'status-success',
-                error: 'status-error',
-                info: 'status-info',
-                neutral: 'status-neutral',
-            };
-
-            const chosenClass = alertClasses[type] || alertClasses.info;
-
-            statusMessage.classList.add(chosenClass);
-            statusMessage.classList.remove('hidden');
-
-            let icon = '';
-            if (type === 'success') icon = '✅ ';
-            else if (type === 'error') icon = '❌ ';
-            else if (type === 'info') icon = 'ℹ️ ';
-            
-            statusMessage.textContent = icon + message;
-        }
-
-        // Inicialización al cargar la página
-        window.onload = function() {
-            sortTable('numero_albaran'); 
-        };
+        // Carga inicial de iconos
+        lucide.createIcons();
     </script>
 </body>
 </html>
