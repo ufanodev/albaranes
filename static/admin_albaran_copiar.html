@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Copiar Albarán</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+
+        .input-group { @apply bg-white p-8 rounded-3xl shadow-2xl border-2 border-gray-100 mb-8; }
+        .label-title { @apply block text-xs font-black text-gray-500 uppercase tracking-widest mb-2 ml-1; }
+        
+        .input-field { 
+            @apply w-full px-4 py-3 border-2 border-gray-300 rounded-xl font-bold text-gray-800
+                   focus:ring-4 focus:ring-orange-100 focus:border-orange-500 outline-none 
+                   transition-all bg-gray-50 shadow-sm; 
+        }
+        
+        .checkbox-card { 
+            @apply flex items-center gap-3 p-4 bg-white rounded-2xl border-2 border-gray-200 
+                   hover:border-orange-400 hover:bg-orange-50 transition-all cursor-pointer font-black text-xs text-gray-700; 
+        }
+        
+        .checkbox-card input[type="checkbox"] { @apply w-6 h-6 accent-orange-600; }
+
+        .admin-section { @apply border-l-[12px] border-l-orange-500 bg-orange-50/40; }
+    </style>
+</head>
+<body class="bg-gray-200 p-4 md:p-10">
+
+    <div class="max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-10 bg-white p-8 rounded-3xl shadow-xl border-b-8 border-orange-500">
+            <div>
+                <h1 class="text-4xl font-black text-gray-900 tracking-tighter uppercase italic">Copiar Albarán <span id="header_id" class="text-orange-600">...</span></h1>
+                <p class="text-gray-400 font-bold uppercase text-xs tracking-widest mt-1">Generando nuevo registro a partir de origen</p>
+            </div>
+            <button onclick="window.location.href='/admin'" class="bg-gray-900 hover:bg-black text-white font-black py-4 px-8 rounded-2xl shadow-lg active:scale-95 transition-all">
+                CANCELAR
+            </button>
+        </div>
+
+        <form id="copyForm"> <div class="input-group">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="md:col-span-2">
+                        <label class="label-title">Nº Albarán Maestro (Nuevo)</label>
+                        <input type="text" id="numero_albaran" name="numero_albaran" class="input-field border-orange-300 text-orange-900 text-lg" required>
+                    </div>
+                    <div>
+                        <label class="label-title">Fecha Servicio</label>
+                        <input type="date" id="fecha" name="fecha" class="input-field" required>
+                    </div>
+                    <div>
+                        <label class="label-title">Referencia Cliente</label>
+                        <input type="text" id="referencia" name="referencia" class="input-field">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <div>
+                        <label class="label-title">Licencia Asignada</label>
+                        <select id="licencia_ref" name="licencia_ref" class="input-field border-l-8 border-orange-500 font-black"></select>
+                    </div>
+                    <div>
+                        <label class="label-title">Empresa Pagadora</label>
+                        <select id="empresa_ref" name="empresa_ref" class="input-field border-l-8 border-orange-500 font-black"></select>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <label class="label-title">Conductor Asignado</label>
+                    <select id="asalariado" name="asalariado" class="input-field">
+                        <option value="">-- Seleccione Conductor --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div><label class="label-title">Hora Salida</label><input type="time" id="hora" name="hora" class="input-field"></div>
+                    <div><label class="label-title">DNI Pasajero</label><input type="text" id="dni_pasajero" name="dni_pasajero" class="input-field"></div>
+                    <div><label class="label-title">Matrícula</label><input type="text" id="matricula" name="matricula" class="input-field uppercase font-mono"></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <input type="text" id="cliente" name="cliente" class="input-field" placeholder="Cliente / Pasajero">
+                    <input type="text" id="origen" name="origen" class="input-field" placeholder="Origen">
+                    <input type="text" id="parada" name="parada" class="input-field" placeholder="Paradas">
+                    <input type="text" id="destino" name="destino" class="input-field" placeholder="Destino">
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-8">
+                    <label class="checkbox-card"><input type="checkbox" id="urbano" name="urbano"> URBANO</label>
+                    <label class="checkbox-card"><input type="checkbox" id="diurno" name="diurno"> DIURNO</label>
+                    <label class="checkbox-card"><input type="checkbox" id="noct_fest" name="noct_fest"> NOCT/FEST</label>
+                    <label class="checkbox-card"><input type="checkbox" id="festivo" name="festivo"> FESTIVO</label>
+                    <label class="checkbox-card"><input type="checkbox" id="enganche" name="enganche"> ENGANCHE</label>
+                    <label class="checkbox-card bg-green-50 border-green-200 text-green-700 font-black"><input type="checkbox" id="finalizado" name="finalizado"> FINALIZADO</label>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-10 border-t-2 pt-8">
+                    <div><label class="label-title text-orange-700">KM Totales</label><input type="number" step="0.01" id="km_totales" name="km_totales" class="input-field border-orange-300 font-black"></div>
+                    <div><label class="label-title">KM Nac.</label><input type="number" step="0.01" id="km_nacionales" name="km_nacionales" class="input-field"></div>
+                    <div><label class="label-title">KM Inter.</label><input type="number" step="0.01" id="km_internacionales" name="km_internacionales" class="input-field"></div>
+                    <div><label class="label-title">Espera (HH:MM)</label><input type="time" id="tiempo_espera" name="tiempo_espera" class="input-field"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 bg-gray-100 p-6 rounded-2xl">
+                    <div><label class="label-title">Suplidos €</label><input type="number" step="0.01" id="importe_suplidos" name="importe_suplidos" class="input-field bg-white"></div>
+                    <div><label class="label-title text-orange-700">Importe Total €</label><input type="number" step="0.01" id="importe_total" name="importe_total" class="input-field bg-white border-orange-500 font-black text-2xl text-orange-700"></div>
+                    <div><label class="label-title">Plazas</label><input type="number" id="num_plazas" name="num_plazas" class="input-field bg-white"></div>
+                </div>
+            </div>
+
+            <div class="input-group admin-section">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="flex flex-col">
+                        <label class="label-title font-black text-gray-700 uppercase tracking-tighter text-sm mb-2">Observaciones Conductor</label>
+                        <textarea id="observaciones" name="observaciones" rows="3" class="input-field font-medium bg-white shadow-inner"></textarea>
+                    </div>
+                    <div class="flex flex-col">
+                        <label class="label-title font-black text-red-600 uppercase tracking-tighter text-sm mb-2">Observaciones Admin</label>
+                        <textarea id="observaciones_admin" name="observaciones_admin" rows="3" class="input-field border-orange-300 bg-white text-orange-900 font-bold shadow-inner"></textarea>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10 items-end">
+                    <div>
+                        <label class="label-title font-black">Nº Factura Asociada</label>
+                        <input type="text" id="num_factura" name="num_factura" class="input-field border-orange-400 bg-white font-black text-orange-900 shadow-md">
+                    </div>
+                    <div class="flex h-[58px]">
+                        <label class="checkbox-card w-full border-orange-300 bg-white shadow-md">
+                            <input type="checkbox" id="enviado" name="enviado"> MARCADO COMO ENVIADO
+                        </label>
+                    </div>
+                    <div>
+                        <label class="label-title font-black">Autorizado Por (Firma)</label>
+                        <input type="text" id="autorizado_por" name="autorizado_por" class="input-field bg-white shadow-md">
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap md:flex-nowrap gap-4 items-end bg-white p-8 rounded-3xl border-2 border-orange-100 shadow-inner mt-8">
+                    <div class="flex-none min-w-[240px]">
+                        <label class="checkbox-card bg-orange-600 text-white border-none shadow-xl h-[58px]">
+                            <input type="checkbox" id="cobrado" name="cobrado"> COBRADO A EMPRESA
+                        </label>
+                    </div>
+                    <div class="flex-1">
+                        <label class="label-title">Fecha Cobro Real</label>
+                        <input type="date" id="fecha_cobro" name="fecha_cobro" class="input-field border-orange-200">
+                    </div>
+                    <div class="hidden md:block w-px h-16 bg-gray-200 mx-4"></div>
+                    <div class="flex-none min-w-[240px]">
+                        <label class="checkbox-card bg-green-600 text-white border-none shadow-xl h-[58px]">
+                            <input type="checkbox" id="pagado" name="pagado"> PAGADO AL TITULAR
+                        </label>
+                    </div>
+                    <div class="flex-1">
+                        <label class="label-title">Fecha Pago Liquidación</label>
+                        <input type="date" id="fecha_pago" name="fecha_pago" class="input-field border-green-200">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-6 items-center my-16">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-black text-2xl py-6 px-24 rounded-3xl shadow-[0_20px_60px_rgba(37,99,235,0.4)] transition-all transform hover:-translate-y-2 active:scale-95">
+                    CREAR NUEVO (COPIA)
+                </button>
+                <div id="statusMessage" class="hidden font-black text-green-600 text-xl"></div>
+                <div id="errorMessage" class="hidden font-black text-red-600 text-lg bg-red-50 p-6 rounded-2xl border-2 border-red-200 shadow-xl"></div>
+            </div>
+        </form>
+    </div>
+
+    <script src="/js/admin_albaran_cargar.js"></script>
+    <script src="/js/admin_albaran_copiar.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>

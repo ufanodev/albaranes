@@ -4,7 +4,6 @@ import (
 	"albaranes/models"
 	"albaranes/utils"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -130,7 +129,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = strings.Title(key)
 		}
 
-		// Fix Horas (HH:MM -> time.Time) - Evita Error 1292
+		// Fix Horas (HH:MM -> time.Time)
 		if key == "hora" || key == "tiempo_espera" {
 			str, ok := value.(string)
 			if !ok || strings.TrimSpace(str) == "" {
@@ -214,7 +213,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"data": albaran})
 }
 
-// 👑 UPDATE ADMIN: Todo menos ID, CreatedAt, UpdatedAt
 func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
@@ -223,23 +221,37 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 		return
 	}
 	var input map[string]interface{}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ JSON inválido"})
-		return
-	}
-
+	c.ShouldBindJSON(&input)
 	cleanInput := cleanAlbaranMap(input, albaran)
-	log.Printf("📤 [GORM ADMIN] Update ID %s con datos: %+v", id, cleanInput)
-
-	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
-		log.Printf("🔴 [DB ERROR]: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar registro"})
-		return
-	}
+	db.Model(&albaran).Updates(cleanInput)
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado por Admin", "data": albaran})
 }
 
-// 👤 UPDATE USER: Bloquea ID, NumeroAlbaran y Licencia
+// 👑 COPY ALBARAN ADMIN
+func CopyAlbaranAdmin(c *gin.Context, db *gorm.DB) {
+	var input map[string]interface{}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Datos inválidos"})
+		return
+	}
+
+	// Limpiar IDs para forzar creación de nuevo registro
+	delete(input, "id")
+	delete(input, "ID")
+	delete(input, "created_at")
+	delete(input, "updated_at")
+
+	// Usamos una fecha base de hoy para el parseo inicial de tiempos si fuera necesario
+	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
+
+	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al crear la copia"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán copiado con éxito", "data": cleanInput})
+}
+
 func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
@@ -249,16 +261,11 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	}
 	var input map[string]interface{}
 	c.ShouldBindJSON(&input)
-
 	delete(input, "id")
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
-
 	cleanInput := cleanAlbaranMap(input, albaran)
-	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar"})
-		return
-	}
+	db.Model(&albaran).Updates(cleanInput)
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado correctamente", "data": albaran})
 }
 
@@ -280,16 +287,9 @@ func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
 }
 
-// ---------------------------------------------------------------------
-// EXPORTACIÓN
-// ---------------------------------------------------------------------
-
 func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 	var req ExportRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
-		return
-	}
+	c.ShouldBindJSON(&req)
 	var mappedData []utils.TitularData
 	for _, m := range req.Data {
 		mappedData = append(mappedData, utils.TitularData(m))
@@ -300,10 +300,7 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 
 func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 	var req ExportRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
-		return
-	}
+	c.ShouldBindJSON(&req)
 	var mappedData []utils.TitularData
 	for _, m := range req.Data {
 		mappedData = append(mappedData, utils.TitularData(m))

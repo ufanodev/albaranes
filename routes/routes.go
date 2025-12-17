@@ -83,7 +83,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_view.html", nil) })
 			adminViews.GET("/albaranes/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_update.html", nil) })
 			adminViews.GET("/albaranes/borrar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_borrar.html", nil) })
-			adminViews.GET("/albaranes/copiar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
+
+			// 🆕 Vista para COPIAR (Usa el nuevo template html)
+			adminViews.GET("/albaranes/copiar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_copiar.html", nil) })
 
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
@@ -186,13 +188,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albaranGroup.GET("/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 				albaranGroup.POST("/", func(c *gin.Context) { controllers.CreateAlbaran(c, db) })
 
-				// 🛡️ RUTAS DIFERENCIADAS POR ROL (Corregido)
-				// El endpoint normal usa UpdateAlbaranUser
+				// 🆕 Endpoint API para COPIAR (Crea un nuevo registro)
+				albaranGroup.POST("/copy", func(c *gin.Context) { controllers.CopyAlbaranAdmin(c, db) })
+
 				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaranUser(c, db) })
-
-				// El endpoint de admin usa UpdateAlbaranAdmin (Poder Total)
 				albaranGroup.PUT("/admin/:id", func(c *gin.Context) { controllers.UpdateAlbaranAdmin(c, db) })
-
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
 				albaranGroup.PUT("/bulk-pay", func(c *gin.Context) { controllers.BulkChargeAlbaranes(c, db) })
 				albaranGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
