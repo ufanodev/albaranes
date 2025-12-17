@@ -1,6 +1,6 @@
 /**
- * admin.js - Gestión de Albaranes para Administrador
- * Versión: MASTER UNIFICADO (Combos + Búsqueda + 4 Acciones + Exportación + View Admin)
+ * admin.js - Gestión Maestra de Albaranes
+ * Versión: MASTER (Logs de Trazabilidad, Búsqueda Pro, Diccionarios y Acciones CRUD)
  */
 
 const APP = {
@@ -61,7 +61,7 @@ const UI = {
 
     setSearchModeManual(mode) {
         APP.state.modeIsManual = true;
-        console.log(`🔄 [MODE] Cambiando a modo: ${mode.toUpperCase()}`);
+        console.log(`🔄 [MODE] Cambio manual de búsqueda a: ${mode.toUpperCase()}`);
         this.setSearchMode(mode);
         API.searchAlbaranes(Filters.getFiltersFromForm());
     },
@@ -76,11 +76,7 @@ const UI = {
                 palabraInput.parentElement.style.opacity = "1";
             }
             specificFields.forEach(f => { 
-                if(f) { 
-                    f.disabled = true; 
-                    f.classList.add('bg-gray-100'); 
-                    f.parentElement.style.opacity = "0.5";
-                }
+                if(f) { f.disabled = true; f.classList.add('bg-gray-100'); f.parentElement.style.opacity = "0.5"; }
             });
         } else if (mode === 'campos') {
             if(palabraInput) {
@@ -90,11 +86,7 @@ const UI = {
                 palabraInput.parentElement.style.opacity = "0.5";
             }
             specificFields.forEach(f => { 
-                if(f) { 
-                    f.disabled = false; 
-                    f.classList.remove('bg-gray-100'); 
-                    f.parentElement.style.opacity = "1";
-                }
+                if(f) { f.disabled = false; f.classList.remove('bg-gray-100'); f.parentElement.style.opacity = "1"; }
             });
         }
         UI.updateActiveFiltersCount();
@@ -116,8 +108,8 @@ const UI = {
 
     updatePaginationButtons() {
         const { prevBtn, nextBtn } = APP.elements;
-        prevBtn.disabled = APP.state.currentPage <= 1;
-        nextBtn.disabled = APP.state.currentPage >= (APP.state.totalPages || 1);
+        if(prevBtn) prevBtn.disabled = APP.state.currentPage <= 1;
+        if(nextBtn) nextBtn.disabled = APP.state.currentPage >= (APP.state.totalPages || 1);
     },
 
     updateActiveFiltersCount() {
@@ -129,7 +121,7 @@ const UI = {
 };
 
 // =================================================================================
-// 🔍 FILTER & EXPORT LOGIC
+// 🔍 FILTER & SORT LOGIC
 // =================================================================================
 
 const Filters = {
@@ -145,88 +137,46 @@ const Filters = {
             palabra: formData.get('palabra') || '',
             search_type: formData.get('search_type') || 'exacta'
         };
-        if (APP.state.searchMode === 'palabra') { f.licencia_ref = ''; f.empresa_ref = ''; f.state = ''; f.referencia = ''; f.fecha_ini = ''; f.fecha_fin = ''; }
-        if (APP.state.searchMode === 'campos') { f.palabra = ''; }
         return f;
-    },
-
-    sortTable(key) {
-        const { currentSort } = APP.state;
-        let dir = (currentSort.key === key && currentSort.direction === 'asc') ? 'desc' : 'asc';
-        APP.state.filteredAlbaranes.sort((a, b) => {
-            let va = a[key] || '', vb = b[key] || '';
-            if (key === 'fecha') { va = new Date(va).getTime(); vb = new Date(vb).getTime(); }
-            return dir === 'asc' ? (va > vb ? 1 : -1) : (va < vb ? 1 : -1);
-        });
-        APP.state.currentSort = { key, direction: dir };
-        DOM.renderResults();
     }
 };
 
 // =================================================================================
-// 📄 EXPORT MODULE (POST -> GIN)
-// =================================================================================
-
-const Exportation = {
-    async handle(fmt) {
-        if (!APP.state.filteredAlbaranes.length) return UI.alertMessage("No hay datos para exportar", "error");
-        
-        const dataForExport = APP.state.filteredAlbaranes.map(a => ({
-            "N_Alb": String(a.numero_albaran || '-'),
-            "Fecha": UI.formatDate(a.fecha),
-            "Licencia": String(a.LicenciaData?.licencia || a.licencia_ref || '-'),
-            "Empresa": String(a.EmpresaData?.nombre || a.empresa_ref || '-'),
-            "Referencia": String(a.referencia || '-'),
-            "Importe": parseFloat(a.importe_total || 0).toFixed(2) + "€",
-            "Env": a.enviado ? 'S' : 'N',
-            "Cob": a.cobrado ? 'S' : 'N',
-            "Pag": a.pagado ? 'S' : 'N'
-        }));
-
-        const payload = { reportName: `Reporte_Admin_${fmt.toUpperCase()}`, data: dataForExport };
-        console.log(`📤 [JSON ENTRADA -> GIN] Generando ${fmt}:`, payload);
-
-        try {
-            const r = await fetch(`/api/v1/albaranes/export/${fmt}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const res = await r.json();
-            console.log(`📥 [JSON SALIDA <- GIN] Respuesta:`, res);
-            if (res.success) window.open(res.downloadURL, '_blank');
-        } catch (e) { UI.alertMessage("Error de exportación", "error"); }
-    }
-};
-
-// =================================================================================
-// 🌐 API SERVICES (CARGA DE COMBOS Y BÚSQUEDA)
+// 🌐 API SERVICES
 // =================================================================================
 
 const API = {
     async loadEmpresas() {
+        console.log("📡 [API] Cargando empresas...");
         try {
             const r = await fetch('/api/v1/empresas');
             const d = await r.json();
             const list = d.data || d;
-            APP.elements.empresaSelect.innerHTML = '<option value="">📋 Todas las empresas</option>' + 
-                list.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
-        } catch (e) { console.error("❌ Error cargando empresas:", e); }
+            if (APP.elements.empresaSelect) {
+                APP.elements.empresaSelect.innerHTML = '<option value="">📋 Todas las empresas</option>' + 
+                    list.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+            }
+            console.log(`✅ [API] ${list.length} empresas cargadas.`);
+        } catch (e) { console.error("❌ [API] Error empresas:", e); }
     },
 
     async loadLicencias() {
+        console.log("📡 [API] Cargando licencias...");
         try {
             const r = await fetch('/api/v1/licencias');
             const d = await r.json();
             const list = d.data || d;
-            APP.elements.licenciaSelect.innerHTML = '<option value="">🆔 Todas las licencias</option>' + 
-                list.map(l => `<option value="${l.id}">${l.licencia}</option>`).join('');
-        } catch (e) { console.error("❌ Error cargando licencias:", e); }
+            if (APP.elements.licenciaSelect) {
+                APP.elements.licenciaSelect.innerHTML = '<option value="">🆔 Todas las licencias</option>' + 
+                    list.map(l => `<option value="${l.id}">${l.licencia}</option>`).join('');
+            }
+            console.log(`✅ [API] ${list.length} licencias cargadas.`);
+        } catch (e) { console.error("❌ [API] Error licencias:", e); }
     },
 
     async searchAlbaranes(filters) {
         DOM.showLoading();
-        console.log("📤 [API REQUEST] Filtros enviados:", filters);
+        console.log("🔍 [BUSCADOR] Iniciando búsqueda con filtros:", filters);
         try {
             const params = new URLSearchParams();
             Object.entries(filters).forEach(([k, v]) => { if(v) params.append(k, v); });
@@ -234,22 +184,27 @@ const API = {
 
             const response = await fetch(`/api/v1/albaranes/search?${params.toString()}`);
             const data = await response.json();
-            console.log("📥 [API RESPONSE] Registros recibidos:", data.data?.length || 0);
             
             APP.state.filteredAlbaranes = data.data || [];
+            console.log(`📥 [BUSCADOR] ${APP.state.filteredAlbaranes.length} registros encontrados.`);
+            
             APP.state.currentPage = 1;
             DOM.renderResults();
-        } catch (e) { UI.alertMessage("Error de conexión", "error"); DOM.showNoResults(); }
+        } catch (e) { 
+            console.error("❌ [BUSCADOR] Error en búsqueda:", e);
+            UI.alertMessage("Error de conexión", "error"); 
+            DOM.showNoResults(); 
+        }
     }
 };
 
 // =================================================================================
-// 🖼️ DOM RENDER (Las 4 Acciones + Tabla)
+// 🖼️ DOM RENDER
 // =================================================================================
 
 const DOM = {
-    showLoading() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-10 italic">Buscando...</td></tr>'; },
-    showNoResults() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-10 text-red-500 font-bold">📭 No hay resultados</td></tr>'; },
+    showLoading() { if(APP.elements.resultsBody) APP.elements.resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-10 italic">Buscando en la base de datos...</td></tr>'; },
+    showNoResults() { if(APP.elements.resultsBody) APP.elements.resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-10 text-red-500 font-bold">📭 No se han encontrado albaranes activos</td></tr>'; },
 
     renderResults() {
         const { resultsBody } = APP.elements;
@@ -268,8 +223,8 @@ const DOM = {
             tr.innerHTML = `
                 <td class="px-3 py-2 text-xs font-bold text-gray-900">${a.numero_albaran || 'N/A'}</td>
                 <td class="px-3 py-2 text-xs text-gray-600">${UI.formatDate(a.fecha)}</td>
-                <td class="px-3 py-2 text-xs font-bold text-blue-600">${a.LicenciaData?.licencia || a.licencia_ref || 'N/A'}</td>
-                <td class="px-3 py-2 text-xs text-gray-800">${a.EmpresaData?.nombre || a.empresa_ref || 'N/A'}</td>
+                <td class="px-3 py-2 text-xs font-bold text-blue-600">${a.LicenciaData?.licencia || a.licencia || 'N/A'}</td>
+                <td class="px-3 py-2 text-xs text-gray-800">${a.EmpresaData?.nombre || a.empresa_nombre || 'N/A'}</td>
                 <td class="px-3 py-2 text-xs text-gray-500">${a.referencia || '-'}</td>
                 <td class="px-3 py-2 text-xs text-gray-500">${a.num_factura || '-'}</td>
                 <td class="px-3 py-2 text-xs text-center">${a.enviado ? '✅' : '❌'}</td>
@@ -293,23 +248,81 @@ const DOM = {
 };
 
 // =================================================================================
-// 🌍 GLOBAL BINDINGS
+// 🌍 GLOBAL BINDINGS & DELETE LOGIC
 // =================================================================================
 
-window.handleGeneratePDF = () => Exportation.handle('pdf');
-window.handleGenerateXLSX = () => Exportation.handle('xlsx');
 window.handleSearch = (e) => { if(e) e.preventDefault(); API.searchAlbaranes(Filters.getFiltersFromForm()); };
-window.handleClearAllFilters = () => { APP.elements.searchForm.reset(); APP.state.searchMode = 'todos'; UI.setSearchMode('todos'); API.searchAlbaranes({}); };
-window.sortTable = (k) => Filters.sortTable(k);
+window.handleClearAllFilters = () => { console.log("🧹 [SISTEMA] Limpiando filtros..."); APP.elements.searchForm.reset(); APP.state.searchMode = 'todos'; UI.setSearchMode('todos'); API.searchAlbaranes({}); };
 
-// 🔍 Ruta administrativa para cargar admin_albaran_view.html
-window.handleViewAction = (id) => window.location.href = `/admin/albaranes/view/${id}`;
+window.handleViewAction = (id) => {
+    console.log(`👁️ Cargando vista para ID: ${id}`);
+    window.location.href = `/admin/albaranes/view/${id}`;
+};
 
-window.handleEditAction = (id) => window.location.href = `/admin/albaranes/update/${id}`;
-window.handleCopyAction = (id) => window.location.href = `/admin/albaranes/copiar/${id}`;
-window.handleDeleteAction = (id) => { if(confirm("¿Seguro que desea eliminar este albarán?")) window.location.href = `/admin/albaranes/borrar/${id}`; };
-window.toggleDropdown = (btn) => { const d = btn.closest('.dropdown'); document.querySelectorAll('.dropdown').forEach(x => x.classList.remove('active')); d?.classList.toggle('active'); };
-window.handleLogout = () => { window.location.href = '/login'; };
+window.handleEditAction = (id) => {
+    console.log(`✏️ Cargando edición para ID: ${id}`);
+    window.location.href = `/admin/albaranes/update/${id}`;
+};
+
+window.handleCopyAction = (id) => {
+    console.log(`👯 Copiando registro ID: ${id}`);
+    window.location.href = `/admin/albaranes/copiar/${id}`;
+};
+
+// 🗑️ BORRADO LÓGICO INTEGRADO CON LOGS
+window.handleDeleteAction = async (id) => {
+    console.log(`--- 🗑️ INICIO PROCESO BORRADO (ID: ${id}) ---`);
+    const albaran = APP.state.filteredAlbaranes.find(a => a.id === id);
+    
+    if (!albaran) {
+        console.error(`❌ [ERROR] ID ${id} no localizado en memoria local.`);
+        return;
+    }
+
+    const nAlb   = albaran.numero_albaran || 'N/A';
+    const fecha  = UI.formatDate(albaran.fecha);
+    const lic    = albaran.LicenciaData?.licencia || albaran.licencia || 'N/A';
+    
+    console.log(`📄 [DATA] Confirmando borrado: Alb=${nAlb}, Fecha=${fecha}, Lic=${lic}`);
+
+    const confirmMsg = `¿ESTÁ SEGURO DE ELIMINAR ESTE ALBARÁN?\n\n` +
+                       `🆔 ID: ${id}\n` +
+                       `📄 Nº Albarán: ${nAlb}\n` +
+                       `📅 Fecha: ${fecha}\n` +
+                       `🪪 Licencia: ${lic}\n\n` +
+                       `Esta acción realizará un borrado lógico.`;
+
+    if (confirm(confirmMsg)) {
+        console.log(`📡 [API] Enviando petición DELETE a /api/v1/albaranes/${id}`);
+        try {
+            const response = await fetch(`/api/v1/albaranes/${id}`, { method: 'DELETE' });
+            const result = await response.json();
+
+            if (response.ok) {
+                console.log(`✅ [SUCCESS] Servidor confirmó borrado lógico.`);
+                alert(`✅ OPERACIÓN EXITOSA\n\nEl albarán #${id} (Nº ${nAlb}) ha sido eliminado correctamente.`);
+                
+                APP.state.filteredAlbaranes = APP.state.filteredAlbaranes.filter(a => a.id !== id);
+                DOM.renderResults();
+                UI.alertMessage(`✅ Albarán ${nAlb} borrado`, "success");
+            } else {
+                console.error(`🔴 [API ERROR] ${result.error}`);
+                throw new Error(result.error);
+            }
+        } catch (err) {
+            console.error(`❌ [CRITICAL]`, err);
+            alert(`❌ ERROR AL BORRAR: ${err.message}`);
+        }
+    }
+    console.log(`--- 🏁 FIN PROCESO BORRADO ---`);
+};
+
+window.toggleDropdown = (btn) => { 
+    const d = btn.closest('.dropdown'); 
+    document.querySelectorAll('.dropdown').forEach(x => { if(x !== d) x.classList.remove('active'); }); 
+    d?.classList.toggle('active'); 
+};
+window.handleLogout = () => { console.log("🚪 Cerrando sesión..."); window.location.href = '/login'; };
 window.UI = UI;
 
 // =================================================================================
@@ -317,21 +330,22 @@ window.UI = UI;
 // =================================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("🚀 [MASTER UNIFICADO] admin.js: Cargando sistema...");
+    console.log("🚀 [SISTEMA] Panel Administrador Iniciado.");
     
+    console.time("⏱️ Carga Diccionarios");
     await Promise.all([API.loadEmpresas(), API.loadLicencias()]);
+    console.timeEnd("⏱️ Carga Diccionarios");
 
     if (APP.elements.recordsSelect) {
         APP.elements.recordsSelect.onchange = (e) => {
-            const val = e.target.value;
-            APP.state.pageSize = val === 'todos' ? 9999 : parseInt(val);
+            APP.state.pageSize = e.target.value === 'todos' ? 9999 : parseInt(e.target.value);
             APP.state.currentPage = 1;
             DOM.renderResults();
         };
     }
     
-    APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
-    APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
+    if(APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
+    if(APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
 
     UI.setSearchMode('todos');
     API.searchAlbaranes(Filters.getFiltersFromForm());

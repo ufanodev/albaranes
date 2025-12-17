@@ -16,53 +16,7 @@ import (
 const dateFormat = "2006-01-02"
 
 // ---------------------------------------------------------------------
-// ESTRUCTURAS DE ENTRADA
-// ---------------------------------------------------------------------
-
-type BulkIDsInput struct {
-	IDs []uint `json:"ids" binding:"required"`
-}
-
-type CreateAlbaranDTO struct {
-	NumeroAlbaran      string  `json:"numero_albaran" binding:"required"`
-	Fecha              string  `json:"fecha" binding:"required"`
-	LicenciaRef        uint    `json:"licencia_ref" binding:"required"`
-	EmpresaRef         uint    `json:"empresa_ref" binding:"required"`
-	Referencia         string  `json:"referencia"`
-	Asalariado         string  `json:"asalariado"`
-	Hora               string  `json:"hora"`
-	DNIPasajero        string  `json:"dni_pasajero"`
-	Matricula          string  `json:"matricula"`
-	Cliente            string  `json:"cliente"`
-	Origen             string  `json:"origen"`
-	Parada             string  `json:"parada"`
-	Destino            string  `json:"destino"`
-	Urbano             bool    `json:"urbano"`
-	Diurno             bool    `json:"diurno"`
-	NoctFest           bool    `json:"noct_fest"`
-	Festivo            bool    `json:"festivo"`
-	Finalizado         bool    `json:"finalizado"`
-	Enganche           bool    `json:"enganche"`
-	NumPlazas          int     `json:"num_plazas"`
-	KmTotales          float64 `json:"km_totales"`
-	KmNacionales       float64 `json:"km_nacionales"`
-	KmInternacionales  float64 `json:"km_internacionales"`
-	TiempoEspera       string  `json:"tiempo_espera"`
-	ImporteSuplidos    float64 `json:"importe_suplidos"`
-	ImporteTotal       float64 `json:"importe_total" binding:"required"`
-	AutorizadoPor      string  `json:"autorizado_por"`
-	Observaciones      string  `json:"observaciones"`
-	NumFactura         string  `json:"num_factura"`
-	ObservacionesAdmin string  `json:"observaciones_admin"`
-	Cobrado            bool    `json:"cobrado"`
-	Pagado             bool    `json:"pagado"`
-	FechaCobro         string  `json:"fecha_cobro"`
-	FechaPago          string  `json:"fecha_pago"`
-	Enviado            bool    `json:"enviado"`
-}
-
-// ---------------------------------------------------------------------
-// HELPERS DE PARSEO
+// HELPERS DE PARSEO Y PRELOAD
 // ---------------------------------------------------------------------
 
 func parseDatePtr(dateStr string) (*time.Time, error) {
@@ -92,7 +46,7 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
-// 🛡️ LÓGICA MAESTRA DE LIMPIEZA PARA EL ADMIN (40 CAMPOS)
+// 🛡️ LÓGICA DE LIMPIEZA MAESTRA (41 CAMPOS)
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 
@@ -102,7 +56,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 	}
 
 	for key, value := range input {
-		// Protección campos inmutables de sistema
+		// Protección campos inmutables (id guardado por instrucción del usuario)
 		if key == "id" || key == "created_at" || key == "updated_at" || key == "ID" {
 			continue
 		}
@@ -129,7 +83,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = strings.Title(key)
 		}
 
-		// Fix Horas (HH:MM -> time.Time)
+		// Horas y Tiempos
 		if key == "hora" || key == "tiempo_espera" {
 			str, ok := value.(string)
 			if !ok || strings.TrimSpace(str) == "" {
@@ -144,7 +98,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			continue
 		}
 
-		// Parseo de Fechas
+		// Fechas
 		if strings.Contains(strings.ToLower(key), "fecha") {
 			if str, ok := value.(string); ok && str != "" {
 				if t, err := parseDatePtr(str); err == nil {
@@ -161,7 +115,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 }
 
 // ---------------------------------------------------------------------
-// CONTROLADORES
+// CONTROLADORES CRUD
 // ---------------------------------------------------------------------
 
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
@@ -169,8 +123,9 @@ func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	var albaranes []models.Albaran
 	var total int64
-	db.Model(&models.Albaran{}).Count(&total)
-	preloadAlbaran(db).Limit(pageSize).Offset((page - 1) * pageSize).Order("id desc").Find(&albaranes)
+
+	db.Model(&models.Albaran{}).Where("estado = ?", 0).Count(&total)
+	preloadAlbaran(db).Where("estado = ?", 0).Limit(pageSize).Offset((page - 1) * pageSize).Order("id desc").Find(&albaranes)
 	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
 }
 
@@ -186,7 +141,7 @@ func GetAlbaran(c *gin.Context, db *gorm.DB) {
 
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
-	query := preloadAlbaran(db.Model(&models.Albaran{}))
+	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("estado = ?", 0)
 	if v := c.Query("licencia_ref"); v != "" {
 		query = query.Where("licencia_ref = ?", v)
 	}
@@ -201,16 +156,18 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 }
 
 func CreateAlbaran(c *gin.Context, db *gorm.DB) {
-	var dto CreateAlbaranDTO
-	if err := c.ShouldBindJSON(&dto); err != nil {
+	var input map[string]interface{}
+	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Datos inválidos"})
 		return
 	}
-	fecha, _ := time.Parse(dateFormat, dto.Fecha)
-	horaPtr, _ := parseTimePtr(dto.Fecha, dto.Hora)
-	albaran := models.Albaran{NumeroAlbaran: dto.NumeroAlbaran, Fecha: fecha, LicenciaRef: dto.LicenciaRef, EmpresaRef: dto.EmpresaRef, Hora: horaPtr, ImporteTotal: dto.ImporteTotal}
-	db.Create(&albaran)
-	c.JSON(http.StatusCreated, gin.H{"data": albaran})
+	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
+	cleanInput["Estado"] = 0
+	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al crear"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado"})
 }
 
 func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
@@ -227,31 +184,6 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado por Admin", "data": albaran})
 }
 
-// 👑 COPY ALBARAN ADMIN
-func CopyAlbaranAdmin(c *gin.Context, db *gorm.DB) {
-	var input map[string]interface{}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Datos inválidos"})
-		return
-	}
-
-	// Limpiar IDs para forzar creación de nuevo registro
-	delete(input, "id")
-	delete(input, "ID")
-	delete(input, "created_at")
-	delete(input, "updated_at")
-
-	// Usamos una fecha base de hoy para el parseo inicial de tiempos si fuera necesario
-	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
-
-	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al crear la copia"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán copiado con éxito", "data": cleanInput})
-}
-
 func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
@@ -261,23 +193,106 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	}
 	var input map[string]interface{}
 	c.ShouldBindJSON(&input)
-	delete(input, "id")
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
+	delete(input, "estado")
+	delete(input, "observaciones_admin")
 	cleanInput := cleanAlbaranMap(input, albaran)
 	db.Model(&albaran).Updates(cleanInput)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado correctamente", "data": albaran})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado correctamente"})
 }
 
+func CopyAlbaranAdmin(c *gin.Context, db *gorm.DB) {
+	var input map[string]interface{}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Datos inválidos"})
+		return
+	}
+	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
+	cleanInput["Estado"] = 0
+	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al copiar"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán copiado"})
+}
+
+// 🗑️ DELETE ALBARAN (BORRADO LÓGICO DIRECTO)
 func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
-	db.Delete(&models.Albaran{}, id)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Eliminado"})
+	result := db.Exec("UPDATE albaranes SET estado = 1 WHERE id = ?", id)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error en base de datos"})
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Albarán borrado correctamente"})
+}
+
+// ---------------------------------------------------------------------
+// EXPORTACIÓN (CORREGIDA PARA EVITAR ERROR DE CONVERSIÓN)
+// ---------------------------------------------------------------------
+
+func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
+	var req struct {
+		ReportName string                   `json:"reportName"`
+		Data       []map[string]interface{} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
+		return
+	}
+
+	var mappedData []utils.TitularData
+	for _, m := range req.Data {
+		item := utils.TitularData{}
+		for k, v := range m {
+			item[k] = fmt.Sprintf("%v", v)
+		}
+		mappedData = append(mappedData, item)
+	}
+
+	url, err := utils.GenerateGenericPDF(req.ReportName, mappedData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Fallo al generar PDF"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "downloadURL": url})
+}
+
+func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
+	var req struct {
+		ReportName string                   `json:"reportName"`
+		Data       []map[string]interface{} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
+		return
+	}
+
+	var mappedData []utils.TitularData
+	for _, m := range req.Data {
+		item := utils.TitularData{}
+		for k, v := range m {
+			item[k] = fmt.Sprintf("%v", v)
+		}
+		mappedData = append(mappedData, item)
+	}
+
+	url, err := utils.GenerateTitularesXLSX(req.ReportName, mappedData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Fallo al generar Excel"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "downloadURL": url})
 }
 
 func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	var input struct {
-		BulkIDsInput
+		IDs        []uint `json:"ids" binding:"required"`
 		FechaCobro string `json:"fecha_cobro"`
 		FechaPago  string `json:"fecha_pago"`
 	}
@@ -285,26 +300,4 @@ func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	updates := map[string]interface{}{"cobrado": true, "pagado": true, "fecha_cobro": input.FechaCobro, "fecha_pago": input.FechaPago}
 	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(updates)
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
-}
-
-func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
-	var req ExportRequest
-	c.ShouldBindJSON(&req)
-	var mappedData []utils.TitularData
-	for _, m := range req.Data {
-		mappedData = append(mappedData, utils.TitularData(m))
-	}
-	url, _ := utils.GenerateGenericPDF(req.ReportName, mappedData)
-	c.JSON(http.StatusOK, gin.H{"success": true, "downloadURL": url})
-}
-
-func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
-	var req ExportRequest
-	c.ShouldBindJSON(&req)
-	var mappedData []utils.TitularData
-	for _, m := range req.Data {
-		mappedData = append(mappedData, utils.TitularData(m))
-	}
-	url, _ := utils.GenerateTitularesXLSX(req.ReportName, mappedData)
-	c.JSON(http.StatusOK, gin.H{"success": true, "downloadURL": url})
 }
