@@ -3,7 +3,6 @@ package controllers
 import (
 	"albaranes/models"
 	"albaranes/utils"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,71 +14,57 @@ import (
 	"gorm.io/gorm"
 )
 
-// Constante para el formato de fecha esperado en la URL y la DB
 const dateFormat = "2006-01-02"
 
 // ---------------------------------------------------------------------
 // ESTRUCTURAS DE ENTRADA
 // ---------------------------------------------------------------------
 
-// BulkIDsInput es la estructura para recibir IDs en acciones masivas
 type BulkIDsInput struct {
 	IDs []uint `json:"ids" binding:"required"`
 }
 
-// CreateAlbaranDTO es el DTO para la creación de un Albarán
 type CreateAlbaranDTO struct {
-	NumeroAlbaran string `json:"numero_albaran" binding:"required"`
-	Fecha         string `json:"fecha" binding:"required"` // "YYYY-MM-DD"
-	LicenciaRef   uint   `json:"licencia_ref" binding:"required"`
-	EmpresaRef    uint   `json:"empresa_ref" binding:"required"`
-
-	Referencia  string `json:"referencia"`
-	Asalariado  string `json:"asalariado"`
-	Hora        string `json:"hora"` // "HH:MM"
-	DNIPasajero string `json:"dni_pasajero"`
-	Matricula   string `json:"matricula"`
-	Cliente     string `json:"cliente"`
-	Origen      string `json:"origen"`
-	Parada      string `json:"parada"`
-	Destino     string `json:"destino"`
-
-	Urbano     bool `json:"urbano"`
-	Diurno     bool `json:"diurno"`
-	NoctFest   bool `json:"noct_fest"`
-	Festivo    bool `json:"festivo"`
-	Finalizado bool `json:"finalizado"`
-	Enganche   bool `json:"enganche"`
-	NumPlazas  int  `json:"num_plazas"`
-
-	KmTotales         float64 `json:"km_totales"`
-	KmNacionales      float64 `json:"km_nacionales"`
-	KmInternacionales float64 `json:"km_internacionales"`
-	TiempoEspera      string  `json:"tiempo_espera"` // "HH:MM"
-	ImporteSuplidos   float64 `json:"importe_suplidos"`
-	ImporteTotal      float64 `json:"importe_total" binding:"required"`
-
-	AutorizadoPor      string `json:"autorizado_por"`
-	Observaciones      string `json:"observaciones"`
-	NumFactura         string `json:"num_factura"`
-	ObservacionesAdmin string `json:"observaciones_admin"`
-
-	Cobrado    bool   `json:"cobrado"`
-	Pagado     bool   `json:"pagado"`
-	FechaCobro string `json:"fecha_cobro"`
-	FechaPago  string `json:"fecha_pago"`
+	NumeroAlbaran      string  `json:"numero_albaran" binding:"required"`
+	Fecha              string  `json:"fecha" binding:"required"`
+	LicenciaRef        uint    `json:"licencia_ref" binding:"required"`
+	EmpresaRef         uint    `json:"empresa_ref" binding:"required"`
+	Referencia         string  `json:"referencia"`
+	Asalariado         string  `json:"asalariado"`
+	Hora               string  `json:"hora"`
+	DNIPasajero        string  `json:"dni_pasajero"`
+	Matricula          string  `json:"matricula"`
+	Cliente            string  `json:"cliente"`
+	Origen             string  `json:"origen"`
+	Parada             string  `json:"parada"`
+	Destino            string  `json:"destino"`
+	Urbano             bool    `json:"urbano"`
+	Diurno             bool    `json:"diurno"`
+	NoctFest           bool    `json:"noct_fest"`
+	Festivo            bool    `json:"festivo"`
+	Finalizado         bool    `json:"finalizado"`
+	Enganche           bool    `json:"enganche"`
+	NumPlazas          int     `json:"num_plazas"`
+	KmTotales          float64 `json:"km_totales"`
+	KmNacionales       float64 `json:"km_nacionales"`
+	KmInternacionales  float64 `json:"km_internacionales"`
+	TiempoEspera       string  `json:"tiempo_espera"`
+	ImporteSuplidos    float64 `json:"importe_suplidos"`
+	ImporteTotal       float64 `json:"importe_total" binding:"required"`
+	AutorizadoPor      string  `json:"autorizado_por"`
+	Observaciones      string  `json:"observaciones"`
+	NumFactura         string  `json:"num_factura"`
+	ObservacionesAdmin string  `json:"observaciones_admin"`
+	Cobrado            bool    `json:"cobrado"`
+	Pagado             bool    `json:"pagado"`
+	FechaCobro         string  `json:"fecha_cobro"`
+	FechaPago          string  `json:"fecha_pago"`
+	Enviado            bool    `json:"enviado"`
 }
 
 // ---------------------------------------------------------------------
-// AYUDANTES DE PARSEO Y CONVERSIÓN
+// HELPERS DE PARSEO
 // ---------------------------------------------------------------------
-
-func parseStringPtr(s string) *string {
-	if strings.TrimSpace(s) == "" {
-		return nil
-	}
-	return &s
-}
 
 func parseDatePtr(dateStr string) (*time.Time, error) {
 	if strings.TrimSpace(dateStr) == "" {
@@ -96,10 +81,6 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 	if strings.TrimSpace(timeStr) == "" {
 		return nil, nil
 	}
-	if strings.TrimSpace(dateBase) == "" {
-		return nil, fmt.Errorf("fecha base requerida para hora")
-	}
-
 	full := fmt.Sprintf("%s %s:00", dateBase, timeStr)
 	t, err := time.Parse("2006-01-02 15:04:05", full)
 	if err != nil {
@@ -112,626 +93,221 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
+// 🛡️ LÓGICA MAESTRA DE LIMPIEZA PARA EL ADMIN (40 CAMPOS)
+func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
+	clean := make(map[string]interface{})
+
+	fechaBase := original.Fecha.Format(dateFormat)
+	if v, ok := input["fecha"].(string); ok && v != "" {
+		fechaBase = v
+	}
+
+	for key, value := range input {
+		// Protección campos inmutables de sistema
+		if key == "id" || key == "created_at" || key == "updated_at" || key == "ID" {
+			continue
+		}
+
+		structKey := key
+		switch key {
+		case "licencia_ref":
+			structKey = "LicenciaRef"
+		case "empresa_ref":
+			structKey = "EmpresaRef"
+		case "numero_albaran":
+			structKey = "NumeroAlbaran"
+		case "num_factura":
+			structKey = "NumFactura"
+		case "observaciones_admin":
+			structKey = "ObservacionesAdmin"
+		case "km_nacionales":
+			structKey = "KmNacionales"
+		case "km_internacionales":
+			structKey = "KmInternacionales"
+		case "dni_pasajero":
+			structKey = "DNIPasajero"
+		default:
+			structKey = strings.Title(key)
+		}
+
+		// Fix Horas (HH:MM -> time.Time) - Evita Error 1292
+		if key == "hora" || key == "tiempo_espera" {
+			str, ok := value.(string)
+			if !ok || strings.TrimSpace(str) == "" {
+				clean[strings.Title(key)] = nil
+				continue
+			}
+			if t, err := parseTimePtr(fechaBase, str); err == nil {
+				clean[strings.Title(key)] = t
+			} else {
+				clean[strings.Title(key)] = nil
+			}
+			continue
+		}
+
+		// Parseo de Fechas
+		if strings.Contains(strings.ToLower(key), "fecha") {
+			if str, ok := value.(string); ok && str != "" {
+				if t, err := parseDatePtr(str); err == nil {
+					clean[structKey] = *t
+				}
+			} else {
+				clean[structKey] = nil
+			}
+		} else {
+			clean[structKey] = value
+		}
+	}
+	return clean
+}
+
 // ---------------------------------------------------------------------
-// CONTROLADORES DE CONSULTA (GET)
+// CONTROLADORES
 // ---------------------------------------------------------------------
 
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	offset := (page - 1) * pageSize
-
 	var albaranes []models.Albaran
 	var total int64
-
 	db.Model(&models.Albaran{}).Count(&total)
-
-	if result := preloadAlbaran(db).Limit(pageSize).Offset(offset).Order("id desc").Find(&albaranes); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al obtener la lista de albaranes"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"data":       albaranes,
-		"page":       pageSize,
-		"total":      total,
-		"totalPages": (total + int64(pageSize) - 1) / int64(pageSize),
-	})
-}
-
-func GetAlbaranesByEmpresa(c *gin.Context, db *gorm.DB) {
-	idStr := c.Param("id")
-	empresaID, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil || empresaID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ ID de Empresa inválido o faltante"})
-		return
-	}
-
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	offset := (page - 1) * pageSize
-
-	var albaranes []models.Albaran
-	var total int64
-
-	baseQuery := db.Model(&models.Albaran{}).Where("empresa_ref = ?", empresaID)
-	baseQuery.Count(&total)
-
-	if result := preloadAlbaran(baseQuery).Limit(pageSize).Offset(offset).Order("id desc").Find(&albaranes); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al obtener la lista de albaranes filtrada"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"data":       albaranes,
-		"empresa_id": empresaID,
-		"page":       page,
-		"pageSize":   pageSize,
-		"total":      total,
-		"totalPages": (total + int64(pageSize) - 1) / int64(pageSize),
-	})
-}
-
-func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "5000"))
-	offset := (page - 1) * pageSize
-
-	var albaranes []models.Albaran
-	var total int64
-
-	query := db.Model(&models.Albaran{}).
-		Preload("LicenciaData").
-		Preload("EmpresaData")
-
-	// LÓGICA DE FILTROS DINÁMICOS
-	licenciaRef := c.Query("licencia_ref")
-	if licenciaRef != "" {
-		query = query.Where("licencia_ref = ?", licenciaRef)
-	}
-
-	empresaRef := c.Query("empresa_ref")
-	if empresaRef != "" {
-		query = query.Where("empresa_ref = ?", empresaRef)
-	}
-
-	pagado := c.Query("pagado")
-	if pagado != "" {
-		query = query.Where("pagado = ?", pagado)
-	}
-
-	enviado := c.Query("enviado")
-	if enviado != "" {
-		query = query.Where("enviado = ?", enviado)
-	}
-
-	cobrado := c.Query("cobrado")
-	if cobrado != "" {
-		query = query.Where("cobrado = ?", cobrado)
-	}
-
-	state := c.Query("state")
-	if state != "" {
-		switch strings.ToLower(state) {
-		case "creado":
-			query = query.Where("IFNULL(enviado, 0) = 0 AND IFNULL(cobrado, 0) = 0 AND IFNULL(finalizado, 0) = 0")
-		case "enviado":
-			query = query.Where("enviado = ?", 1).
-				Where("IFNULL(cobrado, 0) = 0").
-				Where("IFNULL(pagado, 0) = 0").
-				Where("IFNULL(finalizado, 0) = 0")
-		case "pagado":
-			query = query.Where("IFNULL(cobrado, 0) = 1 OR IFNULL(pagado, 0) = 1")
-		case "finalizado":
-			query = query.Where("finalizado = ?", 1)
-		}
-	}
-
-	referencia := c.Query("referencia")
-	if referencia != "" {
-		searchRef := "%" + strings.ToLower(referencia) + "%"
-		query = query.Where(
-			"LOWER(referencia) LIKE ? OR LOWER(numero_albaran) LIKE ?",
-			searchRef,
-			searchRef,
-		)
-	}
-
-	fechaIni := c.Query("fecha_ini")
-	if fechaIni != "" {
-		query = query.Where("fecha >= ?", fechaIni)
-	}
-	fechaFin := c.Query("fecha_fin")
-	if fechaFin != "" {
-		query = query.Where("fecha <= ?", fechaFin)
-	}
-
-	palabra := c.Query("palabra")
-	searchType := c.Query("search_type")
-
-	if palabra != "" {
-		words := strings.Fields(strings.ToLower(palabra))
-		searchFields := []string{
-			"numero_albaran", "referencia", "asalariado", "dni_pasajero",
-			"matricula", "cliente", "origen", "parada", "destino",
-			"observaciones", "observaciones_admin", "num_factura",
-			"autorizado_por",
-		}
-
-		var searchClauses []string
-		var searchValues []interface{}
-
-		switch searchType {
-		case "exacta":
-			log.Printf("🔵 Búsqueda: Exacta (%s)", palabra)
-			for _, field := range searchFields {
-				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
-				searchValues = append(searchValues, "%"+strings.ToLower(palabra)+"%")
-			}
-			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
-
-		case "todas":
-			log.Printf("🔵 Búsqueda: Todas (%v)", words)
-			for _, word := range words {
-				var wordClauses []string
-				var wordValues []interface{}
-				for _, field := range searchFields {
-					wordClauses = append(wordClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
-					wordValues = append(wordValues, "%"+word+"%")
-				}
-				query = query.Where("("+strings.Join(wordClauses, " OR ")+")", wordValues...)
-			}
-
-		case "cualquier":
-			log.Printf("🔵 Búsqueda: Cualquier (%v)", words)
-			for _, field := range searchFields {
-				for _, word := range words {
-					searchClauses = append(searchClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
-					searchValues = append(searchValues, "%"+word+"%")
-				}
-			}
-			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
-
-		default:
-			log.Printf("🔵 Búsqueda: Default (Exacta) (%s)", palabra)
-			for _, field := range searchFields {
-				searchClauses = append(searchClauses, fmt.Sprintf("LOWER(IFNULL(%s, '')) LIKE ?", field))
-				searchValues = append(searchValues, "%"+strings.ToLower(palabra)+"%")
-			}
-			query = query.Where(strings.Join(searchClauses, " OR "), searchValues...)
-		}
-	}
-
-	query.Count(&total)
-
-	if result := query.Limit(pageSize).Offset(offset).Order("albaranes.fecha desc, albaranes.id desc").Find(&albaranes); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al obtener la lista filtrada"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"data":       albaranes,
-		"page":       page,
-		"pageSize":   pageSize,
-		"total":      total,
-		"totalPages": (total + int64(pageSize) - 1) / int64(pageSize),
-	})
+	preloadAlbaran(db).Limit(pageSize).Offset((page - 1) * pageSize).Order("id desc").Find(&albaranes)
+	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
 }
 
 func GetAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
-	log.Printf("🟢 [GetAlbaran] Solicitando ID: %s", id)
-
 	var albaran models.Albaran
-
-	if result := preloadAlbaran(db).First(&albaran, id); result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "❌ Albarán no encontrado"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al buscar el albarán"})
+	if err := preloadAlbaran(db).First(&albaran, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": albaran})
 }
 
-// ---------------------------------------------------------------------
-// CONTROLADORES CRUD y ACCIONES MASIVAS
-// ---------------------------------------------------------------------
-
-func BulkSendAlbaranes(c *gin.Context, db *gorm.DB) {
-	var input BulkIDsInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Lista de IDs inválida", "details": err.Error()})
-		return
+func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
+	var albaranes []models.Albaran
+	query := preloadAlbaran(db.Model(&models.Albaran{}))
+	if v := c.Query("licencia_ref"); v != "" {
+		query = query.Where("licencia_ref = ?", v)
 	}
-
-	log.Printf("📦 [BulkSend] IDs recibidos para enviar: %v", input.IDs)
-
-	if len(input.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ No se proporcionaron IDs"})
-		return
+	if v := c.Query("empresa_ref"); v != "" {
+		query = query.Where("empresa_ref = ?", v)
 	}
-
-	result := db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Update("enviado", true)
-
-	if result.Error != nil {
-		log.Printf("🔴 [BulkSend] Error DB: %v", result.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar los albaranes"})
-		return
+	if v := c.Query("referencia"); v != "" {
+		query = query.Where("referencia LIKE ?", "%"+v+"%")
 	}
-
-	log.Printf("✅ [BulkSend] %d registros actualizados.", result.RowsAffected)
-	c.JSON(http.StatusOK, gin.H{
-		"message": "✅ Albaranes enviados exitosamente",
-		"updated": result.RowsAffected,
-	})
+	query.Order("fecha desc, id desc").Find(&albaranes)
+	c.JSON(http.StatusOK, gin.H{"data": albaranes})
 }
 
-// BulkPayAlbaranes marca una lista de albaranes como pagados (para titulares).
-func BulkPayAlbaranes(c *gin.Context, db *gorm.DB) {
-	var input BulkIDsInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		log.Printf("🔴 [BulkPay] Error al recibir lista de IDs: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Lista de IDs inválida", "details": err.Error()})
+func CreateAlbaran(c *gin.Context, db *gorm.DB) {
+	var dto CreateAlbaranDTO
+	if err := c.ShouldBindJSON(&dto); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Datos inválidos"})
 		return
 	}
-
-	log.Printf("💰 [BulkPay] IDs recibidos para Pago Masivo (Titulares): %v", input.IDs)
-
-	if len(input.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ No se proporcionaron IDs para el pago"})
-		return
-	}
-
-	updates := map[string]interface{}{
-		"Pagado":    true,
-		"FechaPago": time.Now().Format(dateFormat),
-	}
-
-	log.Printf("🔵 [BulkPay] Campos a actualizar: %+v", updates)
-
-	result := db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(updates)
-
-	if result.Error != nil {
-		log.Printf("🔴 [BulkPay] Error DB al actualizar albaranes: %v", result.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar los albaranes como pagados"})
-		return
-	}
-
-	log.Printf("✅ [BulkPay] %d registros marcados como PAGADOS.", result.RowsAffected)
-	c.JSON(http.StatusOK, gin.H{
-		"message": "✅ Albaranes marcados como Pagados exitosamente",
-		"updated": result.RowsAffected,
-	})
+	fecha, _ := time.Parse(dateFormat, dto.Fecha)
+	horaPtr, _ := parseTimePtr(dto.Fecha, dto.Hora)
+	albaran := models.Albaran{NumeroAlbaran: dto.NumeroAlbaran, Fecha: fecha, LicenciaRef: dto.LicenciaRef, EmpresaRef: dto.EmpresaRef, Hora: horaPtr, ImporteTotal: dto.ImporteTotal}
+	db.Create(&albaran)
+	c.JSON(http.StatusCreated, gin.H{"data": albaran})
 }
 
-// 💳 BulkChargeAlbaranes marca una lista de albaranes como cobrados (para empresas).
+// 👑 UPDATE ADMIN: Todo menos ID, CreatedAt, UpdatedAt
+func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	var albaran models.Albaran
+	if err := db.First(&albaran, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
+		return
+	}
+	var input map[string]interface{}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ JSON inválido"})
+		return
+	}
+
+	cleanInput := cleanAlbaranMap(input, albaran)
+	log.Printf("📤 [GORM ADMIN] Update ID %s con datos: %+v", id, cleanInput)
+
+	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
+		log.Printf("🔴 [DB ERROR]: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar registro"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado por Admin", "data": albaran})
+}
+
+// 👤 UPDATE USER: Bloquea ID, NumeroAlbaran y Licencia
+func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	var albaran models.Albaran
+	if err := db.First(&albaran, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
+		return
+	}
+	var input map[string]interface{}
+	c.ShouldBindJSON(&input)
+
+	delete(input, "id")
+	delete(input, "numero_albaran")
+	delete(input, "licencia_ref")
+
+	cleanInput := cleanAlbaranMap(input, albaran)
+	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado correctamente", "data": albaran})
+}
+
+func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	db.Delete(&models.Albaran{}, id)
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Eliminado"})
+}
+
 func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	var input struct {
 		BulkIDsInput
 		FechaCobro string `json:"fecha_cobro"`
 		FechaPago  string `json:"fecha_pago"`
 	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		log.Printf("🔴 [BulkCharge] Error al recibir lista de IDs: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "❌ Lista de IDs inválida",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	log.Printf("💳 [BulkCharge] IDs recibidos para Cobro Masivo (Empresa): %v", input.IDs)
-
-	if len(input.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ No hay IDs"})
-		return
-	}
-
-	// Fechas recibidas del front
-	fechaCobro := input.FechaCobro
-	fechaPago := input.FechaPago
-
-	// Obtener fecha actual
-	hoy := time.Now().Format(dateFormat)
-
-	// Si faltan, se autocompletan
-	if fechaCobro == "" {
-		fechaCobro = hoy
-	}
-	if fechaPago == "" {
-		fechaPago = fechaCobro
-	}
-
-	// Campos a actualizar
-	updates := map[string]interface{}{
-		"cobrado":     true,
-		"fecha_cobro": fechaCobro,
-		"fecha_pago":  fechaPago,
-		"pagado":      true,
-	}
-
-	log.Printf("🔵 [BulkCharge] Campos a actualizar: %+v", updates)
-
-	// Actualizar
-	result := db.Model(&models.Albaran{}).
-		Where("id IN ?", input.IDs).
-		Updates(updates)
-
-	if result.Error != nil {
-		log.Printf("🔴 [BulkCharge] Error DB: %v", result.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "❌ Error DB al cobrar albaranes",
-		})
-		return
-	}
-
-	log.Printf("✅ [BulkCharge] %d registros actualizados.", result.RowsAffected)
-	c.JSON(http.StatusOK, gin.H{
-		"message": "✅ Albaranes cobrados y pagados actualizados",
-		"updated": result.RowsAffected,
-	})
-}
-
-func CreateAlbaran(c *gin.Context, db *gorm.DB) {
-	var dto CreateAlbaranDTO
-
-	if err := c.ShouldBindJSON(&dto); err != nil {
-		log.Printf("🔴 [CreateAlbaran] Bind error: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Datos inválidos", "details": err.Error()})
-		return
-	}
-
-	jsonInput, _ := json.MarshalIndent(dto, "", " ") // Limpio de Unicode U+00A0
-	log.Printf("🔵 [CreateAlbaran] DTO recibido:\n%s", string(jsonInput))
-
-	fecha, err := time.Parse(dateFormat, dto.Fecha)
-	if err != nil {
-		log.Printf("🔴 [CreateAlbaran] Error de formato en Fecha: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Fecha inválida, use YYYY-MM-DD"})
-		return
-	}
-
-	horaPtr, err := parseTimePtr(dto.Fecha, dto.Hora)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Hora inválida, use HH:MM"})
-		return
-	}
-
-	esperaPtr, err := parseTimePtr(dto.Fecha, dto.TiempoEspera)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Tiempo de espera inválido, use HH:MM"})
-		return
-	}
-
-	fechaCobroPtr, err := parseDatePtr(dto.FechaCobro)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Fecha cobro inválida"})
-		return
-	}
-
-	fechaPagoPtr, err := parseDatePtr(dto.FechaPago)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Fecha pago inválida"})
-		return
-	}
-
-	if dto.LicenciaRef == 0 || dto.EmpresaRef == 0 || dto.NumeroAlbaran == "" || dto.ImporteTotal == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Es obligatorio Licencia, Empresa, Nº Albarán e Importe Total"})
-		return
-	}
-
-	albaran := models.Albaran{
-		NumeroAlbaran: dto.NumeroAlbaran,
-		Fecha:         fecha,
-		LicenciaRef:   dto.LicenciaRef,
-		EmpresaRef:    dto.EmpresaRef,
-
-		Referencia:         parseStringPtr(dto.Referencia),
-		Asalariado:         parseStringPtr(dto.Asalariado),
-		DNIPasajero:        parseStringPtr(dto.DNIPasajero),
-		Matricula:          parseStringPtr(dto.Matricula),
-		Cliente:            parseStringPtr(dto.Cliente),
-		Origen:             parseStringPtr(dto.Origen),
-		Parada:             parseStringPtr(dto.Parada),
-		Destino:            parseStringPtr(dto.Destino),
-		AutorizadoPor:      parseStringPtr(dto.AutorizadoPor),
-		Observaciones:      parseStringPtr(dto.Observaciones),
-		NumFactura:         parseStringPtr(dto.NumFactura),
-		ObservacionesAdmin: parseStringPtr(dto.ObservacionesAdmin),
-
-		Hora:              horaPtr,
-		Festivo:           dto.Festivo,
-		Finalizado:        dto.Finalizado,
-		Urbano:            dto.Urbano,
-		Diurno:            dto.Diurno,
-		NoctFest:          dto.NoctFest,
-		KmTotales:         dto.KmTotales,
-		KmNacionales:      dto.KmNacionales,
-		KmInternacionales: dto.KmInternacionales,
-		TiempoEspera:      esperaPtr,
-		ImporteSuplidos:   dto.ImporteSuplidos,
-		ImporteTotal:      dto.ImporteTotal,
-		Enganche:          dto.Enganche,
-		NumPlazas:         dto.NumPlazas,
-		Enviado:           false, // siempre en creación
-
-		Cobrado:    dto.Cobrado,
-		FechaCobro: fechaCobroPtr,
-		Pagado:     dto.Pagado,
-		FechaPago:  fechaPagoPtr,
-	}
-
-	if err := db.Create(&albaran).Error; err != nil {
-		log.Printf("🔴 [CreateAlbaran] Error DB: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al crear", "details": err.Error()})
-		return
-	}
-
-	log.Printf("✅ [CreateAlbaran] Albarán %s creado con éxito", albaran.NumeroAlbaran)
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Creado", "data": albaran})
-}
-
-// UpdateAlbaran maneja la actualización de un albarán.
-func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	log.Printf("🟢 [UpdateAlbaran] Iniciando actualización para ID: %s", id)
-
-	var albaran models.Albaran
-	if err := db.First(&albaran, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
-		return
-	}
-
-	var input map[string]interface{}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		log.Printf("🔴 [UpdateAlbaran] Error binding JSON: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "❌ Datos inválidos", "details": err.Error()})
-		return
-	}
-
-	jsonInput, _ := json.MarshalIndent(input, "", " ")
-	log.Printf("🔵 [UpdateAlbaran] Payload de actualización para ID %s:\n%s", id, string(jsonInput))
-
-	// --- Preparar un mapa limpio para GORM ---
-	cleanInput := make(map[string]interface{})
-
-	// Iterar sobre el input y realizar conversiones/mapeos
-	for key, value := range input {
-		// Mapear el nombre del campo de JSON/Frontend a la clave del Struct (PascalCase)
-		var structKey string
-		switch key {
-		case "cobrado":
-			structKey = "Cobrado"
-		case "fecha_cobro":
-			structKey = "FechaCobro"
-		case "pagado":
-			structKey = "Pagado"
-		case "fecha_pago":
-			structKey = "FechaPago"
-		default:
-			structKey = key
-		}
-
-		// Manejo de valores específicos
-
-		if structKey == "FechaCobro" || structKey == "FechaPago" {
-			if dateStr, ok := value.(string); ok {
-				log.Printf("🔵 [UpdateAlbaran] Procesando %s: '%s'", structKey, dateStr)
-				if t, err := parseDatePtr(dateStr); err == nil && t != nil {
-					cleanInput[structKey] = *t // Usar time.Time
-				} else if dateStr == "" {
-					cleanInput[structKey] = nil // Para establecer a NULL
-				} else if err != nil {
-					log.Printf("🔴 [UpdateAlbaran] Error parseando %s: %v", structKey, err)
-				}
-			} else if value == nil {
-				cleanInput[structKey] = nil // Asegurar NULL si viene explícitamente nulo
-			}
-		} else if value != nil {
-			cleanInput[structKey] = value
-		}
-	}
-
-	finalInput, _ := json.MarshalIndent(cleanInput, "", " ")
-	log.Printf("🔵 [UpdateAlbaran] Input Final para GORM:\n%s", string(finalInput))
-
-	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
-		log.Printf("🔴 [UpdateAlbaran] Error DB: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al actualizar el albarán", "details": err.Error()})
-		return
-	}
-
-	log.Printf("✅ [UpdateAlbaran] ID %s actualizado con éxito. Filas afectadas: %d", id, db.RowsAffected)
-
-	preloadAlbaran(db).First(&albaran, id)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Albarán actualizado", "data": albaran})
-}
-
-func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	log.Printf("🗑️ [DeleteAlbaran] Borrando ID: %s", id)
-
-	if result := db.Delete(&models.Albaran{}, id); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al eliminar"})
-		return
-	}
-	log.Printf("✅ [DeleteAlbaran] ID %s eliminado con éxito", id)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Eliminado"})
+	c.ShouldBindJSON(&input)
+	updates := map[string]interface{}{"cobrado": true, "pagado": true, "fecha_cobro": input.FechaCobro, "fecha_pago": input.FechaPago}
+	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(updates)
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
 }
 
 // ---------------------------------------------------------------------
-// CONTROLADORES DE EXPORTACIÓN (PDF y XLSX)
+// EXPORTACIÓN
 // ---------------------------------------------------------------------
 
-// ExportAlbaranesPDF maneja la generación del PDF de la lista actual de albaranes.
 func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 	var req ExportRequest
-
-	// 1. Recibir y validar el JSON del frontend
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("🔴 ERROR 400: Fallo en JSON Bind. Detalles: %v", err) // Log detallado
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ Solicitud JSON inválida.", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
 		return
 	}
-
-	if len(req.Data) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ No hay albaranes para generar el PDF."})
-		return
+	var mappedData []utils.TitularData
+	for _, m := range req.Data {
+		mappedData = append(mappedData, utils.TitularData(m))
 	}
-
-	// Si pasa el binding, logueamos el contenido de los datos para depuración
-	log.Printf("🔵 JSON BIND OK. Reporte: %s. Filas: %d", req.ReportName, len(req.Data))
-
-	// 2. Llamar a la utilidad genérica para generar el PDF
-	downloadURL, err := utils.GenerateGenericPDF(req.ReportName, req.Data)
-	if err != nil {
-		log.Printf("🔴 ERROR PDF Albaranes: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "❌ Error interno al generar el PDF de albaranes."})
-		return
-	}
-
-	// 3. Respuesta exitosa con la URL de descarga
-	c.JSON(http.StatusOK, gin.H{
-		"success":     true,
-		"message":     "✅ PDF de albaranes generado correctamente.",
-		"downloadURL": downloadURL,
-	})
+	url, _ := utils.GenerateGenericPDF(req.ReportName, mappedData)
+	c.JSON(http.StatusOK, gin.H{"success": true, "downloadURL": url})
 }
 
-// ExportAlbaranesXLSX maneja la generación del XLSX de la lista actual de albaranes.
 func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 	var req ExportRequest
-
-	// 1. Recibir y validar el JSON del frontend
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("🔴 ERROR 400: Fallo en JSON Bind. Detalles: %v", err) // Log detallado
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ Solicitud JSON inválida.", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
 		return
 	}
-
-	if len(req.Data) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "❌ No hay albaranes para generar el XLSX."})
-		return
+	var mappedData []utils.TitularData
+	for _, m := range req.Data {
+		mappedData = append(mappedData, utils.TitularData(m))
 	}
-
-	log.Printf("🔵 JSON BIND OK. Reporte: %s. Filas: %d", req.ReportName, len(req.Data))
-
-	// 2. Llamar a la utilidad genérica para generar el XLSX
-	downloadURL, err := utils.GenerateTitularesXLSX(req.ReportName, req.Data)
-	if err != nil {
-		log.Printf("🔴 ERROR XLSX Albaranes: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "❌ Error interno al generar el XLSX de albaranes."})
-		return
-	}
-
-	// 3. Respuesta exitosa con la URL de descarga
-	c.JSON(http.StatusOK, gin.H{
-		"success":     true,
-		"message":     "✅ XLSX de albaranes generado correctamente.",
-		"downloadURL": downloadURL,
-	})
+	url, _ := utils.GenerateTitularesXLSX(req.ReportName, mappedData)
+	c.JSON(http.StatusOK, gin.H{"success": true, "downloadURL": url})
 }
