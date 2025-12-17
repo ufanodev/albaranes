@@ -1,5 +1,5 @@
 // Archivo: static/js/admin_usuarios.js
-// ✅ CRUD Gestor Usuarios - Lógica de Búsqueda y Renderizado de TABLA
+// ✅ CRUD Gestor Usuarios - Lógica de Búsqueda, Renderizado y EXPORTACIÓN
 // =================================================================================
 
 const APP = {
@@ -32,17 +32,16 @@ const APP = {
 const UI = {
     formatDate(isoString) { return isoString ? isoString.substring(0, 10) : '-'; },
     getBooleanHtml(value) {
-        const isTrue = (value === true || value === 'true');
+        const isTrue = (value === true || value === 'true' || value === 1);
         return isTrue
             ? `<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">ACTIVO</span>`
             : `<span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">INACTIVO</span>`;
     },
     alertMessage(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
         const statusMessage = document.getElementById('statusMessage');
         if (!statusMessage) return;
         statusMessage.textContent = message;
-        statusMessage.className = `status-message status-${type}`;
+        statusMessage.className = `status-message status-${type} p-3 rounded-md mb-4 text-center font-medium border`;
         statusMessage.classList.remove('hidden');
         setTimeout(() => statusMessage.classList.add('hidden'), 5000);
     },
@@ -50,12 +49,9 @@ const UI = {
         const totalFiltered = APP.state.filteredUsers.length;
         APP.state.totalPages = Math.ceil(totalFiltered / APP.state.pageSize);
         APP.state.currentPage = Math.max(1, Math.min(APP.state.currentPage, APP.state.totalPages || 1));
-        const start = (APP.state.currentPage - 1) * APP.state.pageSize + 1;
-        const end = Math.min(APP.state.currentPage * APP.state.pageSize, totalFiltered);
         const pageInfo = document.getElementById('pageInfo');
-        const resultsCount = APP.elements.resultsCount;
         if (pageInfo) pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
-        if (resultsCount) resultsCount.textContent = totalFiltered === 0 ? '0 resultados' : `${totalFiltered} resultados`;
+        if (APP.elements.resultsCount) APP.elements.resultsCount.textContent = `${totalFiltered} resultados`;
         UI.updatePaginationButtons();
     },
     updatePaginationButtons() {
@@ -84,8 +80,7 @@ const Filters = {
         if (!form) return {};
         const formData = new FormData(form);
         const filters = {};
-        const fields = ['usuario', 'email', 'role', 'activo'];
-        fields.forEach(field => {
+        ['usuario', 'email', 'role', 'activo'].forEach(field => {
             const value = formData.get(field);
             if (value) { filters[field] = value; }
         });
@@ -98,7 +93,7 @@ const Filters = {
         APP.state.filteredUsers.sort((a, b) => {
             let valA = a[key] || '';
             let valB = b[key] || '';
-            if (key.includes('created_at') || key.includes('updated_at')) {
+            if (key.includes('created_at')) {
                 valA = new Date(valA).getTime(); valB = new Date(valB).getTime();
             }
             if (valA > valB) return direction === 'asc' ? 1 : -1;
@@ -106,17 +101,55 @@ const Filters = {
             return 0;
         });
         APP.state.currentSort = { key, direction };
-        APP.state.currentPage = 1;
         DOM.renderResults();
+    }
+};
+
+// =================================================================================
+// 📄 EXPORTATION LOGIC (PDF/XLSX)
+// =================================================================================
+const Exportation = {
+    formatDataForExport() {
+        return APP.state.filteredUsers.map(u => ({
+            "ID": String(u.id),
+            "Usuario": String(u.usuario || '-'),
+            "Email": String(u.email || '-'),
+            "Rol": String(u.role || '-').toUpperCase(),
+            "Estado": u.activo ? 'ACTIVO' : 'INACTIVO',
+            "Creado": UI.formatDate(u.created_at),
+            "Licencia": String(APP.state.licenciasMap.get(u.licencia_ref) || u.licencia_ref || '-')
+        }));
     },
-    handleClearAllFilters() {
-        const { usuarioFiltro, emailFiltro, roleFiltro, activoFiltro } = APP.elements;
-        if (usuarioFiltro) usuarioFiltro.value = '';
-        if (emailFiltro) emailFiltro.value = '';
-        if (roleFiltro) roleFiltro.value = '';
-        if (activoFiltro) activoFiltro.value = '';
-        API.searchUsers(Filters.getFiltersFromForm());
-        UI.alertMessage('✅ Filtros limpiados', 'info');
+
+    async handleExport(format) {
+        if (!APP.state.filteredUsers.length) {
+            UI.alertMessage("No hay datos para exportar", "info");
+            return;
+        }
+
+        UI.alertMessage(`Generando ${format.toUpperCase()}...`, "info");
+        const payload = {
+            reportName: `Reporte_Usuarios_${format.toUpperCase()}`,
+            data: this.formatDataForExport()
+        };
+
+        try {
+            const response = await fetch(`/api/v1/users/export/${format}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+            if (response.ok && result.success !== false) {
+                UI.alertMessage("✅ Exportación lista", "success");
+                window.open(result.downloadURL, '_blank');
+            } else {
+                throw new Error(result.message || "Error en servidor");
+            }
+        } catch (error) {
+            UI.alertMessage("❌ Error al exportar", "error");
+        }
     }
 };
 
@@ -127,57 +160,30 @@ const API = {
     async loadLicenciasMap() {
         try {
             const response = await fetch('/api/v1/licencias');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
-            const licencias = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
-            const map = new Map();
-            licencias.forEach(l => { map.set(l.id, l.licencia); });
-            APP.state.licenciasMap = map;
-            console.log(`✅ Licencias cargadas: ${map.size}`);
-        } catch (error) {
-            console.error('❌ Error cargando el mapa de licencias:', error);
-            UI.alertMessage(`❌ Error al cargar licencias.`, 'error');
-        }
+            const licencias = data.data || data || [];
+            licencias.forEach(l => { APP.state.licenciasMap.set(l.id, l.licencia); });
+        } catch (error) { console.error('Error licencias:', error); }
     },
     async searchUsers(filters) {
         const tbody = APP.elements.userResults;
-        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500 italic text-sm">Buscando usuarios...</td></tr>';
-        UI.updateActiveFiltersCount();
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 italic">Buscando...</td></tr>';
         try {
-            const params = new URLSearchParams({});
-            Object.entries(filters).forEach(([k, v]) => {
-                if (v !== undefined && v !== null && v !== '') { params.append(k, v); }
-            });
-
-            // NOTA: Usamos la ruta GET /api/v1/users y filtramos en el frontend si la API no soporta /search,
-            // pero si tu backend sí soporta /api/v1/users/search, deberías usar esa URL.
-            const fetchUrl = `/api/v1/users`; // Ruta base (cambiar a /search si es necesario)
-            
-            const response = await fetch(fetchUrl); 
-            if (!response.ok) throw new Error(`Error ${response.status} al cargar usuarios.`);
-            
+            const response = await fetch('/api/v1/users'); 
             const data = await response.json();
             const users = data.data || [];
             APP.state.allUsers = users;
             
-            // FILTRADO EN EL FRONTEND (si la API no filtra)
             APP.state.filteredUsers = users.filter(user => {
-                let matches = true;
-                if (filters.usuario && user.usuario && !user.usuario.toLowerCase().includes(filters.usuario.toLowerCase())) matches = false;
-                if (filters.email && user.email && !user.email.toLowerCase().includes(filters.email.toLowerCase())) matches = false;
-                if (filters.role && user.role && user.role.toLowerCase() !== filters.role.toLowerCase()) matches = false;
-                if (filters.activo !== undefined && String(user.activo) !== filters.activo) matches = false;
-                return matches;
+                let m = true;
+                if (filters.usuario && !user.usuario?.toLowerCase().includes(filters.usuario.toLowerCase())) m = false;
+                if (filters.email && !user.email?.toLowerCase().includes(filters.email.toLowerCase())) m = false;
+                if (filters.role && user.role?.toLowerCase() !== filters.role.toLowerCase()) m = false;
+                if (filters.activo !== undefined && String(user.activo) !== filters.activo) m = false;
+                return m;
             });
-
-            Filters.sortTable('id', 'number'); 
             DOM.renderResults();
-            UI.updatePageInfo();
-        } catch (error) {
-            console.error('Error cargando usuarios:', error);
-            UI.alertMessage(`❌ Error de red al cargar usuarios: ${error.message}`, 'error');
-            if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-red-500">❌ Error al cargar.</td></tr>';
-        }
+        } catch (error) { UI.alertMessage("Error de conexión", "error"); }
     }
 };
 
@@ -185,113 +191,58 @@ const API = {
 // 🖼️ DOM RENDER
 // =================================================================================
 const DOM = {
-    getCurrentPageData() {
-        const filtered = APP.state.filteredUsers || [];
-        const start = (APP.state.currentPage - 1) * APP.state.pageSize;
-        return filtered.slice(start, start + APP.state.pageSize);
-    },
-
     renderResults() {
         const tbody = APP.elements.userResults;
         if (!tbody) return;
         tbody.innerHTML = '';
-
-        const pageData = DOM.getCurrentPageData();
+        const start = (APP.state.currentPage - 1) * APP.state.pageSize;
+        const pageData = APP.state.filteredUsers.slice(start, start + APP.state.pageSize);
 
         if (pageData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500 italic text-sm">No se encontraron usuarios.</td></tr>';
-            UI.updatePageInfo();
-            return;
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">Sin resultados</td></tr>';
+            UI.updatePageInfo(); return;
         }
 
         pageData.forEach(user => {
             const row = document.createElement('tr');
-            row.className = 'hover:bg-gray-50';
-            const isActive = user.activo === true;
-            const licenciaNum = APP.state.licenciasMap.get(user.licencia_ref) || (user.licencia_ref ? user.licencia_ref : '-');
-
+            row.className = 'hover:bg-gray-50 border-b transition-colors';
+            const lic = APP.state.licenciasMap.get(user.licencia_ref) || (user.licencia_ref || '-');
             row.innerHTML = `
-                <td class="px-3 py-2 text-sm text-gray-800">${user.id}</td>
-                <td class="px-3 py-2 text-sm text-gray-800">${user.usuario || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${user.email || '-'}</td>
-                <td class="px-3 py-2 text-sm text-gray-600 uppercase">${user.role || '-'}</td>
-                <td class="px-3 py-2 text-center text-sm">${UI.getBooleanHtml(isActive)}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${UI.formatDate(user.created_at)}</td>
-                <td class="px-3 py-2 text-sm text-gray-600">${licenciaNum}</td>
-                <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-medium">
-                    <button onclick="handleViewUser(${user.id})" class="text-blue-600 hover:text-blue-900 mx-1" title="Ver">
-                        <i data-lucide="eye" class="h-4 w-4 inline"></i>
-                    </button>
-                    <button onclick="handleUpdateUser(${user.id})" class="text-yellow-600 hover:text-yellow-900 mx-1" title="Editar">
-                        <i data-lucide="edit" class="h-4 w-4 inline"></i>
-                    </button>
-                    <button onclick="handleDeleteUser(${user.id})" class="text-red-600 hover:text-red-900 mx-1" title="Desactivar">
-                        <i data-lucide="trash-2" class="h-4 w-4 inline"></i>
-                    </button>
+                <td class="px-3 py-2 text-sm">${user.id}</td>
+                <td class="px-3 py-2 text-sm font-medium">${user.usuario||'-'}</td>
+                <td class="px-3 py-2 text-sm">${user.email||'-'}</td>
+                <td class="px-3 py-2 text-sm uppercase">${user.role||'-'}</td>
+                <td class="px-3 py-2 text-center">${UI.getBooleanHtml(user.activo)}</td>
+                <td class="px-3 py-2 text-sm">${UI.formatDate(user.created_at)}</td>
+                <td class="px-3 py-2 text-sm">${lic}</td>
+                <td class="px-3 py-2 text-center whitespace-nowrap">
+                    <button onclick="handleViewUser(${user.id})" class="text-blue-600 mx-1"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                    <button onclick="handleUpdateUser(${user.id})" class="text-yellow-600 mx-1"><i data-lucide="edit" class="w-4 h-4"></i></button>
+                    <button onclick="handleDeleteUser(${user.id})" class="text-red-600 mx-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 </td>
             `;
             tbody.appendChild(row);
         });
-
         UI.updatePageInfo();
-        if (window.lucide) window.lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
     }
 };
 
 // =================================================================================
-// 🎯 EVENTOS GLOBALES (Mapeo de Rutas)
+// 🎯 EXPOSICIÓN GLOBAL PARA HTML
 // =================================================================================
+window.handleGeneratePDF = () => Exportation.handleExport('pdf');
+window.handleGenerateXLSX = () => Exportation.handleExport('xlsx');
+window.handleSearch = (e) => { e.preventDefault(); APP.state.currentPage = 1; API.searchUsers(Filters.getFiltersFromForm()); UI.updateActiveFiltersCount(); };
+window.handleClearAllFilters = () => { APP.elements.searchForm.reset(); window.handleSearch({preventDefault:()=>{}}); };
+window.handleUpdateUser = (id) => window.location.href = `/admin/usuarios/update/${id}`;
+window.handleViewUser = (id) => window.location.href = `/admin/usuarios/view/${id}`;
+window.handleDeleteUser = (id) => { if (confirm(`¿Desactivar ID ${id}?`)) window.location.href = `/admin/usuarios/delete/${id}`; };
+window.sortTable = (key) => Filters.sortTable(key);
 
-function handleCreateUser() {
-    window.location.href = '/admin/usuarios/crear';
-}
-function handleUpdateUser(id) {
-    window.location.href = `/admin/usuarios/update/${id}`;
-}
-function handleViewUser(id) {
-    window.location.href = `/admin/usuarios/view/${id}`;
-}
-function handleDeleteUser(id) {
-    if (confirm(`¿Está seguro de DESACTIVAR al usuario con ID: ${id}?`)) {
-        window.location.href = `/admin/usuarios/delete/${id}`;
-    }
-}
-
-
-// =================================================================================
-// 🚀 INICIALIZACIÓN
-// =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 Iniciando Gestor de Usuarios...');
-
-    // Carga las licencias (para mapeo visual)
     await API.loadLicenciasMap();
-    
-    // Exposición de funciones de filtros
-    window.handleSearch = (e) => {
-        if (e) e.preventDefault();
-        API.searchUsers(Filters.getFiltersFromForm());
-        UI.updateActiveFiltersCount();
-    };
-    window.handleClearAllFilters = Filters.handleClearAllFilters;
-    
-    // Exposición de funciones CRUD
-    window.handleCreateUser = handleCreateUser;
-    window.handleUpdateUser = handleUpdateUser;
-    window.handleViewUser = handleViewUser;
-    window.handleDeleteUser = handleDeleteUser;
-
-    // Paginación
-    if (APP.elements.prevBtn) APP.elements.prevBtn.addEventListener('click', () => {
-        if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); }
-    });
-    if (APP.elements.nextBtn) APP.elements.nextBtn.addEventListener('click', () => {
-        if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); }
-    });
-    
-    // Carga inicial de usuarios
-    API.searchUsers(Filters.getFiltersFromForm());
-    UI.updateActiveFiltersCount();
-    
-    console.log('✅ Gestor de Usuarios listo.');
+    API.searchUsers({});
+    if (APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
+    if (APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
 });

@@ -66,7 +66,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	// 2. Vistas Públicas y Protegidas (Frontend)
 	{
-		// ... (Rutas de Vistas sin cambios) ...
 		viewGroup.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
 		viewGroup.GET("/login", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
 		viewGroup.GET("/recuerdame", func(c *gin.Context) { c.HTML(http.StatusOK, "recuerdame.html", nil) })
@@ -105,7 +104,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
 		}
 
-		// ... (Rutas CRUD Conductor, Usuario y Titular sin cambios) ...
+		// Rutas CRUD auxiliares
 		viewGroup.GET("/admin/conductor/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 		viewGroup.GET("/admin/conductor/update/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 		viewGroup.GET("/admin/conductor/view/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
@@ -170,11 +169,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				licenciaGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
 				licenciaGroup.PUT("/softdelete/:id", func(c *gin.Context) { controllers.SoftDeleteLicencia(c, db) })
 				licenciaGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
-
-				// 📄 RUTA DE EXPORTACIÓN DE PDF (Titulares)
 				licenciaGroup.POST("/export/pdf", controllers.ExportTitularesPDFHandler)
-
-				// 📊 RUTA DE EXPORTACIÓN DE XLSX (Excel) (Titulares)
 				licenciaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportTitularesXLSX(c, db) })
 			}
 
@@ -188,16 +183,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				empresaGroup.GET("/:id", func(c *gin.Context) { controllers.GetEmpresa(c, db) })
 				empresaGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateEmpresa(c, db) })
 				empresaGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteEmpresa(c, db) })
-
-				// 📄 RUTA DE EXPORTACIÓN DE PDF (Empresas) - ¡AÑADIDA!
 				empresaGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportEmpresasPDF(c, db) })
-
-				// 📊 RUTA DE EXPORTACIÓN DE XLSX (Excel) (Empresas) - ¡AÑADIDA!
-				// ESTA RUTA DEBE LLAMAR A controllers.ExportEmpresasXLSX
 				empresaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
 			}
 
-			// 🔑 CRUD USUARIOS (Admin) - Rutas API
+			// --- CRUD USUARIOS (Admin) ---
 			userGroup := protected.Group("/users")
 			userGroup.Use(controllers.RequireRole("admin"))
 			{
@@ -207,9 +197,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				userGroup.GET("/:id", func(c *gin.Context) { controllers.GetUser(c, db) })
 				userGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateUser(c, db) })
 				userGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
+
+				// 📄 NUEVAS RUTAS DE EXPORTACIÓN DE USUARIOS
+				userGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportUsersPDF(c, db) })
+				userGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportUsersXLSX(c, db) })
 			}
 
-			// 💾 RUTAS DE BACKUP Y COPIA DE TABLA (Admin)
+			// 💾 RUTAS DE BACKUP
 			backupGroup := protected.Group("/backup")
 			backupGroup.Use(controllers.RequireRole("admin"))
 			{

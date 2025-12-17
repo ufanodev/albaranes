@@ -4,35 +4,50 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>👤 Gestor de Usuarios - Administrador</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <script src="/js/security.js"></script>
-    <script src="/js/admin_usuarios.js" defer></script> 
+    
     <script>
-        // Configuración para usar colores personalizados (Naranja Pastel)
+        window.handleGeneratePDF = function() { console.warn("Módulo PDF cargando..."); };
+        window.handleGenerateXLSX = function() { console.warn("Módulo Excel cargando..."); };
+        window.handleAction = function(t, d) { console.log(t, d); };
+        window.handleLogout = function() { window.location.href = '/login'; };
+        window.toggleDropdown = function(btn) {
+            const dropdown = btn.closest('.dropdown');
+            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+            dropdown?.classList.toggle('active');
+        };
+    </script>
+
+    <script src="/js/admin_usuarios.js" defer></script> 
+
+    <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
+                        'primary-pastel': '#FFDAB9', 
+                        'primary-link': '#FF8C00',  
                         'black-pure': '#000000',
                     }
                 }
             }
         }
     </script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
-        /* Clases base (CSS de la plantilla) */
         .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
         .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
-        .status-message { @apply mt-4 p-3 rounded-md font-medium text-center; }
-        .status-success { @apply bg-green-100 text-green-700 border border-green-400; }
-        .status-error { @apply bg-red-400 text-white border border-red-600; }
-        .status-info, .status-neutral { @apply bg-gray-200 text-gray-700 border border-gray-400; }
+        .status-message { @apply mt-4 p-3 rounded-md font-medium text-center border; }
+        .status-success { @apply bg-green-100 text-green-700 border-green-400; }
+        .status-error { @apply bg-red-400 text-white border-red-600; }
+        .status-info { @apply bg-blue-100 text-blue-700 border-blue-400; }
         .sortable { @apply flex items-center cursor-pointer select-none; }
         .sort-icon { @apply ml-2 w-4 h-4 inline-block; }
-        .dropdown-content { display: none; position: absolute; background-color: white; min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1000; border-radius: 0.5rem; margin-top: 0.5rem; }
+        .dropdown-content { display: none; position: absolute; background-color: white; min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1000; border-radius: 0.5rem; margin-top: 0.5rem; right: 0; }
         .dropdown.active .dropdown-content { display: block; }
         .dropdown-content a { color: #374151; padding: 12px 16px; text-decoration: none; display: block; border-bottom: 1px solid #f3f4f6; transition: background-color 0.2s; }
         .dropdown-content a:hover { background-color: #FFDAB9; color: #000; }
@@ -71,7 +86,6 @@
                         <div class="dropdown-content">
                             <a href="/admin/">Albaranes Inicio</a> 
                             <a href="/admin/nuevo_albaran">Albaranes Crear</a>
-                            <a href="/admin/albaran">Albaranes Modificar</a>
                             <a href="/busqueda">Albaranes Ver</a>
                         </div>
                     </div>
@@ -94,48 +108,30 @@
                         </button>
                         <div class="dropdown-content">
                             <a href="/admin/usuarios" class="bg-primary-pastel/50 font-bold">Usuarios Gestión</a>
-                            <a href="/admin/conductor">Conductores</a>
+                            <a href="/admin/conductor">Conductores Gestión</a>
                             <a href="/admin/backup">Backup</a>
                         </div>
                     </div>
 
-                    <div class="flex space-x-3 mt-4 sm:mt-0">
-                        <button title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Imprimir PDF', 'Se imprimirá todo el listado actual de albaranes')">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                    <div class="flex space-x-3 ml-4 border-l border-orange-400 pl-4">
+                        <button title="Imprimir PDF" class="bg-gray-100 text-gray-700 hover:bg-white font-semibold p-2 rounded-full shadow-md transition active:scale-95" onclick="handleGeneratePDF()">
+                            <i data-lucide="printer" class="h-5 w-5"></i>
                         </button>
-                        <button title="Exportar a Word" class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Word', 'Se exportará el listado actual a formato Word')">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition active:scale-95" onclick="handleGenerateXLSX()">
+                            <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
                         </button>
-                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Excel', 'Se exportará el listado actual a formato Excel')">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M11 15h6"/><path d="M14 12v6"/><path d="M8 12h2"/><path d="M8 15h2"/><path d="M8 18h2"/></svg>
-                        </button>
-                        <!-- Botón Salir -->
-                        <button onclick="handleLogout()" 
-                            title="Salir y cerrar sesión"
-                            class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                        <button onclick="handleLogout()" title="Cerrar Sesión" class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition active:scale-95">
+                            <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
                     </div>
-
                 </nav>
-                
-                <button class="md:hidden p-2 rounded-lg hover:bg-orange-600 transition duration-200" onclick="toggleMobileMenu()">
+
+                <button class="md:hidden p-2 rounded-lg hover:bg-orange-600" onclick="toggleMobileMenu()">
                     <i data-lucide="menu" class="h-6 w-6"></i>
                 </button>
             </div>
-            
-            <div id="mobileMenu" class="md:hidden hidden py-4 border-t border-orange-300">
-                </div>
         </div>
     </header>
-
-    <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="showModal(false)">
-        <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
-            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure">Acción Realizada</h3>
-            <p id="modalBody" class="text-gray-700 mb-4"></p>
-            <button onclick="showModal(false)" class="w-full bg-primary-link text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
-        </div>
-    </div>
 
     <main class="p-4 sm:p-6 lg:p-8">
         <div class="max-w-[1800px] mx-auto">
@@ -149,53 +145,44 @@
                 </div>
             </div>
 
-            <div class="card mb-8 filter-section">
-                <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center">
-                    <span class="mr-2">🔍</span> Filtros de Búsqueda
-                    <span id="activeFiltersCount" class="ml-3 text-sm font-normal text-gray-500">0 filtro(s) activo(s)</span>
+            <div class="card mb-8">
+                <h2 class="text-lg font-bold text-black-pure mb-4 flex items-center">
+                    <i data-lucide="search" class="mr-2 h-5 w-5"></i> Filtros de Búsqueda
+                    <span id="activeFiltersCount" class="ml-auto text-xs font-normal bg-gray-100 px-2 py-1 rounded">0 filtro(s) activo(s)</span>
                 </h2>
                 
                 <form id="searchForm" onsubmit="handleSearch(event)">
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-                        
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                         <div>
-                            <label for="usuario_filtro" class="block text-sm font-medium text-gray-600 mb-1">Usuario</label>
-                            <input type="text" id="usuario_filtro" name="usuario" placeholder="Nombre de usuario" class="input-field text-xs">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Usuario</label>
+                            <input type="text" id="usuario_filtro" name="usuario" placeholder="Nombre..." class="input-field text-xs">
                         </div>
-
                         <div>
-                            <label for="email_filtro" class="block text-sm font-medium text-gray-600 mb-1">Email</label>
-                            <input type="email" id="email_filtro" name="email" placeholder="email@dominio.com" class="input-field text-xs">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                            <input type="email" id="email_filtro" name="email" placeholder="email@..." class="input-field text-xs">
                         </div>
-                        
                         <div>
-                            <label for="role_filtro" class="block text-sm font-medium text-gray-600 mb-1">Rol</label>
-                            <select id="role_filtro" name="role" class="input-field appearance-none text-xs">
-                                <option value="">Todos los roles</option>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Rol</label>
+                            <select id="role_filtro" name="role" class="input-field text-xs">
+                                <option value="">Todos</option>
                                 <option value="admin">Administrador</option>
                                 <option value="user">Usuario Estándar</option>
                             </select>
                         </div>
-                        
                         <div>
-                            <label for="activo_filtro" class="block text-sm font-medium text-gray-600 mb-1">Estado</label>
-                            <select id="activo_filtro" name="activo" class="input-field appearance-none text-xs">
-                                <option value="">Activos / Inactivos</option>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Estado</label>
+                            <select id="activo_filtro" name="activo" class="input-field text-xs">
+                                <option value="">Cualquiera</option>
                                 <option value="true">Activo</option>
                                 <option value="false">Inactivo</option>
                             </select>
                         </div>
-
                         <div class="flex items-end gap-2">
-                            <button type="submit" 
-                                    class="bg-primary-link text-white font-semibold py-2 px-6 rounded-lg hover:bg-orange-600 transition duration-200 active:scale-95 shadow-md flex items-center">
-                                <i data-lucide="search" class="h-5 w-5 mr-2"></i> Buscar
+                            <button type="submit" class="bg-primary-link text-white font-semibold py-2 px-4 rounded-lg hover:bg-orange-600 transition active:scale-95 shadow-md flex-1">
+                                Filtrar
                             </button>
-                            <button type="button" 
-                                    onclick="handleClearAllFilters()" 
-                                    class="px-6 py-2 rounded-lg transition duration-200 shadow-md bg-gray-200 text-gray-700 hover:bg-gray-300 active:scale-95 flex items-center">
-                                <i data-lucide="rotate-ccw" class="h-5 w-5"></i>
+                            <button type="button" onclick="handleClearAllFilters()" class="bg-gray-200 text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-300">
+                                <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
                             </button>
                         </div>
                     </div>
@@ -203,88 +190,61 @@
             </div>
 
             <div class="card">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-                    <h2 class="text-xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
-                        <span class="mr-2">📋</span>
-                        Listado de Usuarios
-                        <span id="resultsCount" class="ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full">
-                            Cargando...
-                        </span>
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+                    <h2 class="text-lg font-bold text-black-pure flex items-center">
+                        <i data-lucide="list" class="mr-2 h-5 w-5"></i> 
+                        Listado <span id="resultsCount" class="ml-2 text-xs font-normal bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">...</span>
                     </h2>
-
-                    <div class="flex items-center space-x-3">
-                        <button onclick="handleCreateUser()" 
-                                class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 active:scale-95 shadow-md flex items-center">
-                            <i data-lucide="user-plus" class="h-5 w-5 mr-2"></i> Nuevo Usuario
-                        </button>
-                    </div>
-                    
+                    <button onclick="handleCreateUser()" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition active:scale-95 shadow-md flex items-center">
+                        <i data-lucide="user-plus" class="h-4 w-4 mr-2"></i> Nuevo Usuario
+                    </button>
                 </div>
 
                 <div class="shadow-lg rounded-xl border border-gray-100 compact-table overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-primary-link text-white">
                             <tr>
-                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
-                                    <div class="sortable" onclick="sortTable('id')">ID<span class="sort-icon" id="sort-id"></span></div>
-                                </th>
-                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
-                                    <div class="sortable" onclick="sortTable('usuario')">Usuario<span class="sort-icon" id="sort-usuario"></span></div>
-                                </th>
-                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
-                                    <div class="sortable" onclick="sortTable('email')">Email<span class="sort-icon" id="sort-email"></span></div>
-                                </th>
-                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
-                                    <div class="sortable" onclick="sortTable('role')">Rol<span class="sort-icon" id="sort-role"></span></div>
-                                </th>
-                                <th scope="col" class="px-3 py-2 text-center text-xs font-bold uppercase tracking-wider">
-                                    <div class="sortable" onclick="sortTable('activo')">Activo<span class="sort-icon" id="sort-activo"></span></div>
-                                </th>
-                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
-                                    <div class="sortable" onclick="sortTable('created_at')">Creado<span class="sort-icon" id="sort-created_at"></span></div>
-                                </th>
-                                <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Licencia Ref</th>
-                                <th scope="col" class="px-3 py-2 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
+                                <th class="px-3 py-3 text-left font-bold uppercase rounded-tl-xl" onclick="sortTable('id')">ID</th>
+                                <th class="px-3 py-3 text-left font-bold uppercase" onclick="sortTable('usuario')">Usuario</th>
+                                <th class="px-3 py-3 text-left font-bold uppercase" onclick="sortTable('email')">Email</th>
+                                <th class="px-3 py-3 text-left font-bold uppercase" onclick="sortTable('role')">Rol</th>
+                                <th class="px-3 py-3 text-center font-bold uppercase" onclick="sortTable('activo')">Estado</th>
+                                <th class="px-3 py-3 text-left font-bold uppercase" onclick="sortTable('created_at')">Creado</th>
+                                <th class="px-3 py-3 text-left font-bold uppercase">Licencia Ref</th>
+                                <th class="px-3 py-3 text-center font-bold uppercase rounded-tr-xl">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="userResults" class="bg-white divide-y divide-gray-200">
-                            <tr><td colspan="8" class="text-center py-4 text-gray-500 italic text-sm">Cargando usuarios...</td></tr>
+                            <tr><td colspan="8" class="text-center py-10 text-gray-500 italic">Iniciando sistema...</td></tr>
                         </tbody>
                     </table>
                 </div>
-                <div id="statusMessage" class="hidden status-message text-sm" role="alert"></div>
                 
-                <div class="flex justify-between items-center mt-4">
-                    <div class="flex items-center space-x-2 text-sm text-gray-600">
-                        <button id="prevPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg" title="Página anterior">
+                <div id="statusMessage" class="hidden status-message text-sm mb-4" role="alert"></div>
+                
+                <div class="flex justify-between items-center mt-4 border-t pt-4">
+                    <div class="text-xs text-gray-500 font-medium">
+                        Sistema de Gestión v2.0
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="prevPageBtn" class="bg-gray-100 text-gray-600 p-2 rounded-md disabled:opacity-30">
                             <i data-lucide="chevron-left" class="h-4 w-4"></i>
                         </button>
-                        <span id="pageInfo" class="text-sm text-gray-600 font-medium px-3 py-1 bg-gray-100 rounded">Página 1 de 1</span>
-                        <button id="nextPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg" title="Página siguiente">
+                        <span id="pageInfo" class="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded">Página 1</span>
+                        <button id="nextPageBtn" class="bg-gray-100 text-gray-600 p-2 rounded-md disabled:opacity-30">
                             <i data-lucide="chevron-right" class="h-4 w-4"></i>
                         </button>
                     </div>
                 </div>
-
             </div>
         </div>
     </main>
-    
+
     <script>
-        // Funciones globales de UI (copiadas del menú base)
-        window.toggleDropdown = (btn) => { 
-            const dropdown = btn.closest('.dropdown'); 
-            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); 
-            dropdown?.classList.toggle('active'); 
-        };
-        window.handleAction = (title, description) => { 
-            // Implementación simplificada o usar el modal de la plantilla principal
-        };
-        window.handleLogout = () => { window.location.href = '/login'; };
-        
-        // Las funciones handleCreateUser, handleUpdateUser, etc., son definidas en admin_usuarios.js
-        window.handleCreateUser = () => { window.location.href = '/admin/usuarios/crear'; };
-        window.toggleMobileMenu = () => { /* Lógica del menú móvil */ };
+        // Inicializar iconos de Lucide al cargar el DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
+        });
     </script>
 </body>
 </html>
