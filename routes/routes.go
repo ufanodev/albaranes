@@ -73,12 +73,19 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		viewGroup.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_view.html", nil) })
 		viewGroup.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_view.html", nil) })
 
-		// Vistas Admin
+		// --- 🆕 VISTAS ADMIN ALBARANES (Añadidas) ---
 		adminViews := viewGroup.Group("/admin")
 		{
 			adminViews.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "admin.html", nil) })
 			adminViews.GET("/albaranes", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_busqueda.html", nil) })
 			adminViews.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
+
+			// Rutas solicitadas para View, Update y Delete (Vistas HTML)
+			adminViews.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_view.html", nil) })
+			adminViews.GET("/albaranes/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_update.html", nil) })
+			adminViews.GET("/albaranes/borrar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_borrar.html", nil) })
+			adminViews.GET("/albaranes/copiar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
+
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
 			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
@@ -88,12 +95,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
 		}
 
-		// Rutas CRUD auxiliares (Vistas)
+		// Rutas CRUD auxiliares (Otras Vistas)
 		viewGroup.GET("/admin/conductor/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 		viewGroup.GET("/admin/conductor/update/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 		viewGroup.GET("/admin/conductor/view/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
-		viewGroup.GET("/admin/conductor/update/:licencia", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
-		viewGroup.GET("/admin/conductor/view/:licencia", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 		viewGroup.GET("/admin/usuarios/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
 		viewGroup.GET("/admin/usuarios/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
 		viewGroup.GET("/admin/titulares/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
@@ -130,8 +135,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				conductorGroup.PUT("/licencia_conductor/:licencia/:conductor", func(c *gin.Context) { controllers.UpdateConductorByLicenciaYConductor(c, db) })
 				conductorGroup.DELETE("/:licencia", func(c *gin.Context) { controllers.DeleteConductor(c, db) })
 				conductorGroup.DELETE("/id/:id", func(c *gin.Context) { controllers.DeleteConductorByID(c, db) })
-
-				// 📄 NUEVAS RUTAS EXPORTACIÓN CONDUCTORES
 				conductorGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportConductoresPDF(c, db) })
 				conductorGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportConductoresXLSX(c, db) })
 			}
@@ -181,6 +184,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			albaranGroup := protected.Group("/albaranes")
 			{
 				albaranGroup.GET("/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
+				albaranGroup.GET("/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) }) // Ruta para cargar por ID
 				albaranGroup.POST("/", func(c *gin.Context) { controllers.CreateAlbaran(c, db) })
 				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })

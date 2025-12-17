@@ -1,6 +1,6 @@
 /**
  * admin.js - Gestión de Albaranes para Administrador
- * Versión: MASTER MAESTRO (Combos + Búsqueda Campos + 4 Acciones + Logs)
+ * Versión: MASTER UNIFICADO (Combos + Búsqueda + 4 Acciones + Exportación + View Admin)
  */
 
 const APP = {
@@ -63,7 +63,6 @@ const UI = {
         APP.state.modeIsManual = true;
         console.log(`🔄 [MODE] Cambiando a modo: ${mode.toUpperCase()}`);
         this.setSearchMode(mode);
-        // Al pulsar el botón, ejecutamos la búsqueda inmediatamente con los datos de los campos
         API.searchAlbaranes(Filters.getFiltersFromForm());
     },
 
@@ -106,13 +105,19 @@ const UI = {
         APP.state.totalPages = Math.ceil(total / APP.state.pageSize) || 1;
         if (APP.elements.pageInfo) APP.elements.pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages}`;
         if (APP.elements.resultsCount) APP.elements.resultsCount.textContent = total;
+        
+        if (APP.elements.totalLabel) {
+            const start = total === 0 ? 0 : (APP.state.currentPage - 1) * APP.state.pageSize + 1;
+            const end = Math.min(start + APP.state.pageSize - 1, total);
+            APP.elements.totalLabel.textContent = total > 0 ? `(Viendo ${start}-${end} de ${total})` : "";
+        }
         this.updatePaginationButtons();
     },
 
     updatePaginationButtons() {
         const { prevBtn, nextBtn } = APP.elements;
         prevBtn.disabled = APP.state.currentPage <= 1;
-        nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
+        nextBtn.disabled = APP.state.currentPage >= (APP.state.totalPages || 1);
     },
 
     updateActiveFiltersCount() {
@@ -140,7 +145,6 @@ const Filters = {
             palabra: formData.get('palabra') || '',
             search_type: formData.get('search_type') || 'exacta'
         };
-        // Limpieza de seguridad según modo para no enviar basura a la API
         if (APP.state.searchMode === 'palabra') { f.licencia_ref = ''; f.empresa_ref = ''; f.state = ''; f.referencia = ''; f.fecha_ini = ''; f.fecha_fin = ''; }
         if (APP.state.searchMode === 'campos') { f.palabra = ''; }
         return f;
@@ -201,26 +205,22 @@ const Exportation = {
 
 const API = {
     async loadEmpresas() {
-        console.log("⏳ Cargando combo de empresas...");
         try {
             const r = await fetch('/api/v1/empresas');
             const d = await r.json();
             const list = d.data || d;
             APP.elements.empresaSelect.innerHTML = '<option value="">📋 Todas las empresas</option>' + 
                 list.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
-            console.log("✅ Empresas cargadas en combo.");
         } catch (e) { console.error("❌ Error cargando empresas:", e); }
     },
 
     async loadLicencias() {
-        console.log("⏳ Cargando combo de licencias...");
         try {
             const r = await fetch('/api/v1/licencias');
             const d = await r.json();
             const list = d.data || d;
             APP.elements.licenciaSelect.innerHTML = '<option value="">🆔 Todas las licencias</option>' + 
                 list.map(l => `<option value="${l.id}">${l.licencia}</option>`).join('');
-            console.log("✅ Licencias cargadas en combo.");
         } catch (e) { console.error("❌ Error cargando licencias:", e); }
     },
 
@@ -301,7 +301,10 @@ window.handleGenerateXLSX = () => Exportation.handle('xlsx');
 window.handleSearch = (e) => { if(e) e.preventDefault(); API.searchAlbaranes(Filters.getFiltersFromForm()); };
 window.handleClearAllFilters = () => { APP.elements.searchForm.reset(); APP.state.searchMode = 'todos'; UI.setSearchMode('todos'); API.searchAlbaranes({}); };
 window.sortTable = (k) => Filters.sortTable(k);
-window.handleViewAction = (id) => window.location.href = `/albaranes/view/${id}`;
+
+// 🔍 Ruta administrativa para cargar admin_albaran_view.html
+window.handleViewAction = (id) => window.location.href = `/admin/albaranes/view/${id}`;
+
 window.handleEditAction = (id) => window.location.href = `/admin/albaranes/update/${id}`;
 window.handleCopyAction = (id) => window.location.href = `/admin/albaranes/copiar/${id}`;
 window.handleDeleteAction = (id) => { if(confirm("¿Seguro que desea eliminar este albarán?")) window.location.href = `/admin/albaranes/borrar/${id}`; };
@@ -314,15 +317,14 @@ window.UI = UI;
 // =================================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("🚀 [MASTER] admin.js: Cargando sistema real...");
+    console.log("🚀 [MASTER UNIFICADO] admin.js: Cargando sistema...");
     
-    // Carga paralela de combos para velocidad
     await Promise.all([API.loadEmpresas(), API.loadLicencias()]);
 
-    // Registro de eventos de paginación
     if (APP.elements.recordsSelect) {
         APP.elements.recordsSelect.onchange = (e) => {
-            APP.state.pageSize = e.target.value === 'todos' ? 9999 : parseInt(e.target.value);
+            const val = e.target.value;
+            APP.state.pageSize = val === 'todos' ? 9999 : parseInt(val);
             APP.state.currentPage = 1;
             DOM.renderResults();
         };
@@ -331,7 +333,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
     APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
 
-    // Estado inicial
     UI.setSearchMode('todos');
     API.searchAlbaranes(Filters.getFiltersFromForm());
 });
