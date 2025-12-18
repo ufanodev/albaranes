@@ -1,6 +1,6 @@
 /**
  * busqueda.js - Panel de Usuario (Titular)
- * Gestión de albaranes con Búsqueda Pro y botón de Limpiar Inteligente.
+ * Gestión de albaranes, Búsqueda Pro, Exportaciones y Sesión.
  */
 
 const APP = {
@@ -13,13 +13,11 @@ const APP = {
         resultsCount: document.getElementById('resultsCount'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
+        numLicenciaHeader: document.getElementById('num_licencia_header'),
         licenciaDisplay: document.getElementById('licencia_display'),
         licenciaInput: document.getElementById('licencia_ref'), 
         empresaSelect: document.getElementById('empresa'),
         stateSelect: document.getElementById('state'),
-        referenciaInput: document.getElementById('referencia'),
-        fechaDesdeInput: document.getElementById('fecha_desde'),
-        fechaHastaInput: document.getElementById('fecha_hasta'),
         palabraInput: document.getElementById('palabra'),
         activeFiltersCount: document.getElementById('activeFiltersCount'),
         btnModeCampos: document.getElementById('btn-mode-campos'),
@@ -44,14 +42,12 @@ const APP = {
 };
 
 // =================================================================================
-// 🎨 UI HELPERS & MODE MANAGEMENT
+// 🎨 UI HELPERS & MODES
 // =================================================================================
-
 const UI = {
     formatDate(isoString) { return isoString ? isoString.substring(0, 10) : '-'; },
 
     setSearchModeManual(mode) {
-        console.log(`%c🔄 [MODO] Cambio a: ${mode.toUpperCase()}`, "color: #FF8C00; font-weight: bold;");
         this.setSearchMode(mode);
         API.searchAlbaranes(); 
     },
@@ -100,7 +96,6 @@ const UI = {
     getCleanParams() {
         const data = {};
         if (APP.state.userLicenciaId) data['licencia_ref'] = APP.state.userLicenciaId;
-
         if (APP.state.searchMode === 'campos') {
             ['empresa_ref', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'].forEach(name => {
                 const el = APP.elements.searchForm.querySelector(`[name="${name}"]`);
@@ -126,7 +121,6 @@ const UI = {
 // =================================================================================
 // 📡 API SERVICES
 // =================================================================================
-
 const API = {
     async fetchMyLicencia() {
         try {
@@ -140,7 +134,7 @@ const API = {
                 if (APP.elements.numLicenciaHeader) APP.elements.numLicenciaHeader.textContent = data.licencia_numero;
                 return true;
             }
-        } catch (e) { console.error("❌ Error Licencia:", e); }
+        } catch (e) { console.error("❌ Error Identidad:", e); }
         return false;
     },
 
@@ -159,15 +153,10 @@ const API = {
     async searchAlbaranes() {
         if (!APP.state.userLicenciaId) return;
         DOM.showLoading();
-        const filtros = UI.getCleanParams();
-        const params = new URLSearchParams(filtros);
-
-        console.log("%c📤 [ENVÍO] URLParams:", "color: #9333ea; font-weight: bold;", filtros);
-        
+        const params = new URLSearchParams(UI.getCleanParams());
         try {
             const response = await fetch(`/api/v1/albaranes/search-user?${params.toString()}`, { credentials: 'include' });
             const result = await response.json();
-            console.log("%c📥 [RECIBO] Respuesta:", "color: #16a34a; font-weight: bold;", result);
             APP.state.filteredAlbaranes = result.data || [];
             DOM.renderResults();
         } catch (e) { DOM.showNoResults(); }
@@ -177,7 +166,6 @@ const API = {
 // =================================================================================
 // 🖼️ DOM RENDERING
 // =================================================================================
-
 const DOM = {
     showLoading() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-10 italic">Buscando...</td></tr>'; },
     showNoResults() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-orange-500 font-bold">No se encontraron registros.</td></tr>'; },
@@ -201,8 +189,7 @@ const DOM = {
                 <td class="px-4 py-3 text-center">${this.getBadge(a)}</td>
                 <td class="px-4 py-3 text-center">
                     <div class="flex justify-center space-x-2">
-                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded-full"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-100 rounded-full"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1 text-blue-600"><i data-lucide="eye" class="w-4 h-4"></i></button>
                     </div>
                 </td>`;
             resultsBody.appendChild(tr);
@@ -211,59 +198,79 @@ const DOM = {
         if (window.lucide) lucide.createIcons();
     },
     getBadge(a) {
-        if (a.pagado && a.cobrado) return '<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">FINALIZADO</span>';
-        if (a.pagado) return '<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">PAGADO</span>';
-        if (a.enviado) return '<span class="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">ENVIADO</span>';
-        return '<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">CREADO</span>';
+        if (a.pagado) return '<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold">PAGADO</span>';
+        if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">ENVIADO</span>';
+        return '<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">CREADO</span>';
     }
 };
 
 // =================================================================================
-// 🧹 LÓGICA DE LIMPIEZA (Corregida)
+// 🚀 ACCIONES GLOBALES (LOGOUT & EXPORT)
 // =================================================================================
+
+window.handleLogout = async () => {
+    if (!confirm("¿Cerrar sesión?")) return;
+    try {
+        await fetch('/api/v1/logout', { method: 'POST', credentials: 'include' });
+        window.location.href = '/login';
+    } catch (e) { window.location.href = '/login'; }
+};
+
+window.handleExportAction = async (format) => {
+    if (APP.state.filteredAlbaranes.length === 0) return alert("No hay datos para exportar");
+    
+    const endpoint = format === 'PDF' ? '/api/v1/export/pdf' : '/api/v1/export/xlsx';
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                reportName: `Listado_${format}_Lic_${APP.state.userLicenciaNumero}`, 
+                data: APP.state.filteredAlbaranes 
+            })
+        });
+        const res = await response.json();
+        if (res.downloadURL) window.open(res.downloadURL, '_blank');
+    } catch (e) { console.error(e); }
+};
 
 window.handleClearAllFilters = () => {
-    console.log("%c🧹 [LIMPIAR] Reseteando filtros... conservando ID de licencia.", "color: #ef4444; font-weight: bold;");
-    
-    // 1. Resetear el formulario (borra todo)
-    if (APP.elements.searchForm) APP.elements.searchForm.reset();
-
-    // 2. RE-INYECTAR LICENCIA (Obligatorio para seguridad)
+    APP.elements.searchForm.reset();
     if (APP.state.userLicenciaId) {
-        if (APP.elements.licenciaInput) APP.elements.licenciaInput.value = APP.state.userLicenciaId;
-        if (APP.elements.licenciaDisplay) APP.elements.licenciaDisplay.value = APP.state.userLicenciaNumero;
+        APP.elements.licenciaInput.value = APP.state.userLicenciaId;
+        APP.elements.licenciaDisplay.value = APP.state.userLicenciaNumero;
     }
-
-    // 3. Volver al modo por defecto
     UI.setSearchMode('campos');
-    APP.state.currentPage = 1;
-
-    // 4. Ejecutar búsqueda limpia
     API.searchAlbaranes();
-    UI.showStatusMessage("Búsqueda reiniciada", "info");
 };
 
-// =================================================================================
-// 🚀 INICIALIZACIÓN
-// =================================================================================
+window.handleSearch = (e) => { e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
+window.handleActionModal = (show) => { document.getElementById('actionModal').classList.toggle('hidden', !show); };
 
+// =================================================================================
+// 🏁 INITIALIZATION
+// =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    APP.elements.btnModeCampos?.addEventListener('click', () => UI.setSearchModeManual('campos'));
-    APP.elements.btnModePalabra?.addEventListener('click', () => UI.setSearchModeManual('palabra'));
-
+    // 1. Cargar Identidad
     const ok = await API.fetchMyLicencia();
     if (ok) {
         await API.loadEmpresas();
-        UI.setSearchModeManual('campos');
+        UI.setSearchMode('campos');
+        API.searchAlbaranes();
+    } else {
+        window.location.href = '/login';
     }
 
-    // Listener para el botón limpiar del HTML
-    const btnClean = document.getElementById('btn-limpiar');
-    if (btnClean) btnClean.onclick = window.handleClearAllFilters;
+    // 2. Listeners de Modo
+    APP.elements.btnModeCampos?.addEventListener('click', () => UI.setSearchModeManual('campos'));
+    APP.elements.btnModePalabra?.addEventListener('click', () => UI.setSearchModeManual('palabra'));
 
+    // 3. Paginación
     if (APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
     if (APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
+    if (APP.elements.recordsSelect) APP.elements.recordsSelect.onchange = (e) => { 
+        APP.state.pageSize = parseInt(e.target.value); 
+        APP.state.currentPage = 1; 
+        DOM.renderResults(); 
+    };
 });
-
-window.handleSearch = (e) => { if(e) e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
-window.handleLogout = () => { if(confirm("¿Cerrar sesión?")) window.location.href = '/logout'; };
