@@ -37,7 +37,8 @@ func CheckPasswordHash(password, hash string) bool {
 // ---------------------------------------------------------------------
 
 // GenerateAuthCookie crea y devuelve una cookie HttpOnly con el token JWT.
-func GenerateAuthCookie(userID uint, role string) (*http.Cookie, error) {
+// 🛡️ ACTUALIZADO: Ahora acepta y guarda licenciaID en el token.
+func GenerateAuthCookie(userID uint, role string, licenciaID uint) (*http.Cookie, error) {
 	secretKey := os.Getenv("JWT_SECRET_KEY")
 	if secretKey == "" {
 		return nil, fmt.Errorf("clave secreta JWT no configurada")
@@ -47,9 +48,10 @@ func GenerateAuthCookie(userID uint, role string) (*http.Cookie, error) {
 	expirationTime := time.Now().Add(time.Hour * 3)
 
 	claims := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": userID,
-		"role":    role,
-		"exp":     expirationTime.Unix(),
+		"user_id":     userID,
+		"role":        role,
+		"licencia_id": licenciaID, // 👈 Se añade la referencia de licencia al token
+		"exp":         expirationTime.Unix(),
 	})
 
 	tokenString, err := claims.SignedString([]byte(secretKey))
@@ -103,9 +105,7 @@ func ClearAndSetAuthCookie(c *gin.Context) {
 // --- Middlewares y Validación de Sesión
 // ---------------------------------------------------------------------
 
-// CheckSessionForView valida el token JWT de la cookie.
-// Si la cookie existe pero el token es inválido o expirado, la borra de la respuesta y devuelve false.
-// Es utilizada por el middleware de redirección (routes.go).
+// CheckSessionForView valida el token JWT de la cookie para las vistas HTML.
 func CheckSessionForView(c *gin.Context) bool {
 	secretKey := os.Getenv("JWT_SECRET_KEY")
 	if secretKey == "" {
@@ -115,7 +115,6 @@ func CheckSessionForView(c *gin.Context) bool {
 
 	cookie, err := c.Request.Cookie(AuthCookieName)
 	if err != nil {
-		// Cookie no encontrada, no hay sesión.
 		return false
 	}
 
@@ -129,16 +128,15 @@ func CheckSessionForView(c *gin.Context) bool {
 	})
 
 	if err != nil || !token.Valid {
-		// Token inválido o expirado. Limpiar la cookie en la respuesta para evitar bucles.
 		ClearAndSetAuthCookie(c)
 		return false
 	}
 
-	// Token válido.
 	return true
 }
 
 // JWTAuthMiddleware es el middleware principal para las rutas API.
+// 🛡️ ACTUALIZADO: Ahora extrae e inyecta licencia_id en el contexto de Gin.
 func JWTAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		secretKey := os.Getenv("JWT_SECRET_KEY")
@@ -147,7 +145,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// 1. Obtener la cookie
 		cookie, err := c.Request.Cookie(AuthCookieName)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Acceso no autorizado: no hay sesión activa"})
@@ -156,7 +153,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 
 		tokenString := cookie.Value
 
-		// 2. Parsear y validar el token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("método de firma inesperado")
@@ -165,25 +161,26 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			// Limpiar cookie inválida o expirada
 			ClearAndSetAuthCookie(c)
-
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token de sesión inválido o expirado"})
 			return
 		}
 
-		// 3. Extraer y pasar los claims (ID y Rol) al contexto de Gin
+		// Extraer Claims y pasar al contexto de Gin
 		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 			userIDFloat, okID := claims["user_id"].(float64)
 			userRole, okRole := claims["role"].(string)
+			licIDFloat, _ := claims["licencia_id"].(float64) // 👈 Extraemos la licencia
 
 			if !okID || !okRole {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Claims de usuario faltantes o inválidos en el token."})
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Claims de usuario faltantes o inválidos"})
 				return
 			}
 
+			// Inyectamos los datos en el contexto para que los controladores puedan usarlos
 			c.Set("userID", uint(userIDFloat))
 			c.Set("userRole", userRole)
+			c.Set("licencia_id", uint(licIDFloat)) // 👈 Inyectamos en el contexto
 
 			c.Next()
 		} else {
@@ -193,7 +190,9 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// --- Middleware de Llave de Registro (RegisterKeyAuth) ---
+// ---------------------------------------------------------------------
+// --- Middleware de Llave de Registro (RegisterKeyAuth)
+// ---------------------------------------------------------------------
 
 func RegisterKeyAuth() gin.HandlerFunc {
 	expectedUser, expectedPass := config.GetRegisterKeys()
@@ -212,7 +211,7 @@ func RegisterKeyAuth() gin.HandlerFunc {
 		if providedUser == expectedUser && providedPass == expectedPass {
 			c.Next()
 		} else {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "❌ Credenciales de registro (X-Admin-User/Pass) inválidas."})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "❌ Credenciales de registro inválidas."})
 			return
 		}
 	}

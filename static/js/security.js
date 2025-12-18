@@ -1,35 +1,76 @@
-// Archivo: static/js/security.js
-// Contiene funciones de seguridad reutilizables que interactúan con el backend
-// (principalmente para sesiones basadas en Cookie HttpOnly).
-
+/**
+ * security.js - Módulo de Seguridad y Gestión de Sesiones
+ * SECCIÓN: Configuración y Constantes
+ */
 const LOGIN_PATH = '/login';
 
 /**
- * Cierra la sesión de forma segura llamando al endpoint del backend
- * para que borre la Cookie HttpOnly.
+ * SECCIÓN: Gestión de Logout (Cierre de Sesión)
+ * Logica: Comunicación con el backend para invalidar Cookie HttpOnly
  */
 async function handleLogout() {
+    console.log("🚪 [SECURITY] Iniciando proceso de cierre de sesión...");
+
+    // 1. Confirmación de usuario
     if (!confirm("¿Estás seguro que deseas cerrar la sesión?")) {
+        console.log("🚫 [SECURITY] Logout cancelado por el usuario.");
         return;
     }
 
     try {
-        // Llama al endpoint de logout (POST /api/v1/logout), que borra la Cookie HttpOnly en el backend.
+        console.log("📡 [SECURITY] Llamando a /api/v1/logout...");
+        
+        // 2. Petición al backend
         const response = await fetch('/api/v1/logout', {
             method: 'POST',
+            // No enviamos body ya que el backend identifica al usuario por la Cookie HttpOnly
         });
 
-        // El backend responde con 200 OK y la instrucción de borrar la cookie.
+        if (response.ok) {
+            console.log("✅ [SECURITY] Cookie HttpOnly invalidada correctamente por el servidor.");
+        } else {
+            console.warn(`⚠️ [SECURITY] El servidor respondió con status ${response.status} en el logout.`);
+        }
 
     } catch (error) {
-        console.error("Error al comunicarse con el endpoint de logout:", error);
+        console.error("❌ [SECURITY] Error de comunicación con el endpoint de logout:", error);
     } finally {
-        // 1. Forzar la redirección al login.
-        // 2. El AuthRedirectMiddleware de Go se encargará de confirmar que la sesión
-        //    esté limpia y servirá la página de login.
+        // SECCIÓN: Redirección Final
+        // Independientemente de si la petición falló o no, forzamos limpieza en cliente
+        console.log(`🚀 [SECURITY] Redirigiendo a: ${LOGIN_PATH}`);
         window.location.href = LOGIN_PATH;
     }
 }
 
-// Exportar la función para que sea accesible desde los onclick en el HTML
+/**
+ * SECCIÓN: Verificación de Sesión (Opcional)
+ * Útil para chequear si el token sigue vivo antes de operaciones largas
+ */
+async function checkAuthStatus() {
+    console.log("🔍 [SECURITY] Verificando validez de sesión activa...");
+    try {
+        const response = await fetch('/api/v1/user/licencia_ref');
+        if (!response.ok) {
+            console.warn("🚫 [SECURITY] Sesión caducada o inválida.");
+            if (window.location.pathname !== LOGIN_PATH) {
+                window.location.href = LOGIN_PATH;
+            }
+            return false;
+        }
+        console.log("✅ [SECURITY] Sesión confirmada.");
+        return true;
+    } catch (e) {
+        console.error("❌ [SECURITY] Error al verificar estado de autenticación.");
+        return false;
+    }
+}
+
+/**
+ * SECCIÓN: Exposición Global
+ * Registramos las funciones en el objeto 'window' para que sean accesibles
+ * desde los atributos onclick del HTML.
+ */
 window.handleLogout = handleLogout;
+window.checkAuthStatus = checkAuthStatus;
+
+console.log("🛡️ [SECURITY] Módulo security.js cargado y listo.");

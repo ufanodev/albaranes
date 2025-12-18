@@ -91,7 +91,9 @@
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
                 <h1 class="text-3xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
                     <span class="text-4xl mr-3">🚕</span>
-                    <span class="text-2xl">ALBARANES / RECIBOS SERVICIOS</span>
+                    <span class="text-2xl uppercase">
+                        ALBARANES LICENCIA <span id="num_licencia_header" class="text-primary-link">...</span>
+                    </span>
                 </h1>
 
                 <div class="flex flex-wrap gap-3">
@@ -148,63 +150,42 @@
                 
                 <div class="flex flex-wrap gap-3 mb-4 items-center">
                     <span class="font-medium text-gray-700">Modo de filtro:</span>
-                    <button type="button" 
-                            id="btn-mode-campos"
-                            onclick="UI.setSearchModeManual('campos')"
-                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                   bg-secondary-blue text-white hover:bg-blue-600 active:scale-95">
+                    <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')"
+                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md bg-secondary-blue text-white hover:bg-blue-600 active:scale-95">
                         <span class="mr-2">📝</span> Búsqueda por Campos
                     </button>
 
-                    <button type="button" 
-                            id="btn-mode-palabra"
-                            onclick="UI.setSearchModeManual('palabra')"
-                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                   bg-primary-pastel text-black-pure hover:bg-orange-300 active:scale-95">
+                    <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')"
+                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md bg-primary-pastel text-black-pure hover:bg-orange-300 active:scale-95">
                         <span class="mr-2">💬</span> Búsqueda por Palabra
                     </button>
 
-                    <button type="button" 
-                            id="btn-limpiar"
-                            onclick="UI.limpiarBusqueda()"
-                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                bg-blue-500 text-white hover:bg-blue-600 active:scale-95 ml-2">
+                    <button type="button" id="btn-limpiar" onclick="handleClearAllFilters()"
+                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md bg-blue-500 text-white hover:bg-blue-600 active:scale-95 ml-2">
                         Limpiar
                     </button>
-
                 </div>
                 
                 <hr class="mb-6 border-gray-100">
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
                     <div>
-                        <label for="licencia" class="filter-label">
-                            <i data-lucide="id-card" class="h-3 w-3 mr-1"></i>
-                            LICENCIA
+                        <label class="filter-label">
+                            <i data-lucide="lock" class="h-3 w-3 mr-1 text-blue-500"></i> MI LICENCIA
                         </label>
-                        <input type="text" 
-                               id="licencia" 
-                               name="licencia" 
-                               placeholder="Auto" 
-                               class="input-field bg-gray-100 text-xs font-medium"
-                               readonly
-                               title="Licencia asignada automáticamente">
+                        <input type="text" id="licencia_display" class="input-field bg-blue-50 text-blue-700 font-bold border-blue-200 text-xs cursor-not-allowed" readonly value="Cargando...">
+                        <input type="hidden" id="licencia_ref" name="licencia_ref">
                     </div>
 
                     <div>
-                        <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">
-                            Empresa *
-                        </label>
-                        <select id="empresa" name="empresa_ref" required class="input-field appearance-none">
-                            <option value="" disabled selected>Cargando empresas...</option>
+                        <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">Empresa</label>
+                        <select id="empresa" name="empresa_ref" class="input-field appearance-none">
+                            <option value="">Todas las empresas</option>
                         </select>
                     </div>
 
                     <div>
-                        <label for="state" class="filter-label">
-                            <i data-lucide="activity" class="h-3 w-3 mr-1"></i>
-                            Estado
-                        </label>
+                        <label for="state" class="filter-label">Estado</label>
                         <select id="state" name="state" class="input-field appearance-none text-xs">
                             <option value="">🎯 Todos los estados</option>
                             <option value="creado">🆕 Creado</option>
@@ -215,87 +196,30 @@
                     </div>
 
                     <div>
-                        <label for="referencia" class="filter-label">
-                            <i data-lucide="hash" class="h-3 w-3 mr-1"></i>
-                            Referencia
-                        </label>
-                        <input type="text" 
-                               id="referencia" 
-                               name="referencia" 
-                               placeholder="Ref..." 
-                               class="input-field text-xs"
-                               title="Buscar por número de referencia">
+                        <label for="referencia" class="filter-label">Referencia</label>
+                        <input type="text" id="referencia" name="referencia" placeholder="Ref..." class="input-field text-xs">
                     </div>
 
                     <div>
-                        <label for="fecha_desde" class="filter-label">
-                            <i data-lucide="calendar" class="h-3 w-3 mr-1"></i>
-                            Fecha (Desde)
-                        </label>
-                        <input type="date" 
-                               id="fecha_desde" 
-                               name="fecha_desde" 
-                               class="input-field text-xs"
-                               max="<?php echo date('Y-m-d'); ?>">
+                        <label for="fecha_desde" class="filter-label">Fecha (Desde)</label>
+                        <input type="date" id="fecha_desde" name="fecha_desde" class="input-field text-xs">
                     </div>
 
                     <div>
-                        <label for="fecha_hasta" class="filter-label">
-                            <i data-lucide="calendar" class="h-3 w-3 mr-1"></i>
-                            Fecha (Hasta)
-                        </label>
-                        <input type="date" 
-                               id="fecha_hasta" 
-                               name="fecha_hasta" 
-                               class="input-field text-xs"
-                               max="<?php echo date('Y-m-d'); ?>">
+                        <label for="fecha_hasta" class="filter-label">Fecha (Hasta)</label>
+                        <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field text-xs">
                     </div>
                 </div>
 
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        
-                        <div class="flex-1 max-w-full">
-                            <label for="palabra" class="filter-label">
-                                <i data-lucide="file-text" class="h-3 w-3 mr-1"></i>
-                                🔍 Buscar por palabras
-                            </label>
-                            <div class="flex gap-2">
-                                <input type="text" 
-                                       id="palabra" 
-                                       name="palabra" 
-                                       placeholder="Ej: RACE Madrid cliente123..." 
-                                       class="input-field flex-1 search-highlight"
-                                       title="Busca en: nº albarán, referencia, conductor, DNI, matrícula, cliente, origen, destino, observaciones...">
-                                <button type="button" 
-                                        onclick="document.getElementById('palabra').value = '';"
-                                        class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
-                                        title="Limpiar búsqueda">
-                                    <i data-lucide="x" class="h-4 w-4"></i>
-                                </button>
-                            </div>
-                            
-                            <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
-                                <div class="font-medium text-gray-700 flex items-center">
-                                    Tipo de búsqueda de texto:
-                                </div>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link" checked>
-                                    <span class="ml-2 font-medium">Frase Exacta</span>
-                                </label>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                    <span class="ml-2 font-medium">Todas las palabras</span>
-                                </label>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                    <span class="ml-2 font-medium">Cualquier palabra</span>
-                                </label>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">
-                                📝 Busca en múltiples campos: referencia, cliente, conductor, observaciones, etc.
-                            </p>
-                        </div>
+                    <label for="palabra" class="filter-label">🔍 Buscar por palabras</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="palabra" name="palabra" placeholder="Ej: RACE Madrid cliente123..." class="input-field flex-1 search-highlight">
+                        <button type="submit" class="bg-primary-link text-white px-6 py-2 rounded-lg font-bold hover:bg-orange-600 transition">BUSCAR</button>
+                    </div>
+                    <div class="flex flex-wrap gap-4 text-xs text-gray-700 mt-2">
+                        <label class="inline-flex items-center"><input type="radio" name="search_type" value="exacta" checked class="form-radio text-primary-link h-4 w-4"> <span class="ml-2">Frase Exacta</span></label>
+                        <label class="inline-flex items-center"><input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4"> <span class="ml-2">Todas las palabras</span></label>
                     </div>
                 </div>
             </form>
@@ -304,35 +228,23 @@
         <div class="card">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
                 <h2 class="text-xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
-                    <span class="mr-2">📊</span>
-                    Resultados de Búsqueda
-                    <span id="resultsCount" class="ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full">
-                        Cargando...
-                    </span>
+                    <span class="mr-2">📊</span> Resultados <span id="resultsCount" class="ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full">0</span>
                 </h2>
 
                 <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div class="flex items-center space-x-2 text-sm text-gray-600">
-                        <span>Registros por página:</span>
-                        <select id="recordsPerPage" class="input-field w-auto px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500">
-                            </select>
-                        <span id="totalLabel" class="text-xs text-gray-500 ml-2"></span>
+                        <span>Registros:</span>
+                        <select id="recordsPerPage" class="input-field w-auto px-3 py-2 border rounded-md">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
                     </div>
                     
                     <div class="flex items-center space-x-2">
-                        <button id="prevPageBtn" 
-                                class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 
-                                title="Página anterior">
-                            <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                        </button>
-                        <span id="pageInfo" class="text-sm text-gray-600 font-medium px-3 py-1 bg-gray-100 rounded">
-                            Página 1 de 1
-                        </span>
-                        <button id="nextPageBtn" 
-                                class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 
-                                title="Página siguiente">
-                            <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                        </button>
+                        <button id="prevPageBtn" class="bg-gray-200 p-2 rounded-lg disabled:opacity-50"><i data-lucide="chevron-left" class="h-4 w-4"></i></button>
+                        <span id="pageInfo" class="text-sm font-medium px-3 py-1 bg-gray-100 rounded">Pág 1 de 1</span>
+                        <button id="nextPageBtn" class="bg-gray-200 p-2 rounded-lg disabled:opacity-50"><i data-lucide="chevron-right" class="h-4 w-4"></i></button>
                     </div>
                 </div>
             </div>
@@ -341,95 +253,34 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-primary-link text-white">
                         <tr>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
-                                <div class="sortable flex items-center cursor-pointer" onclick="sortTable('numero_albaran')">
-                                    <i data-lucide="hash" class="h-3 w-3 mr-1"></i>
-                                    Nº Albarán
-                                    <i id="sort-numero_albaran" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex items-center cursor-pointer" onclick="sortTable('fecha')">
-                                    <i data-lucide="calendar" class="h-3 w-3 mr-1"></i>
-                                    Fecha
-                                    <i id="sort-fecha" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex items-center cursor-pointer" onclick="sortTable('licencia')">
-                                    <i data-lucide="id-card" class="h-3 w-3 mr-1"></i>
-                                    Licencia
-                                    <i id="sort-licencia" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <i data-lucide="building" class="h-3 w-3 mr-1"></i>
-                                Empresa
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <i data-lucide="tag" class="h-3 w-3 mr-1"></i>
-                                Referencia
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <i data-lucide="user" class="h-3 w-3 mr-1"></i>
-                                Conductor
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex justify-end items-center cursor-pointer" onclick="sortTable('importe_total')">
-                                    <i data-lucide="euro" class="h-3 w-3 mr-1"></i>
-                                    Importe Total
-                                    <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex items-center cursor-pointer" onclick="sortTable('enviado')">
-                                    <i data-lucide="activity" class="h-3 w-3 mr-1"></i>
-                                    Estado
-                                    <i id="sort-enviado" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <i data-lucide="message-square" class="h-3 w-3 mr-1"></i>
-                                Observaciones
-                            </th>
-                            <th scope="col" class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">
-                                <i data-lucide="settings" class="h-3 w-3 mr-1"></i>
-                                Acciones
-                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase cursor-pointer" onclick="sortTable('numero_albaran')">Nº Albarán</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase cursor-pointer" onclick="sortTable('fecha')">Fecha</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Empresa</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Ref.</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold uppercase">Conductor</th>
+                            <th class="px-4 py-3 text-right text-xs font-bold uppercase">Importe</th>
+                            <th class="px-4 py-3 text-center text-xs font-bold uppercase">Estado</th>
+                            <th class="px-4 py-3 text-center text-xs font-bold uppercase">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
-                        <tr>
-                            <td colspan="10" class="text-center py-12">
-                                <div class="flex flex-col items-center justify-center">
-                                    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mb-4"></div>
-                                    <p class="text-gray-500 italic">Cargando datos de albaranes...</p>
-                                    <p class="text-xs text-gray-400 mt-2">Por favor, espere</p>
-                                </div>
-                            </td>
-                        </tr>
+                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200 text-xs">
+                        <tr><td colspan="8" class="text-center py-10 italic text-gray-400">Cargando datos...</td></tr>
                     </tbody>
-                    <tfoot id="albaranTotal" class="bg-gray-50">
-                        </tfoot>
                 </table>
             </div>
+            <div id="statusMessage" class="hidden status-message" role="alert"></div>
         </div>
-
-        <div id="statusMessage" class="hidden status-message" role="alert"></div>
     </div>
 
     <script>
-        // Inicializar iconos de Lucide
-        document.addEventListener('DOMContentLoaded', function() {
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
-            
-            // Asignación manual de funciones globales a window si fueron definidas con const/let en busqueda.js
-            if (typeof UI !== 'undefined' && UI.setSearchModeManual) {
-                window.UI.setSearchModeManual = UI.setSearchModeManual;
-            }
-        });
+        document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
+        function showModal(show, title = '', body = '') {
+            const modal = document.getElementById('actionModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = body;
+            modal.classList.toggle('hidden', !show);
+        }
+        function handleAction(title, desc) { showModal(true, title, desc); }
     </script>
 </body>
 </html>
