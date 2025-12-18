@@ -1,12 +1,8 @@
-// Archivo: static/js/admin_usuarios_crud.js
-// Lógica para la vista de CRUD de Usuarios: modos 'create', 'edit', 'view', 'delete'.
-
-// NOTA: Este script asume que 'usuarios_cargar.js' ha expuesto globalmente:
-// window.fillFormWithUserData, window.loadUserDataFromAPI, window.saveUserToAPI.
+/**
+ * admin_usuarios_crud.js - Gestión de Usuarios (Versión Integrada)
+ */
 
 (function() {
-    
-    // Objeto de estado y elementos encapsulado
     const CRUD_APP = {
         elements: {
             form: document.getElementById('usuarioForm'),
@@ -16,267 +12,173 @@
             btnModificar: document.getElementById('btn-modificar'),
             btnBorrar: document.getElementById('btn-borrar'),
             passwordInput: document.getElementById('password'),
-            passwordHelp: document.getElementById('password-help'),
-            allInputs: null,
+            emailSelect: document.getElementById('email_select'),
+            emailRealInput: document.getElementById('email'), 
+            licenciaSelect: document.getElementById('licencia_ref')
         },
         state: {
-            mode: 'create', // 'create', 'edit', 'view', 'delete'
+            mode: 'create',
             userId: null,
+            isProcessing: false,
+            licenciasData: []
         }
     };
 
     // =================================================================================
-    // ⚙️ UTILITIES (Asumen funciones de usuarios_cargar.js están disponibles)
+    // ⚙️ MOTOR DE CARGA (GET LICENCIAS)
     // =================================================================================
 
-    /** Muestra un mensaje de estado en la interfaz. */
-    function crudAlertMessage(message, type = 'info') {
-        const { statusMessage } = CRUD_APP.elements;
-        if (!statusMessage) return;
-
-        statusMessage.textContent = message;
-        statusMessage.className = `status-message status-${type}`;
-        statusMessage.classList.remove('hidden');
-        setTimeout(() => statusMessage.classList.add('hidden'), 5000);
-    }
-
-    /** Habilita/Deshabilita todos los campos de entrada del formulario. */
-    function toggleFormFields(enable) {
-        if (!CRUD_APP.elements.allInputs) return;
-
-        CRUD_APP.elements.allInputs.forEach(input => {
-            if (input.id === 'id') {
-                input.readOnly = true;
-                return;
-            }
-            
-            input.disabled = !enable;
-            input.readOnly = !enable;
-            
-            if (input.id === 'password') {
-                input.disabled = !enable;
-                input.readOnly = !enable;
-                
-                if (CRUD_APP.state.mode === 'create') {
-                    input.required = enable;
-                    input.placeholder = 'Mínimo 6 caracteres';
-                } else {
-                    input.required = false;
-                    input.placeholder = 'Dejar vacío para no modificar';
-                }
-            }
-        });
-    }
-
-    /** Actualiza la UI y la visibilidad de botones según el modo. */
-    function updateUIForMode(mode, userData = null) {
-        const { mainTitle, btnCrear, btnModificar, btnBorrar, passwordInput, passwordHelp } = CRUD_APP.elements;
-        const userID = CRUD_APP.state.userId;
+    async function loadCombosFromLicencias() {
+        console.log("➡️ [1] ENTRADA: Solicitando licencias...");
+        const { emailSelect, licenciaSelect } = CRUD_APP.elements;
         
-        // Ocultar botones
-        if (btnCrear) btnCrear.style.display = 'none';
-        if (btnModificar) btnModificar.style.display = 'none';
-        if (btnBorrar) btnBorrar.style.display = 'none';
-        
-        // Deshabilitar
-        if (btnModificar) btnModificar.disabled = true;
-        if (btnBorrar) btnBorrar.disabled = true;
-
-        toggleFormFields(false); // Por defecto, deshabilitado
-
-        switch (mode) {
-            case 'create':
-                mainTitle.textContent = '➕ Crear Nuevo Usuario';
-                if (btnCrear) btnCrear.style.display = ''; 
-                toggleFormFields(true); 
-                passwordInput.required = true;
-                passwordHelp.textContent = 'El password es obligatorio al crear un nuevo usuario.';
-                crudAlertMessage("Modo Creación. Complete los campos y guarde.", 'info');
-                break;
-
-            case 'edit':
-                mainTitle.textContent = `✏️ Modificar Usuario #${userID}`;
-                if (btnModificar) btnModificar.style.display = ''; 
-                if (btnBorrar) btnBorrar.style.display = '';
-                if (btnModificar) btnModificar.disabled = false;
-                if (btnBorrar) btnBorrar.disabled = false;
-                toggleFormFields(true); 
-                passwordInput.required = false;
-                passwordHelp.textContent = 'Dejar vacío para mantener la contraseña actual.';
-                crudAlertMessage("Modo Edición.", 'neutral');
-                break;
-                
-            case 'view':
-            case 'delete':
-                mainTitle.textContent = (mode === 'view' ? '👁️ Detalle ' : '🗑️ Confirmar Baja ') + `Usuario #${userID}`;
-                if (mode === 'delete' && btnBorrar) {
-                    btnBorrar.textContent = '🗑️ CONFIRMAR BAJA'; 
-                    btnBorrar.style.display = ''; 
-                    btnBorrar.disabled = false;
-                    crudAlertMessage(`ATENCIÓN: Confirme la BAJA del usuario #${userID}. El usuario será desactivado.`, 'error');
-                } else if (mode === 'view' && btnModificar) {
-                    btnModificar.textContent = 'Ir a Edición';
-                    btnModificar.style.display = '';
-                    btnModificar.disabled = false;
-                    crudAlertMessage("Modo Solo Lectura: Campos deshabilitados.", 'info');
-                }
-                break;
+        if (!emailSelect || !licenciaSelect) {
+            console.error("❌ [ERROR] Selectores no encontrados. Revisa el HTML.");
+            return;
         }
-        
-        // Mostrar el botón de Volver en todos los modos
-        document.querySelector('.btn-volver').style.display = ''; 
+
+        try {
+            // Quitamos la barra final para evitar la redirección 301 de GIN
+            const response = await fetch('/api/v1/licencias');
+            const result = await response.json();
+            
+            CRUD_APP.state.licenciasData = result.data || [];
+            console.log(`📥 [2] SALIDA: ${CRUD_APP.state.licenciasData.length} licencias cargadas.`);
+
+            emailSelect.innerHTML = '<option value="">--- Seleccione Email ---</option>';
+            licenciaSelect.innerHTML = '<option value="0">--- Sin Licencia (Admin) ---</option>';
+
+            CRUD_APP.state.licenciasData.forEach(lic => {
+                // Rellenar Email
+                const optEmail = document.createElement('option');
+                optEmail.value = lic.email;
+                optEmail.textContent = `${lic.email} (${lic.nombre})`;
+                emailSelect.appendChild(optEmail);
+
+                // Rellenar Licencia
+                const optLic = document.createElement('option');
+                optLic.value = lic.id;
+                optLic.textContent = `LIC ${lic.licencia} - ${lic.nombre}`;
+                licenciaSelect.appendChild(optLic);
+            });
+            console.log("✅ [3] DOM actualizado con licencias.");
+        } catch (error) {
+            console.error("❌ [ERROR] Falló fetch licencias:", error);
+        }
     }
 
-    /** Carga los datos del usuario (si hay ID) y actualiza la UI. */
-    async function loadAndFillUserData(id, mode) {
-        if (id && mode !== 'create') {
-            crudAlertMessage("⏳ Cargando datos del usuario...", 'neutral');
-            
-            // 🔑 Usamos la función global del script usuarios_cargar.js
-            const userData = await loadUserDataFromAPI(id); 
+    window.syncEmail = function(select) {
+        const emailValue = select.value;
+        if (CRUD_APP.elements.emailRealInput) CRUD_APP.elements.emailRealInput.value = emailValue;
 
-            if (userData) {
-                // 🔑 Usamos la función global del script usuarios_cargar.js
-                fillFormWithUserData(userData);
-                updateUIForMode(mode, userData);
-            } else {
-                updateUIForMode('create');
-                crudAlertMessage(`No se pudo encontrar el usuario #${id}.`, 'error');
+        const t = CRUD_APP.state.licenciasData.find(l => l.email === emailValue);
+        if (t && CRUD_APP.elements.licenciaSelect) {
+            CRUD_APP.elements.licenciaSelect.value = t.id;
+            console.log(`🔗 Auto-link: ${emailValue} -> ID ${t.id}`);
+        }
+    };
+
+    // =================================================================================
+    // 📡 DATA LOAD (REEMPLAZA A usuarios_cargar.js)
+    // =================================================================================
+
+    async function loadUserData(id) {
+        console.log(`📡 [4] ENTRADA: Cargando datos usuario ID ${id}`);
+        try {
+            const resp = await fetch('/api/v1/users');
+            const result = await resp.json();
+            const user = (result.data || []).find(u => u.id == id);
+            
+            if (user) {
+                document.getElementById('id').value = user.id;
+                document.getElementById('usuario').value = user.usuario;
+                document.getElementById('email').value = user.email;
+                document.getElementById('role').value = user.role;
+                document.getElementById('activo').value = String(user.activo);
+                document.getElementById('licencia_ref').value = user.licencia_ref;
+                if (CRUD_APP.elements.emailSelect) CRUD_APP.elements.emailSelect.value = user.email;
+                console.log("✅ [5] SALIDA: Formulario de edición rellenado.");
             }
-        } else {
-            updateUIForMode('create');
+        } catch (e) {
+            console.error("❌ Error cargando usuario:", e);
         }
     }
 
     // =================================================================================
-    // 🎯 EVENT HANDLERS
+    // 🎯 UI & HANDLERS
     // =================================================================================
 
-    /** Maneja el envío del formulario (Crear/Modificar) - Llama a la API real */
+    function crudAlertMessage(msg, type) {
+        const el = CRUD_APP.elements.statusMessage;
+        if (!el) return;
+        el.textContent = msg;
+        el.className = `status-message block mt-4 p-4 text-center font-bold rounded border ${
+            type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`;
+        el.classList.remove('hidden');
+    }
+
     window.handleFormSubmit = async function(event) {
         event.preventDefault();
-        
-        if (CRUD_APP.state.isBulkProcessing) return; // Evitar doble submit
-        CRUD_APP.state.isBulkProcessing = true;
+        const formData = new FormData(event.target);
+        const payload = Object.fromEntries(formData.entries());
 
-        const mode = CRUD_APP.state.mode;
-        const form = event.target;
-        const formData = {};
-        new FormData(form).forEach((value, key) => { formData[key] = value; });
+        payload.licencia_ref = parseInt(payload.licencia_ref) || 0;
+        payload.activo = (payload.activo === 'true');
+        if (CRUD_APP.state.mode === 'edit' && !payload.password) delete payload.password;
 
-        // Validación de contraseña para CREATE
-        if (mode === 'create' && (!formData.password || formData.password.length < 6)) {
-             CRUD_APP.state.isBulkProcessing = false;
-             return crudAlertMessage('❌ Error: La contraseña debe tener al menos 6 caracteres.', 'error');
-        }
+        const isEdit = CRUD_APP.state.mode === 'edit';
+        const url = isEdit ? `/api/v1/users/${CRUD_APP.state.userId}` : '/api/v1/users';
         
         try {
-            crudAlertMessage(`⏳ Enviando solicitud de ${mode}...`, 'neutral');
-            
-            // 🔑 LLAMADA REAL A LA API (usa la función de usuarios_cargar.js)
-            const result = await saveUserToAPI(mode, formData);
-            
-            crudAlertMessage(`✅ Operación de ${mode} exitosa! ${result.message}`, 'success');
-            
-            // Redirección tras éxito
-            if (mode === 'create' || mode === 'edit') {
+            const res = await fetch(url, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                crudAlertMessage("✅ Guardado correctamente", "success");
                 setTimeout(() => window.location.href = '/admin/usuarios', 1500);
+            } else {
+                const err = await res.json();
+                crudAlertMessage("❌ Error: " + err.error, "error");
             }
+        } catch (e) { crudAlertMessage("❌ Error de red", "error"); }
+    };
+
+    window.handleAction = (type) => {
+        if (type === 'volver') window.location.href = '/admin/usuarios';
+        if (type === 'modificar') CRUD_APP.elements.form.requestSubmit();
+    };
+
+    // =================================================================================
+    // 🚀 INIT
+    // =================================================================================
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        console.log("🚀 [INIT] Iniciando admin_usuarios_crud.js");
+
+        // 1. Cargar Combos
+        await loadCombosFromLicencias();
+
+        // 2. Determinar Modo e ID
+        const parts = window.location.pathname.split('/').filter(p => p.length > 0);
+        const lastPart = parts[parts.length - 1];
+
+        if (!isNaN(lastPart) && lastPart !== "") {
+            CRUD_APP.state.mode = 'edit';
+            CRUD_APP.state.userId = lastPart;
+            await loadUserData(lastPart);
             
-        } catch (error) {
-            crudAlertMessage(`❌ Falló ${mode}: ${error.message}`, 'error');
-            console.error(`Error en la operación ${mode}:`, error);
-        } finally {
-            CRUD_APP.state.isBulkProcessing = false;
-        }
-    }
-
-    /** Maneja las acciones de botones (Modificar, Borrar, Volver). */
-    window.handleAction = function(actionType) {
-        switch (actionType) {
-            case 'modificar':
-                if (CRUD_APP.state.mode === 'edit') {
-                    // En modo EDIT, el botón Modificar actúa como GUARDAR
-                    CRUD_APP.elements.form.dispatchEvent(new Event('submit', { cancelable: true }));
-                } else if (CRUD_APP.state.mode === 'view') {
-                    // En modo VIEW, el botón Modificar actúa como IR A EDICIÓN
-                    window.location.href = `/admin/usuarios/update/${CRUD_APP.state.userId}`;
-                }
-                break;
-                
-            case 'borrar':
-                if (CRUD_APP.state.mode === 'delete' && CRUD_APP.state.userId) {
-                    const id = CRUD_APP.state.userId;
-                    
-                    crudAlertMessage(`🗑️ Enviando solicitud de DESACTIVACIÓN para ID ${id}...`, 'neutral');
-                    
-                    // Lógica para enviar DELETE a la API (que el backend maneja como soft delete)
-                    fetch(`/api/v1/users/${id}`, { method: 'DELETE' })
-                        .then(response => {
-                            if (!response.ok) throw new Error(`HTTP ${response.status} al desactivar.`);
-                            return response.json();
-                        })
-                        .then(() => {
-                            crudAlertMessage(`✅ Usuario #${id} DESACTIVADO.`, 'success');
-                            setTimeout(() => window.location.href = '/admin/usuarios', 1500);
-                        })
-                        .catch(error => {
-                            crudAlertMessage(`❌ Falló la BAJA: ${error.message}`, 'error');
-                            console.error("Error Soft Delete:", error);
-                        });
-                }
-                break;
-                
-            case 'volver':
-                window.location.href = '/admin/usuarios'; 
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    // =================================================================================
-    // 🚀 INICIALIZACIÓN AL CARGAR EL DOM
-    // =================================================================================
-
-    document.addEventListener('DOMContentLoaded', () => {
-        
-        // 1. Obtener todos los campos y configurar el submit
-        if (CRUD_APP.elements.form) {
-            CRUD_APP.elements.form.addEventListener('submit', window.handleFormSubmit);
-            CRUD_APP.elements.allInputs = CRUD_APP.elements.form.querySelectorAll('input, select, textarea');
+            // Actualizar UI
+            CRUD_APP.elements.mainTitle.innerHTML = `✏️ Modificar Usuario #${lastPart}`;
+            CRUD_APP.elements.btnModificar.classList.remove('hidden');
+            CRUD_APP.elements.btnBorrar.classList.remove('hidden');
+            CRUD_APP.elements.btnCrear.classList.add('hidden');
         } else {
-             // Este log no debería verse si el script está en la página correcta.
-             console.error("Error FATAL: No se encontró el formulario #usuarioForm.");
-             return; 
-        }
-        
-        // 2. Determinar ID y Modo a partir del path
-        const url = window.location.pathname;
-        const parts = url.split('/').filter(p => p.length > 0);
-        
-        let mode = 'create';
-        let id = null;
-
-        if (parts.length >= 3 && parts[1] === 'usuarios') {
-            const action = parts[2];
-            id = parts.length > 3 ? parts[3] : null;
-
-            if (action === 'view') mode = 'view';
-            else if (action === 'update') mode = 'edit';
-            else if (action === 'delete') mode = 'delete';
-            else if (action === 'crear') mode = 'create';
+            console.log("📝 Modo CREATE detectado.");
         }
 
-        // 3. Establecer modo y ID en el estado global
-        CRUD_APP.state.userId = id ? parseInt(id) : null;
-        CRUD_APP.state.mode = mode;
-        
-        // 4. Cargar datos y actualizar la interfaz (asíncrono)
-        loadAndFillUserData(CRUD_APP.state.userId, mode);
-        
-        console.log('✅ Inicialización de CRUD completada.');
+        if (window.lucide) lucide.createIcons();
     });
-
 })();

@@ -1,6 +1,7 @@
-// Archivo: static/js/admin_usuarios.js
-// ✅ CRUD Gestor Usuarios - Lógica de Búsqueda, Renderizado y EXPORTACIÓN
-// =================================================================================
+/**
+ * admin_usuarios.js - Gestión del Listado de Usuarios (Panel Admin)
+ * Incluye búsqueda, paginación, renderizado y exportación.
+ */
 
 const APP = {
     elements: {
@@ -22,7 +23,7 @@ const APP = {
         pageSize: 10,
         totalPages: 1,
         currentSort: { key: 'id', direction: 'asc' },
-        licenciasMap: new Map()
+        licenciasMap: new Map() // Mapea ID de licencia -> Número visual (ej: 1 -> "001")
     }
 };
 
@@ -30,13 +31,17 @@ const APP = {
 // 🎨 UI HELPERS
 // =================================================================================
 const UI = {
-    formatDate(isoString) { return isoString ? isoString.substring(0, 10) : '-'; },
+    formatDate(isoString) { 
+        return isoString ? isoString.substring(0, 10) : '-'; 
+    },
+    
     getBooleanHtml(value) {
         const isTrue = (value === true || value === 'true' || value === 1);
         return isTrue
-            ? `<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">ACTIVO</span>`
-            : `<span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">INACTIVO</span>`;
+            ? `<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-300">ACTIVO</span>`
+            : `<span class="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-300">INACTIVO</span>`;
     },
+
     alertMessage(message, type = 'info') {
         const statusMessage = document.getElementById('statusMessage');
         if (!statusMessage) return;
@@ -45,19 +50,24 @@ const UI = {
         statusMessage.classList.remove('hidden');
         setTimeout(() => statusMessage.classList.add('hidden'), 5000);
     },
+
     updatePageInfo() {
         const totalFiltered = APP.state.filteredUsers.length;
         APP.state.totalPages = Math.ceil(totalFiltered / APP.state.pageSize);
         APP.state.currentPage = Math.max(1, Math.min(APP.state.currentPage, APP.state.totalPages || 1));
+        
         const pageInfo = document.getElementById('pageInfo');
         if (pageInfo) pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
-        if (APP.elements.resultsCount) APP.elements.resultsCount.textContent = `${totalFiltered} resultados`;
+        if (APP.elements.resultsCount) APP.elements.resultsCount.textContent = `${totalFiltered} usuarios`;
+        
         UI.updatePaginationButtons();
     },
+
     updatePaginationButtons() {
         if (APP.elements.prevBtn) APP.elements.prevBtn.disabled = APP.state.currentPage <= 1;
         if (APP.elements.nextBtn) APP.elements.nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
     },
+
     updateActiveFiltersCount() {
         const { searchForm, activeFiltersCount } = APP.elements;
         if (!searchForm || !activeFiltersCount) return;
@@ -72,7 +82,7 @@ const UI = {
 };
 
 // =================================================================================
-// 🔍 FILTER & SORT LOGIC
+// 🔍 LÓGICA DE FILTROS Y ORDENACIÓN
 // =================================================================================
 const Filters = {
     getFiltersFromForm() {
@@ -82,42 +92,46 @@ const Filters = {
         const filters = {};
         ['usuario', 'email', 'role', 'activo'].forEach(field => {
             const value = formData.get(field);
-            if (value) { filters[field] = value; }
+            if (value) filters[field] = value;
         });
         return filters;
     },
+
     sortTable(key) {
         const { currentSort } = APP.state;
         let direction = 'asc';
-        if (currentSort.key === key && currentSort.direction === 'asc') { direction = 'desc'; }
+        if (currentSort.key === key && currentSort.direction === 'asc') direction = 'desc';
+
         APP.state.filteredUsers.sort((a, b) => {
-            let valA = a[key] || '';
-            let valB = b[key] || '';
-            if (key.includes('created_at')) {
-                valA = new Date(valA).getTime(); valB = new Date(valB).getTime();
-            }
+            let valA = a[key] ?? '';
+            let valB = b[key] ?? '';
+            
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+
             if (valA > valB) return direction === 'asc' ? 1 : -1;
             if (valA < valB) return direction === 'asc' ? -1 : 1;
             return 0;
         });
+
         APP.state.currentSort = { key, direction };
         DOM.renderResults();
     }
 };
 
 // =================================================================================
-// 📄 EXPORTATION LOGIC (PDF/XLSX)
+// 📄 LÓGICA DE EXPORTACIÓN
 // =================================================================================
 const Exportation = {
     formatDataForExport() {
         return APP.state.filteredUsers.map(u => ({
             "ID": String(u.id),
-            "Usuario": String(u.usuario || '-'),
-            "Email": String(u.email || '-'),
+            "Usuario": u.usuario || '-',
+            "Email": u.email || '-',
             "Rol": String(u.role || '-').toUpperCase(),
             "Estado": u.activo ? 'ACTIVO' : 'INACTIVO',
             "Creado": UI.formatDate(u.created_at),
-            "Licencia": String(APP.state.licenciasMap.get(u.licencia_ref) || u.licencia_ref || '-')
+            "Licencia": APP.state.licenciasMap.get(u.licencia_ref) || 'Admin/Sin Ref'
         }));
     },
 
@@ -129,7 +143,7 @@ const Exportation = {
 
         UI.alertMessage(`Generando ${format.toUpperCase()}...`, "info");
         const payload = {
-            reportName: `Reporte_Usuarios_${format.toUpperCase()}`,
+            reportName: `Reporte_Usuarios_${new Date().getTime()}`,
             data: this.formatDataForExport()
         };
 
@@ -141,108 +155,154 @@ const Exportation = {
             });
 
             const result = await response.json();
-            if (response.ok && result.success !== false) {
-                UI.alertMessage("✅ Exportación lista", "success");
+            if (response.ok && result.downloadURL) {
+                UI.alertMessage("✅ Exportación completada", "success");
                 window.open(result.downloadURL, '_blank');
             } else {
-                throw new Error(result.message || "Error en servidor");
+                throw new Error(result.error || "Error al generar archivo");
             }
         } catch (error) {
-            UI.alertMessage("❌ Error al exportar", "error");
+            UI.alertMessage(`❌ Error: ${error.message}`, "error");
         }
     }
 };
 
 // =================================================================================
-// 🌐 API SERVICES
+// 🌐 SERVICIOS API
 // =================================================================================
 const API = {
     async loadLicenciasMap() {
         try {
             const response = await fetch('/api/v1/licencias');
-            const data = await response.json();
-            const licencias = data.data || data || [];
-            licencias.forEach(l => { APP.state.licenciasMap.set(l.id, l.licencia); });
-        } catch (error) { console.error('Error licencias:', error); }
-    },
-    async searchUsers(filters) {
-        const tbody = APP.elements.userResults;
-        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 italic">Buscando...</td></tr>';
-        try {
-            const response = await fetch('/api/v1/users'); 
-            const data = await response.json();
-            const users = data.data || [];
-            APP.state.allUsers = users;
-            
-            APP.state.filteredUsers = users.filter(user => {
-                let m = true;
-                if (filters.usuario && !user.usuario?.toLowerCase().includes(filters.usuario.toLowerCase())) m = false;
-                if (filters.email && !user.email?.toLowerCase().includes(filters.email.toLowerCase())) m = false;
-                if (filters.role && user.role?.toLowerCase() !== filters.role.toLowerCase()) m = false;
-                if (filters.activo !== undefined && String(user.activo) !== filters.activo) m = false;
-                return m;
+            const result = await response.json();
+            const licencias = result.data || [];
+            licencias.forEach(l => { 
+                APP.state.licenciasMap.set(l.id, l.licencia); 
             });
-            DOM.renderResults();
-        } catch (error) { UI.alertMessage("Error de conexión", "error"); }
+        } catch (error) { console.error('Error cargando licencias:', error); }
+    },
+
+    async fetchAndFilterUsers() {
+        const tbody = APP.elements.userResults;
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 italic">Buscando usuarios...</td></tr>';
+        
+        try {
+            const response = await fetch('/api/v1/users');
+            const result = await response.json();
+            const users = result.data || [];
+            
+            APP.state.allUsers = users;
+            this.applyFilters();
+        } catch (error) { 
+            UI.alertMessage("Error al conectar con el servidor", "error"); 
+        }
+    },
+
+    applyFilters() {
+        const filters = Filters.getFiltersFromForm();
+        APP.state.filteredUsers = APP.state.allUsers.filter(u => {
+            if (filters.usuario && !u.usuario?.toLowerCase().includes(filters.usuario.toLowerCase())) return false;
+            if (filters.email && !u.email?.toLowerCase().includes(filters.email.toLowerCase())) return false;
+            if (filters.role && u.role !== filters.role) return false;
+            if (filters.activo !== undefined) {
+                const isActive = String(u.activo) === filters.activo;
+                if (!isActive) return false;
+            }
+            return true;
+        });
+        
+        DOM.renderResults();
     }
 };
 
 // =================================================================================
-// 🖼️ DOM RENDER
+// 🖼️ RENDERIZADO DOM
 // =================================================================================
 const DOM = {
     renderResults() {
         const tbody = APP.elements.userResults;
         if (!tbody) return;
         tbody.innerHTML = '';
+        
         const start = (APP.state.currentPage - 1) * APP.state.pageSize;
         const pageData = APP.state.filteredUsers.slice(start, start + APP.state.pageSize);
 
         if (pageData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">Sin resultados</td></tr>';
-            UI.updatePageInfo(); return;
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-gray-400">No se encontraron usuarios</td></tr>';
+            UI.updatePageInfo();
+            return;
         }
 
-        pageData.forEach(user => {
+        pageData.forEach(u => {
             const row = document.createElement('tr');
-            row.className = 'hover:bg-gray-50 border-b transition-colors';
-            const lic = APP.state.licenciasMap.get(user.licencia_ref) || (user.licencia_ref || '-');
+            row.className = 'hover:bg-violet-50 transition-colors border-b';
+            
+            const licenciaVisual = APP.state.licenciasMap.get(u.licencia_ref) || (u.licencia_ref === 0 ? 'Admin' : '-');
+
             row.innerHTML = `
-                <td class="px-3 py-2 text-sm">${user.id}</td>
-                <td class="px-3 py-2 text-sm font-medium">${user.usuario||'-'}</td>
-                <td class="px-3 py-2 text-sm">${user.email||'-'}</td>
-                <td class="px-3 py-2 text-sm uppercase">${user.role||'-'}</td>
-                <td class="px-3 py-2 text-center">${UI.getBooleanHtml(user.activo)}</td>
-                <td class="px-3 py-2 text-sm">${UI.formatDate(user.created_at)}</td>
-                <td class="px-3 py-2 text-sm">${lic}</td>
-                <td class="px-3 py-2 text-center whitespace-nowrap">
-                    <button onclick="handleViewUser(${user.id})" class="text-blue-600 mx-1"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                    <button onclick="handleUpdateUser(${user.id})" class="text-yellow-600 mx-1"><i data-lucide="edit" class="w-4 h-4"></i></button>
-                    <button onclick="handleDeleteUser(${user.id})" class="text-red-600 mx-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                <td class="px-3 py-3 text-xs font-bold text-gray-700">${u.id}</td>
+                <td class="px-3 py-3 text-xs font-semibold text-violet-700">${u.usuario || '-'}</td>
+                <td class="px-3 py-3 text-xs">${u.email || '-'}</td>
+                <td class="px-3 py-3 text-xs uppercase font-medium">${u.role || '-'}</td>
+                <td class="px-3 py-3 text-center">${UI.getBooleanHtml(u.activo)}</td>
+                <td class="px-3 py-3 text-xs">${UI.formatDate(u.created_at)}</td>
+                <td class="px-3 py-3 text-xs font-bold text-indigo-600">${licenciaVisual}</td>
+                <td class="px-3 py-3 text-center space-x-2">
+                    <button onclick="handleUpdateUser(${u.id})" class="text-indigo-600 hover:text-indigo-900 transition"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                    <button onclick="handleDeleteUser(${u.id})" class="text-red-600 hover:text-red-900 transition"><i data-lucide="user-minus" class="w-4 h-4"></i></button>
                 </td>
             `;
             tbody.appendChild(row);
         });
+
         UI.updatePageInfo();
         if (window.lucide) lucide.createIcons();
     }
 };
 
 // =================================================================================
-// 🎯 EXPOSICIÓN GLOBAL PARA HTML
+// 🎯 EXPOSICIÓN GLOBAL
 // =================================================================================
+window.handleCreateUser = () => window.location.href = '/admin/usuarios/crear';
+window.handleUpdateUser = (id) => window.location.href = `/admin/usuarios/update/${id}`;
+window.handleDeleteUser = async (id) => {
+    if (!confirm(`¿Está seguro de desactivar al usuario ID: ${id}?`)) return;
+    try {
+        const response = await fetch(`/api/v1/users/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            UI.alertMessage("✅ Usuario desactivado correctamente", "success");
+            API.fetchAndFilterUsers();
+        }
+    } catch (e) { UI.alertMessage("Error al desactivar", "error"); }
+};
+
+window.handleSearch = (e) => { 
+    if(e) e.preventDefault(); 
+    APP.state.currentPage = 1; 
+    API.applyFilters(); 
+    UI.updateActiveFiltersCount(); 
+};
+
+window.handleClearAllFilters = () => { 
+    APP.elements.searchForm.reset(); 
+    window.handleSearch(); 
+};
+
 window.handleGeneratePDF = () => Exportation.handleExport('pdf');
 window.handleGenerateXLSX = () => Exportation.handleExport('xlsx');
-window.handleSearch = (e) => { e.preventDefault(); APP.state.currentPage = 1; API.searchUsers(Filters.getFiltersFromForm()); UI.updateActiveFiltersCount(); };
-window.handleClearAllFilters = () => { APP.elements.searchForm.reset(); window.handleSearch({preventDefault:()=>{}}); };
-window.handleUpdateUser = (id) => window.location.href = `/admin/usuarios/update/${id}`;
-window.handleViewUser = (id) => window.location.href = `/admin/usuarios/view/${id}`;
-window.handleDeleteUser = (id) => { if (confirm(`¿Desactivar ID ${id}?`)) window.location.href = `/admin/usuarios/delete/${id}`; };
 window.sortTable = (key) => Filters.sortTable(key);
 
+// =================================================================================
+// 🚀 ARRANQUE
+// =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     await API.loadLicenciasMap();
-    API.searchUsers({});
-    if (APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
-    if (APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
+    await API.fetchAndFilterUsers();
+
+    if (APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { 
+        if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } 
+    };
+    if (APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { 
+        if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } 
+    };
 });

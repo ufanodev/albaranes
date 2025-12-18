@@ -10,11 +10,9 @@
 
     <script src="/js/security.js"></script>
     <script src="/js/utils.js"></script>
-    <script src="/js/usuarios_cargar.js"></script> 
     <script src="/js/admin_usuarios_crud.js" defer></script>
     
     <style>
-        /* 🎨 Configuración de Tailwind CSS y Estilos Base */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         
         body {
@@ -26,15 +24,11 @@
 
         .input-field {
             @apply w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-800
-                     transition duration-150 ease-in-out text-base shadow-sm;
+                     transition duration-150 ease-in-out text-base shadow-sm bg-white;
         }
 
         .input-field:focus {
             @apply outline-none border-violet-500 ring-2 ring-violet-300;
-        }
-
-        .input-field:disabled, .input-field[readonly] {
-            @apply bg-gray-100 text-gray-500 cursor-default;
         }
 
         .section-title {
@@ -47,16 +41,12 @@
                      hover:scale-[1.02] focus:ring-4 text-sm;
         }
         
-        /* Estilos de botones de CRUD definidos por la plantilla */
         .btn-crear { @apply bg-violet-600 hover:bg-violet-700 focus:ring-violet-300 shadow-violet-400/50; }
         .btn-modificar { @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-300 shadow-indigo-400/50; }
         .btn-borrar { @apply bg-red-600 hover:bg-red-700 focus:ring-red-300 shadow-red-400/50; }
         .btn-volver { @apply bg-gray-500 hover:bg-gray-600 focus:ring-gray-300 shadow-gray-400/50; }
 
         .status-message { @apply mt-6 p-4 text-center font-medium rounded-lg; }
-        .status-success { @apply bg-green-100 text-green-800 border border-green-300; }
-        .status-error { @apply bg-red-100 text-red-800 border border-red-300; }
-        .status-info { @apply bg-blue-100 text-blue-800 border border-blue-300; }
     </style>
 </head>
 <body class="p-4 sm:p-8 lg:p-12">
@@ -66,107 +56,92 @@
             Administración de Usuarios 🔐
         </h1>
 
-        <form id="usuarioForm">
+        <form id="usuarioForm" onsubmit="handleFormSubmit(event)">
 
             <input type="hidden" id="id" name="id"> 
 
             <div class="section-title !mt-0">Datos de Usuario</div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
                 <div>
-                    <label for="usuario" class="block text-sm font-medium text-gray-600 mb-1">USUARIO *</label>
+                    <label for="usuario" class="block text-sm font-bold text-gray-600 mb-1">USUARIO *</label>
                     <input type="text" id="usuario" name="usuario" required
-                            placeholder="Nombre de usuario o alias"
+                            placeholder="Ej: titular001"
                             class="input-field">
                 </div>
                 
                 <div>
-                    <label for="email" class="block text-sm font-medium text-gray-600 mb-1">EMAIL *</label>
-                    <input type="email" id="email" name="email" required
-                            placeholder="usuario@ejemplo.com"
-                            class="input-field">
+                    <label class="block text-sm font-bold text-violet-700 mb-1">SELECCIONAR EMAIL DEL TITULAR *</label>
+                    <select id="email_select" onchange="syncEmail(this)" required class="input-field border-violet-300 bg-violet-50">
+                        <option value="">Cargando titulares...</option>
+                    </select>
+                    <input type="hidden" id="email" name="email">
                 </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <div>
-                    <label for="password" class="block text-sm font-medium text-gray-600 mb-1">
-                        PASSWORD *
-                    </label>
+                    <label for="password" class="block text-sm font-bold text-gray-600 mb-1">PASSWORD *</label>
                     <input type="password" id="password" name="password" 
-                            placeholder="Dejar vacío para no modificar"
+                            placeholder="Mínimo 6 caracteres"
                             class="input-field">
-                    <p id="password-help" class="text-xs text-gray-400 mt-1">Requerido solo al crear.</p>
+                    <p id="password-help" class="text-xs text-gray-400 mt-1">Obligatorio al crear nuevo usuario.</p>
                 </div>
 
                 <div>
-                    <label for="role" class="block text-sm font-medium text-gray-600 mb-1">ROL</label>
+                    <label for="role" class="block text-sm font-bold text-gray-600 mb-1">ROL DEL SISTEMA</label>
                     <select id="role" name="role" class="input-field">
-                        <option value="user">Usuario Estándar</option>
-                        <option value="admin">Administrador</option>
+                        <option value="user">Usuario Estándar (Titular)</option>
+                        <option value="admin">Administrador Global</option>
                     </select>
                 </div>
             </div>
             
-            <div class="section-title">Asignación y Estado</div>
+            <div class="section-title">Asignación de Licencia y Estado</div>
             
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
                 <div>
-                    <label for="activo" class="block text-sm font-medium text-gray-600 mb-1">ESTADO</label>
+                    <label for="activo" class="block text-sm font-bold text-gray-600 mb-1">ESTADO CUENTA</label>
                     <select id="activo" name="activo" class="input-field">
                         <option value="true">Activo</option>
-                        <option value="false">Inactivo</option>
+                        <option value="false">Inactivo / Bloqueado</option>
                     </select>
                 </div>
 
                 <div class="md:col-span-2">
-                    <label for="licencia_ref" class="block text-sm font-medium text-gray-600 mb-1">
-                        Licencia Ref.
-                    </label>
-                    <input type="number" id="licencia_ref" name="licencia_ref"
-                            placeholder="ID de Licencia asociado"
-                            class="input-field">
-                    <p class="text-xs text-gray-400 mt-1">Opcional. ID de la licencia si el usuario es un titular.</p>
+                    <label for="licencia_ref" class="block text-sm font-bold text-violet-700 mb-1">VINCULAR A LICENCIA *</label>
+                    <select id="licencia_ref" name="licencia_ref" required class="input-field border-violet-300 bg-violet-50">
+                        <option value="0">Cargando licencias...</option>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Seleccione la licencia física que pertenece a este usuario.</p>
                 </div>
             </div>
 
             <div id="statusMessage" class="hidden status-message" role="alert"></div>
             
             <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
-                
-                <button type="submit" id="btn-crear"
-                        class="action-button btn-crear">
-                    <i data-lucide="save" class="h-5 w-5 mr-2"></i> Guardar Usuario (Crear)
+                <button type="submit" id="btn-crear" class="action-button btn-crear">
+                    <i data-lucide="user-plus" class="h-5 w-5 mr-2"></i> Crear Usuario
                 </button>
 
-                <button type="button" id="btn-modificar" 
-                        onclick="handleAction('modificar')"
-                        class="action-button btn-modificar" style="display:none;">
-                    <i data-lucide="edit" class="h-5 w-5 mr-2"></i> Guardar Cambios
+                <button type="button" id="btn-modificar" onclick="handleAction('modificar')" class="action-button btn-modificar hidden">
+                    <i data-lucide="save" class="h-5 w-5 mr-2"></i> Guardar Cambios
                 </button>
 
-                <button type="button" id="btn-borrar" 
-                        onclick="handleAction('borrar')"
-                        class="action-button btn-borrar" style="display:none;">
+                <button type="button" id="btn-borrar" onclick="handleAction('borrar')" class="action-button btn-borrar hidden">
                     <i data-lucide="trash-2" class="h-5 w-5 mr-2"></i> Confirmar Baja
                 </button>
                 
-                <button type="button" onclick="handleAction('volver')"
-                        class="action-button btn-volver">
-                    <i data-lucide="arrow-left" class="h-5 w-5 mr-2"></i> Volver
+                <button type="button" onclick="handleAction('volver')" class="action-button btn-volver">
+                    <i data-lucide="arrow-left" class="h-5 w-5 mr-2"></i> Volver al Listado
                 </button>
             </div>
         </form>
     </div>
 
     <script>
-        // Inicializar iconos de Lucide al cargar la página
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            if (window.lucide) window.lucide.createIcons();
         });
     </script>
 </body>
