@@ -46,7 +46,8 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
-// 🛡️ LÓGICA DE LIMPIEZA MAESTRA (41 CAMPOS) - Respeta ID guardado
+// 🛡️ LÓGICA DE LIMPIEZA MAESTRA (41 CAMPOS)
+// Permite modificar todos los campos excepto el ID guardado.
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 
@@ -56,7 +57,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 	}
 
 	for key, value := range input {
-		// Protección campos inmutables (id guardado por instrucción del usuario)
+		// Protección campos inmutables (ID guardado)
 		if key == "id" || key == "created_at" || key == "updated_at" || key == "ID" {
 			continue
 		}
@@ -138,17 +139,17 @@ func GetAlbaran(c *gin.Context, db *gorm.DB) {
 
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
-	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("estado = ?", 0)
+	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("albaranes.estado = ?", 0)
 	if v := c.Query("licencia_ref"); v != "" {
-		query = query.Where("licencia_ref = ?", v)
+		query = query.Where("albaranes.licencia_ref = ?", v)
 	}
 	if v := c.Query("empresa_ref"); v != "" {
-		query = query.Where("empresa_ref = ?", v)
+		query = query.Where("albaranes.empresa_ref = ?", v)
 	}
 	if v := c.Query("referencia"); v != "" {
-		query = query.Where("referencia LIKE ?", "%"+v+"%")
+		query = query.Where("albaranes.referencia LIKE ?", "%"+v+"%")
 	}
-	query.Order("fecha desc, id desc").Find(&albaranes)
+	query.Order("albaranes.fecha desc, albaranes.id desc").Find(&albaranes)
 	c.JSON(http.StatusOK, gin.H{"data": albaranes})
 }
 
@@ -264,6 +265,7 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 // 🆕 SECCIÓN: MÉTODOS EXCLUSIVOS PARA USUARIOS (TITULARES)
 // =====================================================================
 
+// SearchAlbaranesUser - Buscador optimizado para el Titular (Sin límite de 10)
 func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
 
@@ -273,7 +275,6 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Convertimos a uint de forma segura
 	userLicID := uint(0)
 	switch v := val.(type) {
 	case uint:
@@ -282,27 +283,65 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 		userLicID = uint(v)
 	}
 
-	query := preloadAlbaran(db.Model(&models.Albaran{})).
-		Where("licencia_ref = ? AND estado = ?", userLicID, 0).
-		Limit(10)
+	// Consulta base con Joins para poder buscar por nombre de empresa en el modo palabra
+	query := db.Model(&models.Albaran{}).
+		Preload("LicenciaData").
+		Preload("EmpresaData").
+		Joins("LEFT JOIN empresas ON empresas.id = albaranes.empresa_ref").
+		Where("albaranes.licencia_ref = ? AND albaranes.estado = ?", userLicID, 0)
 
+	// --- FILTROS POR CAMPOS ---
 	if v := c.Query("empresa_ref"); v != "" {
-		query = query.Where("empresa_ref = ?", v)
+		query = query.Where("albaranes.empresa_ref = ?", v)
 	}
+
+	if v := c.Query("state"); v != "" {
+		switch v {
+		case "creado":
+			query = query.Where("albaranes.enviado = ? AND albaranes.pagado = ?", false, false)
+		case "enviado":
+			query = query.Where("albaranes.enviado = ? AND albaranes.pagado = ?", true, false)
+		case "pagado":
+			query = query.Where("albaranes.pagado = ?", true)
+		case "finalizado":
+			query = query.Where("albaranes.pagado = ? AND albaranes.cobrado = ?", true, true)
+		}
+	}
+
 	if v := c.Query("referencia"); v != "" {
-		query = query.Where("referencia LIKE ?", "%"+v+"%")
+		query = query.Where("albaranes.referencia LIKE ?", "%"+v+"%")
 	}
+
+	if v := c.Query("fecha_desde"); v != "" {
+		query = query.Where("albaranes.fecha >= ?", v)
+	}
+	if v := c.Query("fecha_hasta"); v != "" {
+		query = query.Where("albaranes.fecha <= ?", v)
+	}
+
+	// --- 🔍 BÚSQUEDA GLOBAL POR PALABRA ---
 	if v := c.Query("palabra"); v != "" {
 		p := "%" + v + "%"
-		query = query.Where("(numero_albaran LIKE ? OR referencia LIKE ? OR observaciones_admin LIKE ?)", p, p, p)
+		query = query.Where(
+			"(albaranes.numero_albaran LIKE ? OR "+
+				"albaranes.referencia LIKE ? OR "+
+				"albaranes.matricula LIKE ? OR "+
+				"albaranes.cliente LIKE ? OR "+
+				"albaranes.origen LIKE ? OR "+
+				"albaranes.destino LIKE ? OR "+
+				"albaranes.asalariado LIKE ? OR "+
+				"empresas.nombre LIKE ? OR "+
+				"albaranes.observaciones_admin LIKE ?)",
+			p, p, p, p, p, p, p, p, p,
+		)
 	}
 
-	if err := query.Order("fecha desc, id desc").Find(&albaranes).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error DB"})
+	if err := query.Order("albaranes.fecha desc, albaranes.id desc").Find(&albaranes).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error interno al procesar búsqueda"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": albaranes})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": albaranes})
 }
 
 func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
@@ -312,7 +351,6 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Convertimos a uint de forma segura (Aserción robusta)
 	licID := uint(0)
 	switch v := val.(type) {
 	case uint:
@@ -322,28 +360,17 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 	}
 
 	if licID == 0 {
-		c.JSON(http.StatusOK, gin.H{
-			"licencia_id":     0,
-			"licencia_numero": "Admin",
-			"titular":         "Administrador del Sistema",
-		})
+		c.JSON(http.StatusOK, gin.H{"licencia_id": 0, "licencia_numero": "Admin", "titular": "Administrador"})
 		return
 	}
 
 	var lic models.Licencia
 	if err := db.First(&lic, licID).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"licencia_id":     0,
-			"licencia_numero": "N/A",
-			"titular":         "Licencia no localizada",
-		})
+		c.JSON(http.StatusOK, gin.H{"licencia_id": 0, "licencia_numero": "N/A"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"licencia_id":     lic.ID,
-		"licencia_numero": lic.Licencia,
-	})
+	c.JSON(http.StatusOK, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
 }
 
 func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
