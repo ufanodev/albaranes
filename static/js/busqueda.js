@@ -25,7 +25,8 @@ const APP = {
         totalPages: 1,
         userLicenciaId: null,
         userLicenciaNumero: null,
-        currentSort: { key: 'fecha', direction: 'desc' }
+        currentSort: { key: 'fecha', direction: 'desc' },
+        searchMode: 'campos' // 'campos' o 'palabra'
     }
 };
 
@@ -45,24 +46,62 @@ const UI = {
     },
 
     /**
-     * Alterna visualmente entre búsqueda por campos y por palabra
+     * 🎯 Implementación del cambio de modo solicitado
      */
     setSearchModeManual(mode) {
+        APP.state.searchMode = mode;
         const btnCampos = document.getElementById('btn-mode-campos');
         const btnPalabra = document.getElementById('btn-mode-palabra');
-        
+        const specificFields = [
+            APP.elements.empresaSelect,
+            document.getElementById('state'),
+            document.getElementById('referencia'),
+            document.getElementById('fecha_desde'),
+            document.getElementById('fecha_hasta')
+        ];
+
         if (mode === 'campos') {
+            // Estética de botones
             btnCampos.classList.replace('bg-gray-200', 'bg-secondary-blue');
+            btnCampos.classList.add('text-white');
             btnPalabra.classList.replace('bg-primary-pastel', 'bg-gray-200');
-            if(APP.elements.palabraInput) APP.elements.palabraInput.disabled = true;
-            // Habilitar específicos
-            document.querySelectorAll('.input-field:not(#palabra):not(#licencia_display)').forEach(i => i.disabled = false);
+            btnPalabra.classList.remove('text-black-pure');
+
+            // Lógica de inputs
+            if(APP.elements.palabraInput) {
+                APP.elements.palabraInput.value = '';
+                APP.elements.palabraInput.disabled = true;
+                APP.elements.palabraInput.classList.add('bg-gray-100', 'cursor-not-allowed');
+            }
+            specificFields.forEach(f => {
+                if(f) {
+                    f.disabled = false;
+                    f.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                }
+            });
+            UI.alertMessage("Modo: Búsqueda por Campos específicos", "info");
+
         } else {
+            // Estética de botones
             btnPalabra.classList.replace('bg-gray-200', 'bg-primary-pastel');
+            btnPalabra.classList.add('text-black-pure');
             btnCampos.classList.replace('bg-secondary-blue', 'bg-gray-200');
-            if(APP.elements.palabraInput) APP.elements.palabraInput.disabled = false;
-            // Deshabilitar específicos para forzar el uso de "palabra"
-            document.querySelectorAll('.input-field:not(#palabra):not(#licencia_display)').forEach(i => i.disabled = true);
+            btnCampos.classList.remove('text-white');
+
+            // Lógica de inputs
+            if(APP.elements.palabraInput) {
+                APP.elements.palabraInput.disabled = false;
+                APP.elements.palabraInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                APP.elements.palabraInput.focus();
+            }
+            specificFields.forEach(f => {
+                if(f) {
+                    f.value = ''; // Limpiamos para no mezclar criterios
+                    f.disabled = true;
+                    f.classList.add('bg-gray-100', 'cursor-not-allowed');
+                }
+            });
+            UI.alertMessage("Modo: Búsqueda Global por Palabra", "info");
         }
     },
 
@@ -72,7 +111,6 @@ const UI = {
         if (APP.elements.pageInfo) APP.elements.pageInfo.textContent = `Pág ${APP.state.currentPage} de ${APP.state.totalPages}`;
         const countDisplay = document.getElementById('resultsCount');
         if (countDisplay) countDisplay.textContent = total;
-        
         this.updatePaginationButtons();
         this.updateActiveFiltersCount();
     },
@@ -91,39 +129,6 @@ const UI = {
             if (key !== 'search_type' && key !== 'licencia_ref' && value && value.trim() !== '') count++;
         }
         if (APP.elements.activeFiltersCount) APP.elements.activeFiltersCount.textContent = count;
-    }
-};
-
-// =================================================================================
-// 📄 EXPORTATION LOGIC
-// =================================================================================
-const Exportation = {
-    formatData() {
-        return APP.state.filteredAlbaranes.map(a => ({
-            "N_Albaran": String(a.numero_albaran || '-'),
-            "Fecha": UI.formatDate(a.fecha),
-            "Empresa": String(a.EmpresaData?.nombre || 'N/A'),
-            "Referencia": String(a.referencia || '-'),
-            "Asalariado": String(a.asalariado || '-'),
-            "Importe": String(parseFloat(a.importe_total || 0).toFixed(2)) + "€",
-            "Estado": a.pagado ? 'PAGADO' : (a.enviado ? 'ENVIADO' : 'CREADO')
-        }));
-    },
-    async handle(fmt) {
-        if (!APP.state.filteredAlbaranes.length) return UI.alertMessage("No hay datos", "info");
-        const payload = {
-            reportName: `Listado_Albaranes_${APP.state.userLicenciaNumero}`,
-            data: this.formatData()
-        };
-        try {
-            const res = await fetch(`/api/v1/albaranes/export/${fmt}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await res.json();
-            if (res.ok && result.success) window.open(result.downloadURL, '_blank');
-        } catch (e) { UI.alertMessage("Error al exportar", "error"); }
     }
 };
 
@@ -157,22 +162,27 @@ const API = {
                 list.forEach(e => { html += `<option value="${e.id}">${e.nombre}</option>`; });
                 APP.elements.empresaSelect.innerHTML = html;
             }
-        } catch (e) { console.error("Error empresas:", e); }
+        } catch (e) { console.error(e); }
     },
 
     async searchAlbaranes() {
         if (APP.state.userLicenciaId === null) return;
         DOM.showLoading();
+        
         const params = new URLSearchParams();
         params.append('licencia_ref', APP.state.userLicenciaId);
+        
         const formData = new FormData(APP.elements.searchForm);
         for (let [key, value] of formData.entries()) {
+            // El backend ya discrimina si recibe 'palabra' o filtros individuales
             if (value && key !== 'licencia_ref') params.append(key, value);
         }
+
         try {
             const response = await fetch(`/api/v1/albaranes/search-user?${params.toString()}`);
             const data = await response.json();
             APP.state.filteredAlbaranes = data.data || [];
+            APP.state.currentPage = 1;
             DOM.renderResults();
         } catch (e) { DOM.showNoResults(); }
     }
@@ -193,7 +203,7 @@ const DOM = {
 
         pageData.forEach(a => {
             const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50 border-b border-gray-100 transition-colors text-sm';
+            tr.className = 'hover:bg-gray-50 border-b border-gray-100 text-sm';
             tr.innerHTML = `
                 <td class="px-4 py-3 font-bold">${a.numero_albaran || 'N/A'}</td>
                 <td class="px-4 py-3">${UI.formatDate(a.fecha)}</td>
@@ -205,7 +215,7 @@ const DOM = {
                 <td class="px-4 py-3 text-center">
                     <div class="flex justify-center space-x-2">
                         <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1 text-blue-600 hover:bg-blue-50 rounded"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1 text-orange-600 hover:bg-orange-50 rounded"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1 text-orange-600 hover:bg-orange-100 rounded"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                     </div>
                 </td>`;
             APP.elements.resultsBody.appendChild(tr);
@@ -221,12 +231,15 @@ const DOM = {
 };
 
 // =================================================================================
-// 🚀 INITIALIZATION & ACTIONS
+// 🚀 INITIALIZATION
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     const hasLicense = await API.fetchMyLicencia();
     if (!hasLicense) return;
     await API.loadEmpresas();
+    
+    // Iniciamos en modo campos por defecto
+    UI.setSearchModeManual('campos');
     API.searchAlbaranes();
 
     if (APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
@@ -234,27 +247,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 window.handleSearch = (e) => { if(e) e.preventDefault(); API.searchAlbaranes(); };
-window.handleGeneratePDF = () => Exportation.handle('pdf');
-window.handleGenerateXLSX = () => Exportation.handle('xlsx');
-window.handleAction = () => { UI.alertMessage("Documento a Word", "success"); setTimeout(() => { window.location.href = '/titulares'; }, 1500); };
-window.handleLogout = async () => { await fetch('/api/v1/logout', { method: 'POST' }); window.location.href = '/login'; };
-
-/**
- * 🧹 BOTÓN LIMPIAR: Formulario a cero y restauración de Licencia
- */
 window.handleClearAllFilters = () => {
     if (APP.elements.searchForm) {
         APP.elements.searchForm.reset();
-        // Restauramos los combos y la licencia
         if (APP.state.userLicenciaId) {
             APP.elements.licenciaInput.value = APP.state.userLicenciaId;
             APP.elements.licenciaDisplay.value = APP.state.userLicenciaNumero;
         }
-        APP.state.currentPage = 1;
+        UI.setSearchModeManual('campos'); // Al limpiar volvemos a modo campos
         API.searchAlbaranes();
-        UI.alertMessage("Filtros limpiados", "info");
     }
 };
 
-// Exponer UI al window para los onclick del HTML (Modos de filtro)
 window.UI = UI;

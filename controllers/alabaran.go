@@ -273,8 +273,8 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Convertimos a uint de forma segura
-	userLicID := uint(0)
+	// Conversión segura
+	var userLicID uint
 	switch v := val.(type) {
 	case uint:
 		userLicID = v
@@ -282,22 +282,36 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 		userLicID = uint(v)
 	}
 
+	// Consulta base con protección de Licencia
 	query := preloadAlbaran(db.Model(&models.Albaran{})).
-		Where("licencia_ref = ? AND estado = ?", userLicID, 0).
-		Limit(10)
+		Where("licencia_ref = ? AND estado = ?", userLicID, 0)
 
+	// Filtro por Palabra (SQL Dinámico solicitado)
+	if v := c.Query("palabra"); v != "" {
+		p := "%" + v + "%"
+		// GORM agrupa esto entre paréntesis automáticamente
+		query = query.Where(db.Where("empresa_nombre LIKE ?", p).
+			Or("cliente LIKE ?", p).
+			Or("origen LIKE ?", p).
+			Or("destino LIKE ?", p).
+			Or("referencia LIKE ?", p))
+	}
+
+	// Filtros de campos específicos
 	if v := c.Query("empresa_ref"); v != "" {
 		query = query.Where("empresa_ref = ?", v)
 	}
-	if v := c.Query("referencia"); v != "" {
-		query = query.Where("referencia LIKE ?", "%"+v+"%")
+	if v := c.Query("fecha_desde"); v != "" {
+		query = query.Where("fecha >= ?", v)
 	}
-	if v := c.Query("palabra"); v != "" {
-		p := "%" + v + "%"
-		query = query.Where("(numero_albaran LIKE ? OR referencia LIKE ? OR observaciones_admin LIKE ?)", p, p, p)
+	if v := c.Query("fecha_hasta"); v != "" {
+		query = query.Where("fecha <= ?", v)
 	}
 
-	if err := query.Order("fecha desc, id desc").Find(&albaranes).Error; err != nil {
+	// Ejecución con orden y límite
+	err := query.Order("fecha DESC, id DESC").Limit(25).Find(&albaranes).Error
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error DB"})
 		return
 	}
@@ -312,7 +326,6 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Convertimos a uint de forma segura (Aserción robusta)
 	licID := uint(0)
 	switch v := val.(type) {
 	case uint:
