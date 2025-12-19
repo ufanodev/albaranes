@@ -1,9 +1,10 @@
 /**
  * albaran_nuevo.js - Lógica para la creación de albaranes (Vista Titular)
+ * Gestiona la carga de datos maestros y el envío seguro al servidor.
  */
 
-let userLicenciaId = 0; // ID numérico para la DB (ej: 1)
-let userLicenciaNumero = ""; // Número visual (ej: "001")
+let userLicenciaId = 0;      // ID numérico para la DB (ej: 1)
+let userLicenciaNumero = "";  // Número visual (ej: "001")
 
 // =================================================================================
 // 🚀 INICIALIZACIÓN
@@ -11,19 +12,20 @@ let userLicenciaNumero = ""; // Número visual (ej: "001")
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 [INIT] Preparando formulario de nuevo albarán.");
     
-    // 1. Cargar identidad (ID y Número de Licencia)
+    // 1. Cargar identidad (ID y Número de Licencia) - OBLIGATORIO
     const identityOk = await loadUserIdentity();
-    if (!identityOk) return; // Si falla la identidad, no seguimos
+    if (!identityOk) return; 
 
-    // 2. Cargar catálogos
+    // 2. Cargar catálogos en paralelo
     await Promise.all([
         loadEmpresas(),
         loadConductores()
     ]);
     
-    // 3. Configuración visual
+    // 3. Configuración visual y valores por defecto
     setupWordCounter();
     setDefaultDateTime();
+    
     console.log("✅ [INIT] Formulario listo para operar.");
 });
 
@@ -36,7 +38,6 @@ async function loadUserIdentity() {
     const btnGuardar = document.querySelector('.btn-crear');
 
     try {
-        // Usamos la ruta que ya comprobamos que funciona en busqueda.js
         const response = await fetch('/api/v1/user/licencia_info');
         if (response.status === 401) { window.location.href = '/login'; return false; }
         if (!response.ok) throw new Error('No se pudo verificar su identidad');
@@ -50,9 +51,9 @@ async function loadUserIdentity() {
             if (licInput) {
                 licInput.value = userLicenciaNumero; // Mostramos "001"
                 licInput.classList.add('bg-gray-100', 'cursor-not-allowed', 'font-bold');
-                licInput.readOnly = true;
             }
             if (btnGuardar) btnGuardar.disabled = false;
+            console.log(`👤 [IDENTITY] Sesión iniciada con Licencia ID: ${userLicenciaId} (Nº ${userLicenciaNumero})`);
             return true;
         } else {
             throw new Error('Su usuario no tiene una licencia vinculada.');
@@ -72,7 +73,7 @@ async function loadEmpresas() {
     try {
         const response = await fetch('/api/v1/empresas');
         const json = await response.json();
-        const empresas = json.data || [];
+        const empresas = json.data || json;
 
         select.innerHTML = '<option value="" disabled selected>Seleccione una empresa</option>';
         empresas.forEach(emp => {
@@ -92,22 +93,48 @@ async function loadConductores() {
     if (!select) return;
 
     try {
+        console.log(`👨‍✈️ [CONDUCTORES] Filtrando para Licencia ID: ${userLicenciaId} (Nº ${userLicenciaNumero})`);
         const response = await fetch('/api/v1/conductores'); 
-        if (!response.ok) return; // Si es titular quizá no tenga acceso a la lista global
+        if (!response.ok) throw new Error("No se pudo obtener la lista");
 
         const json = await response.json();
-        const conductores = json.data || [];
+        const todos = json.data || json;
 
-        select.innerHTML = '<option value="" selected>Seleccione un conductor (opcional)</option>';
-        conductores.forEach(c => {
-            const option = document.createElement('option');
-            const name = `${c.Licencia || ''} - ${c.Nombre || ''}`; 
-            option.value = name; 
-            option.textContent = name; 
-            select.appendChild(option);
+        // 🛡️ FILTRO INTELIGENTE:
+        // Comparamos contra el ID (1) Y contra el número visual ('001')
+        const misConductores = todos.filter(c => {
+            const licDelConductor = String(c.licencia || c.licencia_ref || "").trim();
+            const miID = String(userLicenciaId);
+            const miNumero = String(userLicenciaNumero).trim();
+
+            return licDelConductor === miID || licDelConductor === miNumero;
         });
+
+        console.log("🎯 [CONDUCTORES] Coincidencias encontradas:", misConductores);
+
+        select.innerHTML = '<option value="">-- Sin Asalariado (Titular) --</option>';
+        
+        if (misConductores.length > 0) {
+            misConductores.forEach(c => {
+                const option = document.createElement('option');
+                const nombre = c.nombre || "Sin nombre";
+                const numCond = c.conductor || c.n_conductor || "S/N";
+                
+                option.value = nombre; 
+                option.textContent = `${nombre} (${numCond})`; 
+                select.appendChild(option);
+            });
+            console.log(`✅ [CONDUCTORES] ${misConductores.length} cargados en el combo.`);
+        } else {
+            console.warn("⚠️ No se encontraron conductores que coincidan con '1' o '001'");
+            const opt = document.createElement('option');
+            opt.disabled = true;
+            opt.textContent = "No hay asalariados para la licencia " + userLicenciaNumero;
+            select.appendChild(opt);
+        }
     } catch (error) {
-        console.warn("⚠️ [CONDUCTORES] No se pudo cargar la lista opcional.");
+        console.error("❌ [CONDUCTORES] Error:", error);
+        select.innerHTML = '<option value="">-- Sin Asalariado (Titular) --</option>';
     }
 }
 
@@ -122,14 +149,14 @@ window.handleAction = async function(actionType, event = null) {
         const form = document.getElementById('albaranForm');
         
         if (userLicenciaId === 0) {
-            showStatus('❌ Error: Licencia no identificada.', 'error');
+            showStatus('❌ Error: Licencia no identificada. Reintente login.', 'error');
             return;
         }
 
         const formData = new FormData(form);
         const payload = {};
 
-        // Procesamiento inteligente de campos
+        // 1. Procesamiento de campos generales
         for (const [key, value] of formData.entries()) {
             if (value === "" || value === null) continue;
 
@@ -142,38 +169,42 @@ window.handleAction = async function(actionType, event = null) {
             }
         }
 
-        // Mapeo de Checkboxes (Booleanos)
-        const checks = ['urbano', 'diurno', 'noct_fest', 'festivo', 'finalizado', 'enganche', 'cobrado', 'pagado'];
+        // 2. Mapeo de Checkboxes (Booleanos)
+        const checks = ['urbano', 'diurno', 'noct_fest', 'festivo', 'finalizado', 'enganche'];
         checks.forEach(id => {
             const el = document.getElementById(id);
             payload[id] = el ? el.checked : false;
         });
 
-        // 🛡️ Inyección forzada de seguridad
-        payload['licencia_ref'] = userLicenciaId; // El ID 1 de la DB
-        payload['estado'] = 0; // Estado inicial "Creado"
+        // 3. Forzar seguridad (ID de licencia real y estado 0)
+        payload['licencia_ref'] = userLicenciaId;
+        payload['estado'] = 0;
 
-        // Validación mínima
-        if (!payload.numero_albaran || !payload.fecha || !payload.empresa_ref) {
-            showStatus('⚠️ Por favor, complete los campos obligatorios.', 'error');
+        // 4. Validación básica
+        if (!payload.numero_albaran || !payload.fecha || !payload.empresa_ref || !payload.importe_total) {
+            showStatus('⚠️ Por favor, rellene los campos obligatorios (*).', 'error');
             return;
         }
 
+        console.log("📤 [SEND] Enviando albarán:", payload);
+
         try {
-            const response = await fetch('/api/v1/albaranes', {
+            const response = await fetch('/api/v1/albaranes/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
+            const result = await response.json();
+
             if (response.ok) {
                 showStatus('✅ Albarán guardado correctamente.', 'success');
                 setTimeout(() => window.location.href = '/titulares', 1500);
             } else {
-                const errData = await response.json();
-                throw new Error(errData.error || 'Error al guardar');
+                throw new Error(result.error || 'Error al guardar el albarán.');
             }
         } catch (error) {
+            console.error("❌ [CREATE] Error:", error);
             showStatus(`❌ Error: ${error.message}`, 'error');
         }
     }
@@ -187,14 +218,18 @@ window.handleAction = async function(actionType, event = null) {
 
 function showStatus(msg, type) {
     const el = document.getElementById('statusMessage');
-    if (!el) { alert(msg); return; }
+    if (!el) return;
     
     el.textContent = msg;
     el.className = `status-message block mt-4 p-4 text-center rounded-lg border font-bold`;
     
-    if (type === 'success') el.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
-    else if (type === 'error') el.classList.add('bg-red-100', 'text-red-800', 'border-red-300');
-    else el.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
+    if (type === 'success') {
+        el.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
+    } else if (type === 'error') {
+        el.classList.add('bg-red-100', 'text-red-800', 'border-red-300');
+    } else {
+        el.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
+    }
     
     el.classList.remove('hidden');
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -216,7 +251,9 @@ function setDefaultDateTime() {
     const fInput = document.getElementById('fecha');
     const hInput = document.getElementById('hora');
 
-    if (fInput && !fInput.value) fInput.value = now.toISOString().split('T')[0];
+    if (fInput && !fInput.value) {
+        fInput.value = now.toISOString().split('T')[0];
+    }
     if (hInput && !hInput.value) {
         hInput.value = now.toTimeString().substring(0, 5);
     }

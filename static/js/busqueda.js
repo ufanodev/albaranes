@@ -21,10 +21,10 @@ const APP = {
     },
     state: {
         filteredAlbaranes: [],
-        totalRecords: 0,      // Nuevo: Almacena el total devuelto por Go
-        currentPage: 1,       // Página actual
-        pageSize: 25,         // Tamaño de página por defecto
-        totalPages: 1,        // Calculado
+        totalRecords: 0,      
+        currentPage: 1,       
+        pageSize: 25,         
+        totalPages: 1,        
         userLicenciaId: null,
         userLicenciaNumero: null,
         currentSort: { key: 'fecha', direction: 'desc' },
@@ -72,18 +72,14 @@ const UI = {
     },
 
     updatePageInfo() {
-        // Cálculo de páginas totales basado en el "total" que envía Go
         APP.state.totalPages = Math.ceil(APP.state.totalRecords / APP.state.pageSize) || 1;
-        
         if (APP.elements.pageInfo) {
             APP.elements.pageInfo.textContent = `Pág ${APP.state.currentPage} de ${APP.state.totalPages}`;
         }
-        
         const countDisplay = document.getElementById('resultsCount');
         if (countDisplay) {
             countDisplay.textContent = APP.state.totalRecords;
         }
-        
         this.updatePaginationButtons();
         this.updateActiveFiltersCount();
     },
@@ -153,12 +149,9 @@ const API = {
         
         const params = new URLSearchParams();
         params.append('licencia_ref', APP.state.userLicenciaId);
-        
-        // --- PARÁMETROS DE PAGINACIÓN ---
         params.append('page', APP.state.currentPage);
         params.append('pageSize', APP.state.pageSize);
         
-        // --- CAPTURA DE CAMPOS DINÁMICA ---
         const empresa = document.getElementById('empresa').value;
         const estado = document.getElementById('state').value;
         const referencia = document.getElementById('referencia').value;
@@ -175,18 +168,12 @@ const API = {
 
         try {
             const url = `/api/v1/albaranes/search-user?${params.toString()}`;
-            console.log(`[FRONTEND-QUERY] Pág ${APP.state.currentPage} -> ${url}`);
-            
             const response = await fetch(url);
             const res = await response.json();
-            
-            // Actualizamos estado con la respuesta de Go
             APP.state.filteredAlbaranes = res.data || [];
             APP.state.totalRecords = res.total || 0;
-            
             DOM.renderResults();
         } catch (e) { 
-            console.error("[FRONTEND-LOG] Error búsqueda:", e);
             DOM.showNoResults(); 
         }
     }
@@ -201,8 +188,7 @@ const DOM = {
     renderResults() {
         if (!APP.elements.resultsBody) return;
         APP.elements.resultsBody.innerHTML = '';
-        
-        const pageData = APP.state.filteredAlbaranes; // Los datos ya vienen paginados del servidor
+        const pageData = APP.state.filteredAlbaranes;
 
         if (pageData.length === 0) { this.showNoResults(); return; }
 
@@ -225,8 +211,7 @@ const DOM = {
                 </td>`;
             APP.elements.resultsBody.appendChild(tr);
         });
-        
-        UI.updatePageInfo(); // Actualiza el texto de paginación
+        UI.updatePageInfo();
         if (window.lucide) lucide.createIcons();
     },
     getBadge(a) {
@@ -234,6 +219,62 @@ const DOM = {
         if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">ENVIADO</span>';
         return '<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-[10px] font-bold">CREADO</span>';
     }
+};
+
+// =================================================================================
+// 🚀 EXPORT FUNCTIONS (NUEVAS)
+// =================================================================================
+
+window.handleGeneratePDF = async () => {
+    if (APP.state.filteredAlbaranes.length === 0) return alert("No hay datos para exportar");
+    
+    const payload = {
+        reportName: `Albaranes_Licencia_${APP.state.userLicenciaNumero}`,
+        data: APP.state.filteredAlbaranes.map(a => ({
+            "Nº ALBARÁN": a.numero_albaran,
+            "FECHA": UI.formatDate(a.fecha),
+            "EMPRESA": a.EmpresaData?.nombre || 'N/A',
+            "REFERENCIA": a.referencia || '-',
+            "CONDUCTOR": a.asalariado || '-',
+            "IMPORTE": `${parseFloat(a.importe_total || 0).toFixed(2)}€`
+        }))
+    };
+
+    try {
+        const response = await fetch('/api/v1/albaranes/export/pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (res.downloadURL) window.open(res.downloadURL, '_blank');
+    } catch (e) { console.error("Error PDF:", e); }
+};
+
+window.handleGenerateXLSX = async () => {
+    if (APP.state.filteredAlbaranes.length === 0) return alert("No hay datos para exportar");
+
+    const payload = {
+        reportName: `Albaranes_Licencia_${APP.state.userLicenciaNumero}`,
+        data: APP.state.filteredAlbaranes.map(a => ({
+            "Nº ALBARÁN": a.numero_albaran,
+            "FECHA": UI.formatDate(a.fecha),
+            "EMPRESA": a.EmpresaData?.nombre || 'N/A',
+            "REFERENCIA": a.referencia || '-',
+            "CONDUCTOR": a.asalariado || '-',
+            "IMPORTE": parseFloat(a.importe_total || 0)
+        }))
+    };
+
+    try {
+        const response = await fetch('/api/v1/albaranes/export/xlsx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+        if (res.downloadURL) window.open(res.downloadURL, '_blank');
+    } catch (e) { console.error("Error Excel:", e); }
 };
 
 // =================================================================================
@@ -245,15 +286,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await API.loadEmpresas();
     UI.setSearchModeManual('campos');
     
-    // --- LISTENERS DE FILTROS ---
     ['empresa', 'state', 'fecha_desde', 'fecha_hasta'].forEach(id => {
-        document.getElementById(id).addEventListener('change', () => {
-            APP.state.currentPage = 1; // Reset a pág 1 al filtrar
-            API.searchAlbaranes();
-        });
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => { APP.state.currentPage = 1; API.searchAlbaranes(); });
     });
 
-    // --- LISTENERS DE PAGINACIÓN ---
     if (APP.elements.recordsSelect) {
         APP.elements.recordsSelect.addEventListener('change', (e) => {
             APP.state.pageSize = parseInt(e.target.value);
@@ -262,32 +299,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    if (APP.elements.prevBtn) {
-        APP.elements.prevBtn.onclick = () => {
-            if (APP.state.currentPage > 1) {
-                APP.state.currentPage--;
-                API.searchAlbaranes();
-            }
-        };
-    }
-
-    if (APP.elements.nextBtn) {
-        APP.elements.nextBtn.onclick = () => {
-            if (APP.state.currentPage < APP.state.totalPages) {
-                APP.state.currentPage++;
-                API.searchAlbaranes();
-            }
-        };
-    }
+    if (APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
+    if (APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
 
     API.searchAlbaranes();
 });
 
-window.handleSearch = (e) => { 
-    if(e) e.preventDefault(); 
-    APP.state.currentPage = 1; 
-    API.searchAlbaranes(); 
-};
+window.handleSearch = (e) => { if(e && e.preventDefault) e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
 
 window.handleClearAllFilters = () => {
     if (APP.elements.searchForm) {
@@ -302,4 +320,5 @@ window.handleClearAllFilters = () => {
     }
 };
 
+window.handleLogout = async () => { await fetch('/api/v1/logout', { method: 'POST' }); window.location.href = '/login'; };
 window.UI = UI;

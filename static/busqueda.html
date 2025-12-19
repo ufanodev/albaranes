@@ -204,14 +204,14 @@
 
                     <div>
                         <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">Empresa</label>
-                        <select id="empresa" name="empresa_ref" class="input-field appearance-none">
+                        <select id="empresa" name="empresa_ref" class="input-field appearance-none" onchange="handleSearch()">
                             <option value="">Todas las empresas</option>
                         </select>
                     </div>
 
                     <div>
                         <label for="state" class="filter-label">Estado</label>
-                        <select id="state" name="state" class="input-field appearance-none text-xs">
+                        <select id="state" name="state" class="input-field appearance-none text-xs" onchange="handleSearch()">
                             <option value="">🎯 Todos los estados</option>
                             <option value="creado">🆕 Creado</option>
                             <option value="enviado">📧 Enviado</option>
@@ -222,7 +222,7 @@
 
                     <div>
                         <label for="referencia" class="filter-label">Referencia</label>
-                        <input type="text" id="referencia" name="referencia" placeholder="Ref..." class="input-field text-xs">
+                        <input type="text" id="referencia" name="referencia" placeholder="Ref..." class="input-field text-xs" oninput="handleSearch()">
                     </div>
 
                     <div>
