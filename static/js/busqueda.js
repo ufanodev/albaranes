@@ -21,9 +21,10 @@ const APP = {
     },
     state: {
         filteredAlbaranes: [],
-        currentPage: 1,
-        pageSize: 25, 
-        totalPages: 1,
+        totalRecords: 0,      // Nuevo: Almacena el total devuelto por Go
+        currentPage: 1,       // Página actual
+        pageSize: 25,         // Tamaño de página por defecto
+        totalPages: 1,        // Calculado
         userLicenciaId: null,
         userLicenciaNumero: null,
         currentSort: { key: 'fecha', direction: 'desc' },
@@ -36,15 +37,6 @@ const APP = {
 // =================================================================================
 const UI = {
     formatDate(isoString) { return isoString ? isoString.substring(0, 10) : '-'; },
-
-    alertMessage(message, type = 'info') {
-        const s = APP.elements.statusMessage;
-        if (!s) return;
-        s.textContent = message;
-        s.className = `status-message status-${type} block p-3 rounded mb-4 text-center border font-bold`;
-        s.classList.remove('hidden');
-        if (type !== 'error') setTimeout(() => s.classList.add('hidden'), 5000);
-    },
 
     setSearchModeManual(mode) {
         console.log(`[UI-LOG] Cambiando modo a: ${mode}`);
@@ -80,11 +72,18 @@ const UI = {
     },
 
     updatePageInfo() {
-        const total = APP.state.filteredAlbaranes.length;
-        APP.state.totalPages = Math.ceil(total / APP.state.pageSize) || 1;
-        if (APP.elements.pageInfo) APP.elements.pageInfo.textContent = `Pág ${APP.state.currentPage} de ${APP.state.totalPages}`;
+        // Cálculo de páginas totales basado en el "total" que envía Go
+        APP.state.totalPages = Math.ceil(APP.state.totalRecords / APP.state.pageSize) || 1;
+        
+        if (APP.elements.pageInfo) {
+            APP.elements.pageInfo.textContent = `Pág ${APP.state.currentPage} de ${APP.state.totalPages}`;
+        }
+        
         const countDisplay = document.getElementById('resultsCount');
-        if (countDisplay) countDisplay.textContent = total;
+        if (countDisplay) {
+            countDisplay.textContent = APP.state.totalRecords;
+        }
+        
         this.updatePaginationButtons();
         this.updateActiveFiltersCount();
     },
@@ -96,8 +95,6 @@ const UI = {
     },
 
     updateActiveFiltersCount() {
-        // Contamos cuántos campos tienen valor real
-        const params = new URLSearchParams();
         const empresa = document.getElementById('empresa').value;
         const estado = document.getElementById('state').value;
         const referencia = document.getElementById('referencia').value;
@@ -128,11 +125,9 @@ const API = {
             if (data && data.licencia_id !== undefined) {
                 APP.state.userLicenciaId = data.licencia_id;
                 APP.state.userLicenciaNumero = data.licencia_numero || "S/N";
-                
                 if (APP.elements.licenciaDisplay) APP.elements.licenciaDisplay.value = APP.state.userLicenciaNumero;
                 if (APP.elements.licenciaInput) APP.elements.licenciaInput.value = data.licencia_id;
                 if (APP.elements.numLicenciaHeader) APP.elements.numLicenciaHeader.textContent = APP.state.userLicenciaNumero;
-                
                 return true;
             }
             return false;
@@ -157,8 +152,11 @@ const API = {
         DOM.showLoading();
         
         const params = new URLSearchParams();
-        // Siempre enviamos la licencia por seguridad
         params.append('licencia_ref', APP.state.userLicenciaId);
+        
+        // --- PARÁMETROS DE PAGINACIÓN ---
+        params.append('page', APP.state.currentPage);
+        params.append('pageSize', APP.state.pageSize);
         
         // --- CAPTURA DE CAMPOS DINÁMICA ---
         const empresa = document.getElementById('empresa').value;
@@ -168,30 +166,27 @@ const API = {
         const hasta = document.getElementById('fecha_hasta').value;
         const palabra = document.getElementById('palabra').value;
 
-        console.log("--- [FRONTEND-LOG] PREPARANDO QUERY ---");
         if (empresa) params.append('empresa_ref', empresa);
         if (estado) params.append('state', estado);
         if (referencia) params.append('referencia', referencia);
         if (desde) params.append('fecha_desde', desde);
         if (hasta) params.append('fecha_hasta', hasta);
-        
-        if (APP.state.searchMode === 'palabra' && palabra) {
-            params.append('palabra', palabra);
-        }
+        if (APP.state.searchMode === 'palabra' && palabra) params.append('palabra', palabra);
 
         try {
             const url = `/api/v1/albaranes/search-user?${params.toString()}`;
-            console.log(`[FRONTEND-LOG] GET REQUEST: ${url}`);
+            console.log(`[FRONTEND-QUERY] Pág ${APP.state.currentPage} -> ${url}`);
             
             const response = await fetch(url);
-            const data = await response.json();
+            const res = await response.json();
             
-            APP.state.filteredAlbaranes = data.data || [];
-            APP.state.currentPage = 1;
+            // Actualizamos estado con la respuesta de Go
+            APP.state.filteredAlbaranes = res.data || [];
+            APP.state.totalRecords = res.total || 0;
+            
             DOM.renderResults();
-            UI.updateActiveFiltersCount(); // Actualizar contador visual
         } catch (e) { 
-            console.error("[FRONTEND-LOG] Error:", e);
+            console.error("[FRONTEND-LOG] Error búsqueda:", e);
             DOM.showNoResults(); 
         }
     }
@@ -201,13 +196,14 @@ const API = {
 // 🖼️ DOM RENDERING
 // =================================================================================
 const DOM = {
-    showLoading() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-10 italic">Buscando...</td></tr>'; },
+    showLoading() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-10 italic">Cargando datos...</td></tr>'; },
     showNoResults() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-orange-500 font-bold">Sin resultados.</td></tr>'; },
     renderResults() {
         if (!APP.elements.resultsBody) return;
         APP.elements.resultsBody.innerHTML = '';
-        const start = (APP.state.currentPage - 1) * APP.state.pageSize;
-        const pageData = APP.state.filteredAlbaranes.slice(start, start + APP.state.pageSize);
+        
+        const pageData = APP.state.filteredAlbaranes; // Los datos ya vienen paginados del servidor
+
         if (pageData.length === 0) { this.showNoResults(); return; }
 
         pageData.forEach(a => {
@@ -229,7 +225,8 @@ const DOM = {
                 </td>`;
             APP.elements.resultsBody.appendChild(tr);
         });
-        UI.updatePageInfo();
+        
+        UI.updatePageInfo(); // Actualiza el texto de paginación
         if (window.lucide) lucide.createIcons();
     },
     getBadge(a) {
@@ -248,24 +245,48 @@ document.addEventListener('DOMContentLoaded', async () => {
     await API.loadEmpresas();
     UI.setSearchModeManual('campos');
     
-    // --- EVENT LISTENERS PARA BÚSQUEDA AUTOMÁTICA ---
-    // Esto hace que al cambiar la empresa o el estado, busque solo
-    document.getElementById('empresa').addEventListener('change', () => API.searchAlbaranes());
-    document.getElementById('state').addEventListener('change', () => API.searchAlbaranes());
-    document.getElementById('fecha_desde').addEventListener('change', () => API.searchAlbaranes());
-    document.getElementById('fecha_hasta').addEventListener('change', () => API.searchAlbaranes());
+    // --- LISTENERS DE FILTROS ---
+    ['empresa', 'state', 'fecha_desde', 'fecha_hasta'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            APP.state.currentPage = 1; // Reset a pág 1 al filtrar
+            API.searchAlbaranes();
+        });
+    });
+
+    // --- LISTENERS DE PAGINACIÓN ---
+    if (APP.elements.recordsSelect) {
+        APP.elements.recordsSelect.addEventListener('change', (e) => {
+            APP.state.pageSize = parseInt(e.target.value);
+            APP.state.currentPage = 1; 
+            API.searchAlbaranes();
+        });
+    }
+
+    if (APP.elements.prevBtn) {
+        APP.elements.prevBtn.onclick = () => {
+            if (APP.state.currentPage > 1) {
+                APP.state.currentPage--;
+                API.searchAlbaranes();
+            }
+        };
+    }
+
+    if (APP.elements.nextBtn) {
+        APP.elements.nextBtn.onclick = () => {
+            if (APP.state.currentPage < APP.state.totalPages) {
+                APP.state.currentPage++;
+                API.searchAlbaranes();
+            }
+        };
+    }
 
     API.searchAlbaranes();
-
-    if (APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
-    if (APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
 });
 
-window.handleSearch = (e) => { if(e) e.preventDefault(); API.searchAlbaranes(); };
-
-window.handleLogout = async () => { 
-    await fetch('/api/v1/logout', { method: 'POST' }); 
-    window.location.href = '/login'; 
+window.handleSearch = (e) => { 
+    if(e) e.preventDefault(); 
+    APP.state.currentPage = 1; 
+    API.searchAlbaranes(); 
 };
 
 window.handleClearAllFilters = () => {
@@ -275,6 +296,7 @@ window.handleClearAllFilters = () => {
             APP.elements.licenciaInput.value = APP.state.userLicenciaId;
             APP.elements.licenciaDisplay.value = APP.state.userLicenciaNumero;
         }
+        APP.state.currentPage = 1;
         UI.setSearchModeManual('campos'); 
         API.searchAlbaranes();
     }
