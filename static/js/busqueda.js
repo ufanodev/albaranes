@@ -27,6 +27,7 @@ const APP = {
         totalPages: 1,        
         userLicenciaId: null,
         userLicenciaNumero: null,
+        // Configuración de ordenación inicial
         currentSort: { key: 'fecha', direction: 'desc' },
         searchMode: 'campos' 
     }
@@ -107,6 +108,27 @@ const UI = {
         if (APP.state.searchMode === 'palabra' && palabra) count++;
 
         if (APP.elements.activeFiltersCount) APP.elements.activeFiltersCount.textContent = count;
+    },
+
+    // Actualiza los iconos de las flechas en el header
+    updateSortIcons() {
+        const { key, direction } = APP.state.currentSort;
+        // Resetear todos los iconos a estado neutro
+        const sortKeys = ['numero_albaran', 'fecha', 'empresa', 'referencia', 'importe_total', 'estado'];
+        
+        sortKeys.forEach(k => {
+            const icon = document.getElementById(`sort-${k}`);
+            if (icon) {
+                if (k === key) {
+                    icon.setAttribute('data-lucide', direction === 'asc' ? 'chevron-up' : 'chevron-down');
+                    icon.classList.replace('opacity-50', 'opacity-100');
+                } else {
+                    icon.setAttribute('data-lucide', 'chevrons-up-down');
+                    icon.classList.replace('opacity-100', 'opacity-50');
+                }
+            }
+        });
+        if (window.lucide) lucide.createIcons();
     }
 };
 
@@ -172,10 +194,49 @@ const API = {
             const res = await response.json();
             APP.state.filteredAlbaranes = res.data || [];
             APP.state.totalRecords = res.total || 0;
+            
+            // Aplicar ordenación actual al recibir datos nuevos
+            this.applyLocalSort();
             DOM.renderResults();
         } catch (e) { 
             DOM.showNoResults(); 
         }
+    },
+
+    // Aplica la ordenación sobre el array local sin re-fetch
+    applyLocalSort() {
+        const { key, direction } = APP.state.currentSort;
+        
+        APP.state.filteredAlbaranes.sort((a, b) => {
+            let valA, valB;
+
+            switch(key) {
+                case 'fecha':
+                    valA = new Date(a.fecha || 0).getTime();
+                    valB = new Date(b.fecha || 0).getTime();
+                    break;
+                case 'importe_total':
+                    valA = parseFloat(a.importe_total || 0);
+                    valB = parseFloat(b.importe_total || 0);
+                    break;
+                case 'empresa':
+                    valA = (a.EmpresaData?.nombre || '').toLowerCase();
+                    valB = (b.EmpresaData?.nombre || '').toLowerCase();
+                    break;
+                case 'estado': // Orden lógico: Pagado > Enviado > Creado
+                    const score = (item) => item.pagado ? 2 : (item.enviado ? 1 : 0);
+                    valA = score(a);
+                    valB = score(b);
+                    break;
+                default:
+                    valA = (a[key] || '').toString().toLowerCase();
+                    valB = (b[key] || '').toString().toLowerCase();
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
     }
 };
 
@@ -212,7 +273,7 @@ const DOM = {
             APP.elements.resultsBody.appendChild(tr);
         });
         UI.updatePageInfo();
-        if (window.lucide) lucide.createIcons();
+        UI.updateSortIcons();
     },
     getBadge(a) {
         if (a.pagado) return '<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">PAGADO</span>';
@@ -222,8 +283,25 @@ const DOM = {
 };
 
 // =================================================================================
-// 🚀 EXPORT FUNCTIONS (NUEVAS)
+// 🚀 ORDENACIÓN Y EXPORTACIÓN
 // =================================================================================
+
+window.sortTable = function(key) {
+    const { currentSort } = APP.state;
+    
+    // Si ya estamos ordenando por esta columna, invertimos dirección
+    if (currentSort.key === key) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort.key = key;
+        currentSort.direction = 'asc';
+    }
+
+    API.applyLocalSort();
+    DOM.renderResults();
+};
+
+
 
 window.handleGeneratePDF = async () => {
     if (APP.state.filteredAlbaranes.length === 0) return alert("No hay datos para exportar");
