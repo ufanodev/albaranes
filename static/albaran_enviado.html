@@ -3,278 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚕 Albaranes Enviados</title>
+    <title>🚕 Albaranes Enviados - Gestión</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 1. Seguridad Global -->
-    <script src="/js/security.js"></script>
-    
-    <!-- 2. Lógica específica para Enviados -->
-    <script src="/js/albaran_enviado.js" defer></script>
-    
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
                         'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',   // Naranja más vivo
+                        'primary-link': '#FF8C00',   // Naranja Vivo
                         'black-pure': '#000000',
-                    }
-                }
-            }
-        }
+                        'secondary-blue': '#3B82F6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        };
     </script>
+
+    <script src="/js/security.js"></script>
+    <script src="/js/albaran_enviado.js" defer></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <script src="https://unpkg.com/lucide@latest"></script>
-<script src="https://cdn.tailwindcss.com"></script>
 
-<!-- 1. Seguridad Global -->
-<script src="/js/security.js"></script>
-
-<!-- 2. Lógica específica para Enviados -->
-<script src="/js/albaran_enviado.js" defer></script>
-
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          'primary-pastel': '#FFDAB9',  // Naranja Pastel
-          'primary-link': '#FF8C00',    // Naranja más vivo
-          'black-pure': '#000000',
-        },
-      },
-    },
-  };
-</script>
-
-<script src="https://unpkg.com/lucide@latest"></script>
-
-<style type="text/tailwindcss">
-  @layer components {
-    .card {
-      @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50;
-    }
-
-    .input-field {
-      @apply w-full px-3 py-2 border border-gray-300 rounded-md
-             focus:outline-none focus:ring-2 focus:ring-primary-link
-             focus:border-primary-link transition duration-150;
-    }
-
-    .status-message {
-      @apply mt-4 p-3 rounded-md font-medium text-center;
-    }
-    .status-success {
-      @apply bg-green-100 text-green-700 border border-green-400;
-    }
-    .status-error {
-      @apply bg-red-400 text-white border border-red-600;
-    }
-    .status-info {
-      @apply bg-gray-200 text-gray-700 border border-gray-400;
-    }
-
-    .total-row td {
-      @apply bg-primary-pastel/70 font-extrabold text-gray-800 text-lg;
-    }
-  }
-
-  /* CSS normal, sin @apply */
-  .sortable {
-    cursor: pointer;
-    user-select: none;
-    display: flex;
-    align-items: center;
-  }
-</style>
-
+    <style type="text/tailwindcss">
+        @layer components {
+            .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
+            .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link transition duration-150; }
+            .status-message { @apply mt-4 p-3 rounded-md font-medium text-center border; }
+        }
+        .sortable { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
+    </style>
 </head>
-<body class="bg-gray-50 p-4 sm:p-8 lg:p-12 font-inter">
 
-    <!-- Modal de Acción -->
+<body class="bg-gray-50 font-inter p-4 sm:p-8 lg:p-12">
+
     <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="window.handleActionModal && window.handleActionModal(false)">
         <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
-            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure">Acción Realizada</h3>
-            <p id="modalBody" class="text-gray-700 mb-4"></p>
-            <button onclick="window.handleActionModal && window.handleActionModal(false)" class="w-full bg-primary-link text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
+            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure tracking-tight">Acción Realizada</h3>
+            <p id="modalBody" class="text-gray-700 mb-4 text-sm"></p>
+            <button onclick="window.handleActionModal && window.handleActionModal(false)" class="w-full bg-primary-link text-white font-bold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
         </div>
     </div>
-    
+
     <div class="max-w-7xl mx-auto">
 
-        <!-- Header -->
         <div class="card mb-6">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
-                <h1 class="text-3xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
-                    <span class="text-4xl mr-3">📤</span>
-                    <span class="text-2xl">ALBARANES ENVIADOS</span>
+            <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 border-b border-gray-200 pb-4">
+                <h1 class="text-3xl font-extrabold text-black-pure flex items-center gap-3 tracking-tight">
+                    <span class="text-4xl">📤</span>
+                    <span class="text-2xl uppercase tracking-tighter">Albaranes Enviados</span>
                 </h1>
 
-                <div class="flex flex-col sm:flex-row items-end sm:items-center gap-3">
- <!-- Botones de navegación (reducidos) -->
-    <div class="flex flex-wrap gap-2">
-      <a href="/titulares/nuevo_albaran"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white
-                bg-gradient-to-r from-green-500 to-green-600 shadow-sm hover:shadow-md
-                hover:from-green-600 hover:to-green-700 active:scale-95 transition">
-        <span class="text-base">➕</span>
-        <span>Nuevo albarán</span>
-      </a>
+                <div class="flex flex-col lg:flex-row items-end lg:items-center gap-4 w-full xl:w-auto justify-end">
+                    <div class="flex flex-wrap gap-2">
+                        <a href="/titulares/nuevo_albaran" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 shadow hover:from-green-600 active:scale-95 transition">
+                            <span>➕ Nuevo</span>
+                        </a>
+                        <a href="/titulares" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 active:scale-95 transition">
+                            <span>📋 Ver todos</span>
+                        </a>
+                        <a href="/titulares/pendientes" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-black-pure bg-primary-pastel border border-primary-pastel hover:bg-orange-200 active:scale-95 transition">
+                            <span>🏁 Pendientes</span>
+                        </a>
+                    </div>
 
-      <a href="/titulares/enviados"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white
-                bg-primary-link shadow-sm hover:bg-orange-600 active:scale-95 transition">
-        <span class="text-base">📧</span>
-        <span>Ver enviados</span>
-      </a>
-
-      <a href="/titulares"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-700
-                bg-white border border-gray-300 shadow-sm hover:bg-gray-100 hover:border-gray-400
-                active:scale-95 transition">
-        <span class="text-base">📋</span>
-        <span>Ver todos</span>
-      </a>
-
-      <a href="/titulares/pendientes"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold
-                text-black-pure bg-primary-pastel border border-primary-pastel shadow-sm
-                hover:bg-orange-300 hover:border-orange-400 active:scale-95 transition">
-        <span class="text-base">🏁</span>
-        <span>Ver pendientes</span>
-      </a>
-    </div>
-
-
-              <!-- Botones redondos de acciones -->
-              <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-                <button title="Imprimir PDF"
-                        class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
-                        onclick="handleAction('Imprimir PDF', 'Todo el listado')">
-                  <i data-lucide="printer" class="h-5 w-5"></i>
-                </button>
-
-                <button title="Exportar a Word"
-                        class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
-                        onclick="handleAction('Exportar Word', 'Todo el listado')">
-                  <i data-lucide="file-text" class="h-5 w-5"></i>
-                </button>
-
-                <button title="Exportar a Excel"
-                        class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95"
-                        onclick="handleAction('Exportar Excel', 'Todo el listado')">
-                  <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
-                </button>
-
-                <button onclick="handleLogout()" title="Salir y cerrar sesión"
-                        class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                  <i data-lucide="log-out" class="h-5 w-5"></i>
-                </button>
-              </div>
+                    <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-full shadow-md transition active:scale-95">
+                            <i data-lucide="printer" class="h-5 w-5"></i>
+                        </button>
+                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 p-2 rounded-full shadow-md transition active:scale-95">
+                            <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
+                        </button>
+                        <button onclick="handleLogout()" title="Cerrar sesión" class="bg-red-500 text-white hover:bg-red-600 p-2 rounded-full shadow-md transition active:scale-95">
+                            <i data-lucide="log-out" class="h-5 w-5"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
-          </div>
+        </div>
 
-    <!-- Tabla de Resultados -->
-    <h2 class="text-xl font-bold text-black-pure mb-4">📊 Listado de Enviados</h2>
+        <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center gap-2">
+            <span>📊</span><span>Histórico de Albaranes Enviados (enviado=1)</span>
+        </h2>
 
-        <!-- CONTROLES DE PAGINACIÓN / REGISTROS -->
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 flex flex-col gap-4">
-          <div class="flex justify-between items-center mb-2 flex-wrap gap-3">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 flex justify-between items-center flex-wrap gap-3">
             <div class="flex items-center space-x-2 text-sm text-gray-600">
-              <span>Registros por página:</span>
-              <select id="recordsPerPage"
-                      class="px-3 py-1.5 text-sm border border-gray-300 rounded-md
-                            focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="todos">Todos</option>
-              </select>
-              <span id="totalLabel" class="text-xs text-gray-500 ml-2"></span>
+                <span class="font-medium">Mostrar:</span>
+                <select id="recordsPerPage" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-link outline-none transition">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                    <option value="todos">Todos</option>
+                </select>
+                <span id="totalLabel" class="text-xs text-gray-400 ml-4 font-bold uppercase tracking-widest">Calculando...</span>
             </div>
 
             <div class="flex items-center space-x-2">
-              <button id="prevPageBtn"
-                      class="bg-gray-200 text-gray-700 hover:bg-gray-300 px-2 py-1 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Página anterior">
-                <i data-lucide="chevron-left" class="h-4 w-4"></i>
-              </button>
-              <span id="pageInfo"
-                    class="text-sm text-gray-600 font-medium px-3 py-1 bg-gray-100 rounded">
-                Página 1 de 1
-              </span>
-              <button id="nextPageBtn"
-                      class="bg-gray-200 text-gray-700 hover:bg-gray-300 px-2 py-1 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Página siguiente">
-                <i data-lucide="chevron-right" class="h-4 w-4"></i>
-              </button>
+                <button id="prevPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 rounded-lg transition disabled:opacity-30">
+                    <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                </button>
+                <span id="pageInfo" class="text-sm text-gray-700 font-bold px-4 py-1.5 bg-gray-100 rounded-lg border border-gray-200">Página 1 / 1</span>
+                <button id="nextPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 rounded-lg transition disabled:opacity-30">
+                    <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                </button>
             </div>
-          </div>
         </div>
 
-            <div class="overflow-x-auto shadow-lg rounded-xl border border-gray-100">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-primary-link text-white">
-                        <tr>
-                            <!-- 1. Nº Albarán -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
-                                <div class="sortable flex justify-between items-center cursor-pointer" onclick="window.sortTable('numero_albaran')">
-                                    Nº Albarán <i id="sort-numero_albaran" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <!-- 2. Fecha -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex justify-between items-center cursor-pointer" onclick="window.sortTable('fecha')">
-                                    Fecha <i id="sort-fecha" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <!-- 3. Licencia -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex justify-between items-center cursor-pointer" onclick="window.sortTable('licencia')">
-                                    Licencia <i id="sort-licencia" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <!-- 4. Empresa -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
-                            <!-- 5. Referencia -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Referencia</th>
-                            <!-- 6. Conductor -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex justify-between items-center cursor-pointer" onclick="window.sortTable('conductor')">
-                                    Conductor <i id="sort-conductor" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <!-- 7. Importe Total -->
-                            <th scope="col" class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex justify-end items-center cursor-pointer" onclick="window.sortTable('importe_total')">
-                                    Importe Total <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <!-- 8. Estado -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable flex justify-between items-center cursor-pointer" onclick="window.sortTable('enviado')">
-                                    Estado <i id="sort-enviado" data-lucide="chevrons-up-down" class="h-4 w-4 ml-1"></i>
-                                </div>
-                            </th>
-                            <!-- 9. Observaciones -->
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Observaciones</th>
-                            <!-- 10. Acciones -->
-                            <th scope="col" class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
-                        <!-- Placeholder de carga (colspan 10) -->
-                        <tr><td colspan="10" class="text-center py-6 text-gray-500 italic">Cargando datos de la API...</td></tr>
-                    </tbody>
-                    <tfoot id="albaranTotal">
-                        <!-- Totales inyectados por JS -->
-                    </tfoot>
-                </table>
-            </div>
-            <div id="statusMessage" class="hidden status-message" role="alert"></div>
+        <div class="overflow-x-auto shadow-2xl rounded-xl border border-gray-100 bg-white">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-primary-link text-white text-[11px] uppercase tracking-widest font-black">
+                    <tr>
+                        <th class="px-4 py-4 text-left cursor-pointer" onclick="sortTable('numero_albaran')">
+                            <div class="sortable">Nº Albarán <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></div>
+                        </th>
+                        <th class="px-4 py-4 text-left cursor-pointer" onclick="sortTable('fecha')">
+                            <div class="sortable">Fecha <i data-lucide="chevrons-up-down" class="w-3 h-3"></i></div>
+                        </th>
+                        <th class="px-4 py-4 text-left">Licencia</th>
+                        <th class="px-4 py-4 text-left">Empresa</th>
+                        <th class="px-4 py-4 text-left">Referencia</th>
+                        <th class="px-4 py-4 text-left">Conductor</th>
+                        <th class="px-4 py-4 text-right">Importe</th>
+                        <th class="px-4 py-4 text-center">Estado</th>
+                        <th class="px-4 py-4 text-left">Observaciones</th>
+                        <th class="px-4 py-4 text-center">Acciones</th>
+                    </tr>
+                </thead>
+                
+                <tbody id="albaranResults" class="bg-white divide-y divide-gray-100">
+                    <tr>
+                        <td colspan="10" class="text-center py-20 text-gray-400 italic">
+                            Cargando albaranes enviados...
+                        </td>
+                    </tr>
+                </tbody>
+
+                <tfoot id="albaranTotal" class="bg-primary-pastel/10 font-bold text-gray-800"></tfoot>
+            </table>
         </div>
+
+        <div id="statusMessage" class="hidden status-message"></div>
+
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
 </body>
 </html>
