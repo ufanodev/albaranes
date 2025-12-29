@@ -1,16 +1,19 @@
 /**
- * albaran_update.js
- * Lógica para la edición de albaranes desde el Panel de Titular.
- * Carga datos desde /api/v1/albaranes/id/:id y permite modificar campos técnicos.
+ * albaran_update.js - Panel Titular
+ * Lógica para la edición de albaranes existentes.
+ * Versión final: Soporta campos de tiempo, remolque, plazas y validación estricta.
  */
 
 let albaranID = null;
+let userLicenciaId = 0;      
+let userLicenciaNumero = "";  
+let cargandoConductores = false;
 
 // =================================================================================
 // 🚀 INICIALIZACIÓN
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Extraer ID de la URL (/titulares/update/47)
+    // 1. Obtener ID de la URL (/titulares/update/71)
     const pathParts = window.location.pathname.split('/');
     albaranID = pathParts[pathParts.length - 1];
 
@@ -19,28 +22,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    console.log(`🛠️ [UPDATE] Iniciando sesión de edición para ID: ${albaranID}`);
+    console.log(`%c🛠️ [UPDATE] Iniciando edición para ID: ${albaranID}`, "color: #FF8C00; font-weight: bold;");
 
-    // 2. Carga de datos maestros y albarán en orden
+    // 2. Cargar identidad y catálogos
+    const identityOk = await loadUserIdentity();
+    if (!identityOk) return;
+
     try {
-        // Cargamos empresas y conductores primero para que los combos estén listos
         await Promise.all([
             loadEmpresas(),
             loadConductores()
         ]);
 
-        // Cargamos los datos del albarán y poblamos el form
-        await loadAlbaranData(albaranID);
+        // 3. Cargar datos del registro y poblar el formulario
+        await loadAlbaranToEdit(albaranID);
         
-        setupWordCounter();
     } catch (err) {
-        console.error("❌ [INIT] Error en la inicialización:", err);
+        console.error("❌ [INIT] Error crítico en la carga:", err);
+        showStatus("🛑 Error al inicializar el formulario.", "error");
     }
+    
+    // 4. Activar componentes lógicos
+    setupKmCalculation();
+    setupWordCounter();
+    setupVisualFeedback();
 });
 
 // =================================================================================
-// 📡 COMUNICACIÓN CON API (GET)
+// 📡 COMUNICACIÓN CON API (CARGA)
 // =================================================================================
+
+async function loadUserIdentity() {
+    try {
+        const response = await fetch('/api/v1/user/licencia_info');
+        if (response.status === 401) { window.location.href = '/login'; return false; }
+        const data = await response.json();
+        if (data.licencia_id) {
+            userLicenciaId = data.licencia_id;
+            userLicenciaNumero = data.licencia_numero || String(data.licencia_id);
+            return true;
+        }
+        return false;
+    } catch (error) { return false; }
+}
 
 async function loadEmpresas() {
     const select = document.getElementById('empresa');
@@ -49,15 +73,13 @@ async function loadEmpresas() {
         const response = await fetch('/api/v1/empresas');
         const json = await response.json();
         const empresas = json.data || json;
-        
         select.innerHTML = '<option value="" disabled>Seleccione empresa</option>';
-        empresas.forEach(e => {
+        empresas.forEach(emp => {
             const opt = document.createElement('option');
-            opt.value = e.id;
-            opt.textContent = e.nombre;
+            opt.value = emp.id; opt.textContent = emp.nombre;
             select.appendChild(opt);
         });
-    } catch (e) { console.error("❌ Error carga empresas:", e); }
+    } catch (e) { console.error("Error empresas:", e); }
 }
 
 async function loadConductores() {
@@ -67,111 +89,183 @@ async function loadConductores() {
         const response = await fetch('/api/v1/conductores');
         const json = await response.json();
         const todos = json.data || json;
-        
+        const misConductores = todos.filter(c => {
+            const ref = String(c.licencia || c.licencia_ref || "").trim();
+            return ref === String(userLicenciaId) || ref === String(userLicenciaNumero).trim();
+        });
         select.innerHTML = '<option value="">-- Sin Asalariado (Titular) --</option>';
-        todos.forEach(c => {
+        misConductores.forEach(c => {
             const opt = document.createElement('option');
-            // Usamos el nombre como valor para que coincida con el campo asalariado de la DB
-            opt.value = c.nombre; 
-            opt.textContent = `${c.nombre} (${c.conductor || 'S/N'})`;
+            opt.value = c.nombre; opt.textContent = `${c.nombre} (${c.conductor || 'S/N'})`;
             select.appendChild(opt);
         });
-    } catch (e) { console.error("❌ Error carga conductores:", e); }
+    } catch (e) { console.error("Error conductores:", e); }
 }
 
-async function loadAlbaranData(id) {
+async function loadAlbaranToEdit(id) {
     try {
-        // IMPORTANTE: Ruta sincronizada con routes.go (/id/:id)
         const response = await fetch(`/api/v1/albaranes/id/${id}`);
-        
-        if (response.status === 401) { window.location.href = '/login'; return; }
-        if (!response.ok) throw new Error(`Servidor respondió con status ${response.status}`);
-        
+        if (!response.ok) throw new Error("No se pudo cargar el albarán desde el servidor");
         const result = await response.json();
         const data = result.data;
 
-        if (!data) throw new Error("No se encontraron datos.");
-
-        // Poblar el formulario usando albaran_cargar.js
-        if (typeof populateForm === 'function') {
-            populateForm(data);
-        }
-
-        // 🔒 BLOQUEO DE SEGURIDAD (Datos que no deben cambiar)
-        const lock = ['n_albaran', 'numero_albaran', 'licencia', 'licencia_ref'];
-        lock.forEach(fieldId => {
-            const el = document.getElementById(fieldId);
-            if (el) {
-                el.readOnly = true;
-                el.classList.add('bg-slate-200', 'cursor-not-allowed', 'opacity-70');
+        // HELPER SEGURO: Evita el error "Cannot set properties of null"
+        const safeSet = (elementId, value) => {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            if (el.type === 'checkbox') {
+                el.checked = !!value;
+            } else {
+                el.value = (value !== null && value !== undefined) ? value : "";
             }
-        });
+        };
 
-        document.getElementById('loadingIndicator')?.classList.add('hidden');
-        console.log("✅ [UPDATE] Formulario listo para edición.");
+        // --- POBLADO DE CAMPOS ---
+        safeSet('albaran_id', data.id);
+        safeSet('licencia', userLicenciaNumero);
+        safeSet('n_albaran', data.numero_albaran);
+        
+        const headerNum = document.getElementById('header_num');
+        if (headerNum) headerNum.textContent = `#${data.numero_albaran}`;
+        
+        if (data.fecha) safeSet('fecha', data.fecha.split('T')[0]);
+        
+        const formatTime = (isoStr) => isoStr ? isoStr.split('T')[1].substring(0, 5) : "";
+        safeSet('hora_ini', formatTime(data.hora_ini));
+        safeSet('hora_fin', formatTime(data.hora_fin));
+        safeSet('espera_ini', formatTime(data.espera_ini));
+        safeSet('espera_fin', formatTime(data.espera_fin));
+
+        safeSet('empresa', data.empresa_ref);
+        safeSet('asalariado_select', data.asalariado);
+        safeSet('num_plazas', data.num_plazas);
+        safeSet('referencia', data.referencia);
+        safeSet('origen', data.origen);
+        safeSet('destino', data.destino);
+        safeSet('parada', data.parada);
+        safeSet('observaciones', data.observaciones);
+
+        const toDec = (val) => val ? parseFloat(val).toFixed(2) : "0.00";
+        safeSet('km_ini', toDec(data.km_ini));
+        safeSet('km_fin', toDec(data.km_fin));
+        safeSet('km_nacionales', toDec(data.km_nacionales));
+        safeSet('km_internacionales', toDec(data.km_internacionales));
+        safeSet('km_totales', toDec(data.km_totales));
+        safeSet('importe_suplidos', toDec(data.importe_suplidos));
+        safeSet('importe_total', toDec(data.importe_total));
+
+        safeSet('urbano', data.urbano);
+        safeSet('diurno', data.diurno);
+        safeSet('noct_fest', data.noct_fest);
+        safeSet('remolque', data.remolque); // Mapeado correctamente
+        safeSet('adjuntos', data.adjuntos);
+
+        console.log("✅ [UPDATE] Formulario poblado correctamente.");
 
     } catch (error) {
-        console.error("❌ [UPDATE] Error:", error);
-        showStatus('❌ Error al cargar los datos del albarán.', 'error');
+        showStatus("❌ Error al cargar datos: " + error.message, "error");
     }
+}
+
+// =================================================================================
+// 🧮 LÓGICA DE NEGOCIO (KMS)
+// =================================================================================
+
+function setupKmCalculation() {
+    const kmIni = document.getElementById('km_ini');
+    const kmFin = document.getElementById('km_fin');
+    const kmTot = document.getElementById('km_totales');
+
+    const calculate = () => {
+        if (!kmIni || !kmFin || !kmTot) return;
+        const valIni = parseFloat(kmIni.value) || 0;
+        const valFin = parseFloat(kmFin.value) || 0;
+        if (valFin > 0) {
+            if (valFin < valIni) {
+                kmFin.classList.add('text-red-600', 'border-red-500');
+                kmTot.value = "0.00";
+            } else {
+                kmFin.classList.remove('text-red-600', 'border-red-500');
+                kmTot.value = (valFin - valIni).toFixed(2);
+            }
+        }
+    };
+
+    const ids = ['km_ini', 'km_fin', 'km_nacionales', 'km_internacionales'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', calculate);
+            el.addEventListener('blur', (e) => {
+                if (e.target.value) e.target.value = parseFloat(e.target.value).toFixed(2);
+            });
+        }
+    });
 }
 
 // =================================================================================
 // 💾 ENVÍO DE DATOS (PUT)
 // =================================================================================
 
-window.handleAction = async function(actionType, event = null) {
-    if (event) event.preventDefault();
+function validateStrict(payload) {
+    const faltantes = [];
+    if (!payload.fecha) faltantes.push("Fecha");
+    if (!payload.origen) faltantes.push("Origen");
+    if (!payload.destino) faltantes.push("Destino");
+    if (!payload.importe_total || payload.importe_total <= 0) faltantes.push("Importe Total");
 
-    if (actionType === 'modificar') {
-        const form = document.getElementById('albaranForm');
-        const formData = new FormData(form);
-        const payload = {};
+    if (faltantes.length > 0) {
+        alert(`⚠️ CAMPOS OBLIGATORIOS FALTANTES:\n\n• ${faltantes.join('\n• ')}`);
+        return false;
+    }
+    return true;
+}
 
-        // 1. Mapeo de campos generales y numéricos
-        for (const [key, value] of formData.entries()) {
-            if (value === "" || value === null) continue;
+document.getElementById('albaranForm').onsubmit = async (event) => {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const payload = {};
 
-            // Aseguramos tipos numéricos para el backend Go
-            if (['km_totales', 'km_nacionales', 'km_internacionales', 'importe_total', 'importe_suplidos', 'num_plazas', 'empresa_ref'].includes(key)) {
-                const num = parseFloat(value);
-                if (!isNaN(num)) payload[key] = num;
-            } else {
-                payload[key] = value;
-            }
+    for (const [key, value] of formData.entries()) {
+        if (value === "" || value === null) {
+            payload[key] = null;
+            continue;
         }
+        if (key.startsWith('km_') || key.startsWith('importe_') || key === 'num_plazas' || key === 'empresa_ref') {
+            payload[key] = parseFloat(value) || 0;
+        } else {
+            payload[key] = value;
+        }
+    }
 
-        // 2. Mapeo de Checkboxes (Booleanos)
-        const checks = ['urbano', 'diurno', 'noct_fest', 'festivo', 'finalizado', 'enganche'];
-        checks.forEach(id => {
-            const el = document.getElementById(id);
-            payload[id] = el ? el.checked : false;
+    ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) payload[id] = el.checked;
+    });
+
+    payload['id'] = parseInt(albaranID);
+    if (!validateStrict(payload)) return;
+
+    showStatus("⏳ Guardando cambios...", "info");
+
+    try {
+        const response = await fetch(`/api/v1/albaranes/${albaranID}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
 
-        // 3. ID de identificación obligatorio
-        payload['id'] = parseInt(albaranID);
-
-        console.log("📤 [PUT] Enviando actualización:", payload);
-        showStatus('⏳ Guardando cambios...', 'info');
-
-        try {
-            const response = await fetch(`/api/v1/albaranes/${albaranID}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (response.ok) {
-                showStatus('✅ Albarán actualizado correctamente.', 'success');
-                setTimeout(() => window.location.href = '/titulares', 1500);
-            } else {
-                const errResult = await response.json();
-                throw new Error(errResult.error || 'Error al actualizar');
-            }
-        } catch (error) {
-            console.error("❌ [PUT] Error:", error);
-            showStatus(`❌ Error: ${error.message}`, 'error');
+        if (response.ok) {
+            showStatus("✅ Albarán actualizado correctamente.", "success");
+            setTimeout(() => window.location.href = '/titulares', 1500);
+        } else {
+            const result = await response.json();
+            throw new Error(result.error || "Error al actualizar.");
         }
+    } catch (error) {
+        alert(`❌ Error al guardar:\n${error.message}`);
+        showStatus(`Error: ${error.message}`, "error");
     }
 };
 
@@ -183,23 +277,38 @@ function showStatus(msg, type) {
     const el = document.getElementById('statusMessage');
     if (!el) return;
     el.textContent = msg;
-    el.className = `mt-6 p-4 text-center font-bold rounded-xl border transition-all`;
-    
-    if (type === 'success') el.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
-    else if (type === 'error') el.classList.add('bg-red-100', 'text-red-800', 'border-red-300');
-    else el.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
-    
+    const base = "status-message block mt-6 p-4 rounded-xl text-center font-bold border-2 ";
+    if (type === 'success') el.className = base + "bg-green-50 text-green-700 border-green-200";
+    else if (type === 'error') el.className = base + "bg-red-50 text-red-700 border-red-200";
+    else el.className = base + "bg-blue-50 text-blue-700 border-blue-200";
     el.classList.remove('hidden');
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function setupWordCounter() {
-    const obs = document.getElementById('observaciones');
-    if (!obs) return;
-    const update = () => {
-        const count = obs.value.trim().split(/\s+/).filter(w => w.length > 0).length;
-        document.getElementById('wordCount').textContent = `${count} palabras`;
-    };
-    obs.addEventListener('input', update);
-    update();
+    const area = document.getElementById('observaciones');
+    const label = document.getElementById('wordCount');
+    if (area && label) {
+        const update = () => {
+            const count = area.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+            label.textContent = `${count} palabras registradas`;
+        };
+        area.addEventListener('input', update);
+        update();
+    }
+}
+
+function setupVisualFeedback() {
+    ['origen', 'destino', 'importe_total'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('blur', () => {
+                if (!el.value || el.value === "0" || el.value === "0.00") {
+                    el.classList.add('border-orange-300', 'ring-2', 'ring-orange-100');
+                } else {
+                    el.classList.remove('border-orange-300', 'ring-2', 'ring-orange-100');
+                }
+            });
+        }
+    });
 }
