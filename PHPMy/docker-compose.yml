@@ -1,48 +1,46 @@
-version: '3.8'
-
 services:
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
-    container_name: phpmyadmin
-    environment:
-      - PMA_ARBITRARY=1
-      - PMA_HOST=mysql
-      - PMA_USER=ufano
-      - PMA_PASSWORD=ufano
-      - MYSQL_ROOT_PASSWORD=ufano_root_password
-      - UPLOAD_LIMIT=300M
-    ports:
-      - "8090:80"
-    networks:
-      - phpmyadmin_network
-    restart: always
-    depends_on:
-      mysql:
-        condition: service_healthy
-
   mysql:
     image: mysql:8.0
-    container_name: mysql
+    container_name: mysql_albaranes
+    restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=ufano_root_password
-      - MYSQL_USER=ufano
-      - MYSQL_PASSWORD=ufano
-      - MYSQL_DATABASE=ufano_db
-    volumes:
-      - mysql_data:/var/lib/mysql
+      MYSQL_ROOT_PASSWORD: radio_root_2025!
+      MYSQL_DATABASE: radio
+      MYSQL_USER: radio
+      MYSQL_PASSWORD: Rtx12345!
     ports:
       - "3306:3306"
+    volumes:
+      - mysql_data_albaranes:/var/lib/mysql
     networks:
-      - phpmyadmin_network
-    restart: always
+      - albaranes_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
 
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin_albaranes
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: radio
+      PMA_PASSWORD: Rtx12345!
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 300M
+    ports:
+      - "8090:80"
+    networks:
+      - albaranes_network
+
 networks:
-  phpmyadmin_network:
+  albaranes_network:
     driver: bridge
 
 volumes:
-  mysql_data:
+  mysql_data_albaranes:
