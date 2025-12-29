@@ -34,7 +34,11 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 	if strings.TrimSpace(timeStr) == "" {
 		return nil, nil
 	}
-	full := fmt.Sprintf("%s %s:00", dateBase, timeStr)
+	// Normalizar HH:mm a HH:mm:00
+	if len(timeStr) == 5 {
+		timeStr += ":00"
+	}
+	full := fmt.Sprintf("%s %s", dateBase, timeStr)
 	t, err := time.Parse("2006-01-02 15:04:05", full)
 	if err != nil {
 		return nil, err
@@ -46,7 +50,7 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
-// 🛡️ LÓGICA DE LIMPIEZA MAESTRA (Respeta ID guardado)
+// 🛡️ LÓGICA DE LIMPIEZA MAESTRA
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 	fechaBase := original.Fecha.Format(dateFormat)
@@ -54,9 +58,26 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		fechaBase = v
 	}
 
+	timeFields := map[string]string{
+		"hora":          "Hora",
+		"hora_ini":      "HoraIni",
+		"hora_fin":      "HoraFin",
+		"espera_ini":    "EsperaIni",
+		"espera_fin":    "EsperaFin",
+		"tiempo_espera": "TiempoEspera",
+	}
+
 	for key, value := range input {
-		// Protección campos inmutables (instrucción de usuario)
-		if key == "id" || key == "created_at" || key == "updated_at" || key == "ID" {
+		// Bloqueo campos inmutables [2025-12-17]
+		if key == "id" || key == "ID" || key == "created_at" || key == "updated_at" {
+			continue
+		}
+
+		if structKey, ok := timeFields[key]; ok {
+			str, _ := value.(string)
+			if t, err := parseTimePtr(fechaBase, str); err == nil {
+				clean[structKey] = t
+			}
 			continue
 		}
 
@@ -70,30 +91,26 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "NumeroAlbaran"
 		case "num_factura":
 			structKey = "NumFactura"
-		case "observaciones_admin":
-			structKey = "ObservacionesAdmin"
-		case "km_nacionales":
-			structKey = "KmNacionales"
-		case "km_internacionales":
-			structKey = "KmInternacionales"
 		case "dni_pasajero":
 			structKey = "DNIPasajero"
+		case "noct_fest":
+			structKey = "NoctFest"
 		default:
-			structKey = strings.Title(key)
-		}
-
-		if key == "hora" || key == "tiempo_espera" {
-			str, _ := value.(string)
-			if t, err := parseTimePtr(fechaBase, str); err == nil {
-				clean[strings.Title(key)] = t
+			parts := strings.Split(key, "_")
+			for i := range parts {
+				parts[i] = strings.Title(parts[i])
 			}
-			continue
+			structKey = strings.Join(parts, "")
 		}
 
 		if strings.Contains(strings.ToLower(key), "fecha") {
 			if str, ok := value.(string); ok && str != "" {
 				if t, err := parseDatePtr(str); err == nil {
-					clean[structKey] = *t
+					if key == "fecha_pago" || key == "fecha_cobro" {
+						clean[structKey] = t
+					} else {
+						clean[structKey] = *t
+					}
 				}
 			}
 		} else {
@@ -148,32 +165,42 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	c.ShouldBindJSON(&input)
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 	cleanInput["Estado"] = 0
-	db.Model(&models.Albaran{}).Create(cleanInput)
+	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Creado"})
-}
-
-func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	var albaran models.Albaran
-	db.First(&albaran, id)
-	var input map[string]interface{}
-	c.ShouldBindJSON(&input)
-	db.Model(&albaran).Updates(cleanAlbaranMap(input, albaran))
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
 }
 
 func CopyAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	var input map[string]interface{}
 	c.ShouldBindJSON(&input)
+	// Forzamos creación de nuevo registro omitiendo IDs si vinieran
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 	cleanInput["Estado"] = 0
-	db.Model(&models.Albaran{}).Create(cleanInput)
+	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Copiado"})
+}
+
+func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	var albaran models.Albaran
+	if err := db.First(&albaran, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No encontrado"})
+		return
+	}
+	var input map[string]interface{}
+	c.ShouldBindJSON(&input)
+	db.Model(&albaran).Updates(cleanAlbaranMap(input, albaran))
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado por Admin"})
 }
 
 func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
-	db.Exec("UPDATE albaranes SET estado = 1 WHERE id = ?", id)
+	db.Model(&models.Albaran{}).Where("id = ?", id).Update("estado", 1)
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Borrado"})
 }
 
@@ -195,41 +222,28 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "downloadURL": url})
 }
 
-// =====================================================================
-// 🆕 MÉTODOS TITULARES (CON PAGINACIÓN REAL Y LOGS)
-// =====================================================================
+// ---------------------------------------------------------------------
+// SECCIÓN: MÉTODOS TITULARES
+// ---------------------------------------------------------------------
 
 func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
 	var total int64
-
-	// SEGURIDAD: Licencia dinámica desde la sesión
-	val, exists := c.Get("licencia_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión no válida"})
-		return
-	}
-	var userLicID uint
-	switch v := val.(type) {
-	case uint:
-		userLicID = v
-	case float64:
+	val, _ := c.Get("licencia_id")
+	userLicID := uint(0)
+	if v, ok := val.(float64); ok {
 		userLicID = uint(v)
+	} else if v, ok := val.(uint); ok {
+		userLicID = v
 	}
 
-	// PARÁMETROS DE PAGINACIÓN
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "25"))
 	offset := (page - 1) * pageSize
 
-	fmt.Printf("\n[SQL-AUDIT] 📥 Request: %s | Pág: %d | Size: %d\n", c.Request.URL.RawQuery, page, pageSize)
+	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("licencia_ref = ? AND estado = ?", userLicID, 0)
 
-	// QUERY BASE
-	debugDB := db.Debug()
-	query := preloadAlbaran(debugDB.Model(&models.Albaran{})).
-		Where("licencia_ref = ? AND estado = ?", userLicID, 0)
-
-	// FILTROS DINÁMICOS
+	// Filtros...
 	if v := c.Query("empresa_ref"); v != "" {
 		query = query.Where("empresa_ref = ?", v)
 	}
@@ -240,55 +254,29 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 		case "enviado":
 			query = query.Where("enviado = 1 AND pagado = 0")
 		case "pagado":
-			query = query.Where("enviado = 1 AND pagado = 1 AND cobrado = 1")
-		case "finalizado":
 			query = query.Where("pagado = 1")
 		}
 	}
-	if v := c.Query("referencia"); v != "" {
-		query = query.Where("referencia LIKE ?", "%"+v+"%")
-	}
-	if v := c.Query("fecha_desde"); v != "" {
-		query = query.Where("fecha >= ?", v)
-	}
-	if v := c.Query("fecha_hasta"); v != "" {
-		query = query.Where("fecha <= ?", v)
-	}
 	if v := c.Query("palabra"); v != "" {
 		p := "%" + v + "%"
-		query = query.Where(debugDB.Where("empresa_nombre LIKE ?", p).
-			Or("cliente LIKE ?", p).Or("origen LIKE ?", p).
-			Or("destino LIKE ?", p).Or("referencia LIKE ?", p))
+		query = query.Where(db.Where("empresa_nombre LIKE ?", p).Or("referencia LIKE ?", p).Or("numero_albaran LIKE ?", p))
 	}
 
-	// CONTAR TOTAL FILTRADO (Sin límite)
 	query.Count(&total)
-
-	// EJECUTAR CON LÍMITE Y OFFSET
-	err := query.Order("fecha DESC, id DESC").
-		Limit(pageSize).
-		Offset(offset).
-		Find(&albaranes).Error
-
-	if err != nil {
-		fmt.Printf("[SQL-AUDIT] ❌ ERROR SQL: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error SQL"})
-		return
-	}
-
-	fmt.Printf("[SQL-AUDIT] ✅ Resultados en esta página: %d | Total Global: %d\n", len(albaranes), total)
-	c.JSON(http.StatusOK, gin.H{
-		"data":  albaranes,
-		"total": total,
-	})
+	query.Order("fecha DESC, id DESC").Limit(pageSize).Offset(offset).Find(&albaranes)
+	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
 }
 
 func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
-	db.First(&albaran, id)
+	if err := db.First(&albaran, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No encontrado"})
+		return
+	}
 	var input map[string]interface{}
 	c.ShouldBindJSON(&input)
+	// Restricciones usuario
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
 	delete(input, "estado")
@@ -296,28 +284,31 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
 }
 
-func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
-	val, _ := c.Get("licencia_id")
-	var licID uint
-	switch v := val.(type) {
-	case uint:
-		licID = v
-	case float64:
-		licID = uint(v)
-	}
-	var lic models.Licencia
-	if err := db.First(&lic, licID).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"licencia_id": 0, "licencia_numero": "S/N"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
-}
-
 func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	var input struct {
 		IDs []uint `json:"ids" binding:"required"`
 	}
-	c.ShouldBindJSON(&input)
-	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(map[string]interface{}{"cobrado": true, "pagado": true})
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "IDs requeridos"})
+		return
+	}
+	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(map[string]interface{}{
+		"cobrado":    true,
+		"pagado":     true,
+		"fecha_pago": time.Now(),
+	})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Pago masivo procesado"})
+}
+
+func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
+	val, _ := c.Get("licencia_id")
+	licID := uint(0)
+	if v, ok := val.(float64); ok {
+		licID = uint(v)
+	} else if v, ok := val.(uint); ok {
+		licID = v
+	}
+	var lic models.Licencia
+	db.First(&lic, licID)
+	c.JSON(http.StatusOK, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
 }
