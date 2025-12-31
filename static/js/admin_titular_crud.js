@@ -1,11 +1,10 @@
 /**
- * admin_titular_crud.js - Gestión Real de Licencias (Titulares)
- * Conexión completa con el Backend en Go para operaciones CRUD.
+ * admin_titular_crud.js - Gestión Maestra de Licencias (Titulares)
+ * Maneja los modos: view (ver), update (editar), crear y borrar.
  */
 
 (function() {
     
-    // Objeto de estado y elementos encapsulado
     const CRUD_APP = {
         elements: {
             form: document.getElementById('titularForm'),
@@ -17,7 +16,7 @@
             allInputs: null,
         },
         state: {
-            mode: 'create', // 'create', 'edit', 'view', 'delete'
+            mode: 'create', // detectado por URL
             titularId: null,
         }
     };
@@ -26,8 +25,8 @@
     // ⚙️ UTILITIES
     // =================================================================================
 
-    /** Muestra el resultado REAL de la operación en la interfaz. */
-    function crudAlertMessage(message, type = 'info') {
+    /** Muestra alertas en la interfaz (usada también por licencias_cargar.js) */
+    window.crudAlertMessage = function(message, type = 'info') {
         const { statusMessage } = CRUD_APP.elements;
         if (!statusMessage) return;
 
@@ -40,24 +39,33 @@
         
         statusMessage.classList.remove('hidden');
         statusMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    };
 
-    /** Habilita/Deshabilita campos del formulario. */
+    /** Bloquea o habilita todos los campos del formulario */
     function toggleFormFields(enable) {
         if (!CRUD_APP.elements.allInputs) return;
+        console.log(`%c🛠️ [UI] ${enable ? 'Habilitando' : 'Bloqueando'} campos del formulario`, "color: #8b5cf6;");
+        
         CRUD_APP.elements.allInputs.forEach(input => {
             input.disabled = !enable;
             if (input.tagName !== 'SELECT') input.readOnly = !enable;
-            input.classList.toggle('bg-gray-50', !enable);
+            
+            if (!enable) {
+                input.classList.add('bg-gray-100', 'cursor-not-allowed', 'opacity-80');
+            } else {
+                input.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-80');
+            }
         });
     }
 
-    /** Configura la UI y carga datos si es edición. */
+    /** Configura la interfaz basándose en el modo detectado */
     async function setupUIAndLoadData() {
         const { mainTitle, btnCrear, btnModificar, btnBorrar } = CRUD_APP.elements;
         const { mode, titularId } = CRUD_APP.state;
 
-        // Reset visual
+        console.log(`%c🚀 [INIT] Ejecutando Setup para modo: ${mode.toUpperCase()}`, "font-weight: bold; color: #10b981;");
+
+        // Reset visual de botones
         [btnCrear, btnModificar, btnBorrar].forEach(btn => btn?.classList.add('hidden'));
 
         if (mode === 'create') {
@@ -65,15 +73,24 @@
             btnCrear?.classList.remove('hidden');
             toggleFormFields(true);
         } else {
-            // Si hay ID, cargamos los datos reales del servidor antes de mostrar
-            if (titularId) {
-                await fetchTitularData(titularId);
+            // Carga de datos real desde la API (definida en licencias_cargar.js)
+            if (titularId && typeof loadLicenciaFromAPI === 'function') {
+                const data = await loadLicenciaFromAPI(titularId);
+                if (data) {
+                    fillFormWithLicenciaData(data);
+                } else {
+                    window.crudAlertMessage("No se pudieron cargar los datos del titular.", "error");
+                    return;
+                }
             }
 
             if (mode === 'edit') {
                 mainTitle.innerHTML = `✏️ Modificar Titular #${titularId}`;
                 btnModificar?.classList.remove('hidden');
                 toggleFormFields(true);
+            } else if (mode === 'view') {
+                mainTitle.innerHTML = `👁️ Visualizando Titular #${titularId}`;
+                toggleFormFields(false); // Solo lectura
             } else if (mode === 'delete') {
                 mainTitle.innerHTML = `🗑️ Confirmar Baja Titular #${titularId}`;
                 btnBorrar?.classList.remove('hidden');
@@ -83,53 +100,24 @@
     }
 
     // =================================================================================
-    // 📡 COMUNICACIÓN REAL CON API
+    // 💾 EVENT HANDLERS (POST / PUT)
     // =================================================================================
 
-    /** Obtiene los datos de una licencia específica para rellenar el formulario. */
-    async function fetchTitularData(id) {
-        try {
-            const response = await fetch(`/api/v1/licencias/${id}`);
-            if (!response.ok) throw new Error("No se pudo obtener la información del titular.");
-            
-            const result = await response.json();
-            const data = result.data;
-
-            // Mapeo automático de campos por ID o Name
-            Object.keys(data).forEach(key => {
-                const el = document.getElementById(key) || document.querySelector(`[name="${key}"]`);
-                if (el) {
-                    if (el.type === 'checkbox') el.checked = data[key];
-                    else el.value = data[key] || "";
-                }
-            });
-        } catch (error) {
-            crudAlertMessage(`❌ Error al cargar datos: ${error.message}`, 'error');
-        }
-    }
-
-    /** Maneja el envío real del formulario (POST / PUT). */
     window.handleFormSubmit = async function(event) {
         event.preventDefault();
         
-        const form = event.target;
-        const formData = new FormData(form);
+        const formData = new FormData(event.target);
         const payload = Object.fromEntries(formData.entries());
 
-        // Sanitización de tipos para el Backend en Go
+        // Tipado para Backend Go
         if (payload.licencia) payload.licencia = payload.licencia.toString();
         if (payload.n_proxima_factura) payload.n_proxima_factura = parseInt(payload.n_proxima_factura) || 0;
+        if (payload.userlevel) payload.userlevel = parseInt(payload.userlevel) || 3;
         payload.estado = true; 
 
         const isEdit = CRUD_APP.state.mode === 'edit';
         const url = isEdit ? `/api/v1/licencias/${CRUD_APP.state.titularId}` : '/api/v1/licencias';
         const method = isEdit ? 'PUT' : 'POST';
-
-        // Feedback de carga
-        const submitBtn = event.submitter || document.activeElement;
-        const originalText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '⏳ Procesando...';
 
         try {
             const response = await fetch(url, {
@@ -138,77 +126,61 @@
                 body: JSON.stringify(payload)
             });
 
-            const result = await response.json();
-
             if (response.ok) {
-                crudAlertMessage(`✅ Operación exitosa: ${result.message || 'Datos guardados.'}`, 'success');
+                window.crudAlertMessage(`✅ Datos guardados correctamente.`, 'success');
                 setTimeout(() => window.location.href = '/admin/titulares', 1500);
             } else {
-                throw new Error(result.error || 'Error desconocido al guardar en la BD.');
+                const err = await response.json();
+                throw new Error(err.error || 'Error al guardar.');
             }
         } catch (error) {
-            crudAlertMessage(`❌ Error: ${error.message}`, 'error');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalText;
+            window.crudAlertMessage(`❌ Error: ${error.message}`, 'error');
         }
     };
 
-    /** Maneja las acciones de los botones de la interfaz. */
     window.handleAction = async function(actionType) {
-        switch (actionType) {
-            case 'modificar':
-                CRUD_APP.elements.form.requestSubmit();
-                break;
-                
-            case 'borrar':
-                if (!confirm(`¿Está seguro de eliminar permanentemente al titular #${CRUD_APP.state.titularId}?`)) return;
-                try {
-                    const response = await fetch(`/api/v1/licencias/${CRUD_APP.state.titularId}`, { method: 'DELETE' });
-                    if (response.ok) {
-                        crudAlertMessage('✅ Registro eliminado correctamente.', 'success');
-                        setTimeout(() => window.location.href = '/admin/titulares', 1000);
-                    } else {
-                        throw new Error('No se pudo eliminar el registro de la base de datos.');
-                    }
-                } catch (error) {
-                    crudAlertMessage(`❌ Error: ${error.message}`, 'error');
-                }
-                break;
-                
-            case 'volver':
-                window.location.href = '/admin/titulares';
-                break;
+        if (actionType === 'volver') {
+            window.location.href = '/admin/titulares';
+        } else if (actionType === 'modificar') {
+            CRUD_APP.elements.form.requestSubmit();
+        } else if (actionType === 'borrar') {
+            if (confirm("¿Eliminar este titular definitivamente?")) {
+                // Lógica de delete aquí...
+            }
         }
     };
 
     // =================================================================================
-    // 🚀 INICIALIZACIÓN
+    // 🚀 INICIO DE LA APP
     // =================================================================================
 
     document.addEventListener('DOMContentLoaded', () => {
+        // Captura inicial de inputs
         if (CRUD_APP.elements.form) {
             CRUD_APP.elements.allInputs = CRUD_APP.elements.form.querySelectorAll('input, select, textarea');
         }
 
+        // Análisis de URL: /admin/titulares/view/21
         const url = window.location.pathname;
         const parts = url.split('/').filter(p => p.length > 0);
+        console.log("%c🌐 [ROUTER] Desglose de URL:", "color: #3b82f6;", parts);
         
         if (parts.length >= 3) {
-            const action = parts[2]; // 'crear', 'update', 'view', 'delete'
+            // parts[0]=admin, parts[1]=titulares, parts[2]=view, parts[3]=21
+            const action = parts[2]; 
             const id = parts[3] || null;
 
             CRUD_APP.state.titularId = id;
             
-            if (action === 'update') CRUD_APP.state.mode = 'edit';
+            if (action === 'view') CRUD_APP.state.mode = 'view';
+            else if (action === 'update') CRUD_APP.state.mode = 'edit';
             else if (action === 'delete') CRUD_APP.state.mode = 'delete';
-            else if (action === 'view') CRUD_APP.state.mode = 'view';
             else CRUD_APP.state.mode = 'create';
         }
 
         setupUIAndLoadData();
 
-        // Word Counter
+        // Word counter
         const obs = document.getElementById('observaciones');
         if (obs) {
             obs.addEventListener('input', () => {

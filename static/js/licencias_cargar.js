@@ -1,27 +1,27 @@
-// Archivo: static/js/licencias_cargar.js
-// Propósito: Contiene las funciones para buscar y cargar datos de una licencia por ID desde la API.
+/**
+ * Archivo: static/js/licencias_cargar.js
+ * Propósito: Funciones para buscar, cargar y mapear datos de una licencia por ID.
+ * Incluye logs de depuración para rastrear errores de carga.
+ */
 
 /**
- * Función para cargar los datos de una licencia desde la API.
- * Se asume que el backend responde con {data: {...}} y que el ID es el índice de la ruta.
- * * @param {string} titularId - El ID del titular/licencia (ID de la tabla) a cargar.
- * @returns {Promise<Object|null>} Los datos del titular o null si hay un error.
+ * Función principal para obtener datos de la licencia desde la API.
  */
 async function loadLicenciaFromAPI(titularId) {
+    console.log(`%c🔍 [FETCH] Iniciando carga del titular ID: ${titularId}`, "color: #3b82f6; font-weight: bold;");
+    
     if (!titularId) {
-        console.error("loadLicenciaFromAPI: ID del titular no proporcionado.");
+        console.error("%c❌ [FETCH] Error: ID no proporcionado.", "color: red;");
         return null;
     }
 
-    // Endpoint esperado: /api/v1/licencias/ID
     const url = `/api/v1/licencias/${titularId}`; 
-    console.log(`   [Licencia Cargar] 🌐 5. Solicitando datos de licencia al backend: ${url}`);
 
     try {
         const response = await fetch(url);
+        console.log(`%c📡 [API] Endpoint: ${url} | Status: ${response.status}`, "color: #6366f1;");
 
         if (response.status === 401) {
-            console.error("Sesión expirada. Redirigiendo a login.");
             alert("Sesión expirada. Por favor, inicie sesión de nuevo.");
             window.location.href = '/login';
             return null;
@@ -29,83 +29,73 @@ async function loadLicenciaFromAPI(titularId) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error ${response.status} al cargar la licencia.`);
+            throw new Error(errorData.error || `Error ${response.status} al cargar.`);
         }
 
         const data = await response.json();
-        
-        // El modelo Go usa {data: Licencia}
         const titularData = data.data; 
 
         if (!titularData) {
-            throw new Error("Respuesta de API vacía o inválida.");
+            throw new Error("La API respondió con éxito pero el objeto 'data' está vacío.");
         }
         
-        // 🔑 LOG DE DATOS CAPTURADOS DESDE EL BACKEND
-        console.log("   [Licencia Cargar] 💡 DATOS CAPTURADOS:", titularData);
-        console.log("   [Licencia Cargar] ✅ 6. Datos recibidos y verificados con éxito.");
+        console.log("%c📦 [DATA] Datos recibidos correctamente:", "color: #10b981;", titularData);
         return titularData;
 
     } catch (error) {
-        console.error('   [Licencia Cargar] ❌ Error al cargar los datos de la Licencia:', error);
-        // La función crudAlertMessage se asume global (definida en admin_titular_crud.js)
-        if (typeof crudAlertMessage === 'function') {
-            crudAlertMessage(`Error: No se pudo cargar el titular #${titularId}. ${error.message}`, 'error');
+        console.error('%c❌ [FETCH-ERROR]', "color: red; font-weight: bold;", error);
+        if (typeof window.crudAlertMessage === 'function') {
+            window.crudAlertMessage(`Error: No se pudo cargar el titular #${titularId}. ${error.message}`, 'error');
         }
         return null;
     }
 }
 
 /**
- * Mapea los datos recibidos de la API a los campos del formulario y los rellena.
- * @param {Object} data - Objeto con los datos del titular (las claves están en minúsculas/camelCase).
+ * Mapea los datos del JSON a los inputs del HTML.
  */
 function fillFormWithLicenciaData(data) {
-    console.log("   [Licencia Cargar] ✏️ 7. Rellenando formulario con datos del titular.");
+    console.log("%c✏️ [MAPPER] Rellenando campos del formulario...", "color: #f59e0b; font-weight: bold;");
     
-    // Mapeo entre el nombre de la API (izquierda) y el ID del input HTML (derecha).
-    // Usamos los nombres en minúsculas/camelCase que aparecen en los logs del backend.
-    const fieldMap = {
-        // API Field Name : HTML Input ID
-        'licencia': 'licencia',
-        'dni': 'nif', // 🔑 CORRECCIÓN CLAVE: Mapea 'dni' del backend al 'nif' del formulario
-        'nombre': 'nombre',
-        'direccion': 'direccion',
-        'cp': 'cp',
-        'email': 'email',
-        'telefono': 'telefono',
-        'movil': 'movil', 
-        
-        // Campos Adicionales (Ajusta los nombres de la API según el log de tu backend)
-        'userlevel': 'userlevel',
-        'poblacion': 'poblacion',
-        'provincia': 'provincia',
-        'serie_factura': 'serie_factura', // snake_case
-        'n_proxima_factura': 'n_proxima_factura', // snake_case
-        'matricula_taxi': 'matricula_taxi', // snake_case
-        'observaciones': 'observaciones',
-    };
-    
-    // Iterar sobre todos los campos mapeados
-    Object.keys(fieldMap).forEach(apiField => {
-        const inputId = fieldMap[apiField];
-        const element = document.getElementById(inputId);
-        const value = data[apiField]; // Valor que viene del backend (ej: data.licencia)
-
-        if (element && value !== undefined && value !== null) {
-            
-            if (element.tagName === 'SELECT') {
-                // Selecciona la opción correcta para SELECTs (como userlevel)
-                element.value = String(value); 
+    // Función auxiliar para asignar valores de forma segura
+    const safeSet = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) {
+            // Manejo especial para SELECTS
+            if (el.tagName === 'SELECT') {
+                el.value = (value !== null && value !== undefined) ? String(value) : "";
             } else {
-                element.value = value;
+                el.value = (value !== null && value !== undefined) ? value : "";
             }
+            console.log(`   ✅ Campo [#${id}] rellenado con:`, value);
+        } else {
+            console.warn(`   ⚠️ Advertencia: No existe el elemento con ID [#${id}] en el HTML.`);
         }
-    });
+    };
 
-    // Disparar evento para actualizar el contador de palabras
+    // Mapeo exhaustivo basado en tu admin_titular_crud.html
+    safeSet('titularId', data.id);
+    safeSet('licencia', data.licencia);
+    safeSet('dni', data.dni); // Mapeado a id="dni"
+    safeSet('nombre', data.nombre);
+    safeSet('email', data.email);
+    safeSet('telefono', data.telefono);
+    safeSet('movil', data.movil);
+    safeSet('userlevel', data.userlevel);
+    safeSet('direccion', data.direccion);
+    safeSet('cp', data.cp);
+    safeSet('poblacion', data.poblacion);
+    safeSet('provincia', data.provincia);
+    safeSet('serie_factura', data.serie_factura);
+    safeSet('n_proxima_factura', data.n_proxima_factura);
+    safeSet('matricula_taxi', data.matricula_taxi);
+    safeSet('observaciones', data.observaciones);
+
+    // Actualizar el contador de palabras tras rellenar las observaciones
     const obsElement = document.getElementById('observaciones');
     if (obsElement) {
         obsElement.dispatchEvent(new Event('input'));
     }
+    
+    console.log("%c✅ [MAPPER] Proceso completado.", "color: #10b981; font-weight: bold;");
 }
