@@ -1,11 +1,14 @@
-// admin_backup.js
+/**
+ * admin_backup.js - Gestión de Copias de Seguridad
+ * Realiza peticiones al backend para generar archivos .sql y snapshots de tablas.
+ */
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("[JS LOG 1] DOMContentLoaded: Inicializando script de Backup.");
+    console.log("[JS LOG] Inicializando panel de Backup...");
     if (window.lucide) {
         window.lucide.createIcons();
     }
-    // Cargar la lista de backups al iniciar
+    // Cargar la lista de archivos existentes al entrar
     fetchBackupList(); 
 });
 
@@ -13,207 +16,144 @@ const statusMessage = document.getElementById('statusMessage');
 const backupListContainer = document.getElementById('backup-list');
 const BASE_API_URL = '/api/v1/backup'; 
 
-// --- Funciones de Utilidad (sin cambios significativos en lógica, pero importantes para el contexto) ---
-
 /**
- * Muestra un mensaje de estado en la interfaz.
+ * Muestra alertas visuales en la parte superior del panel.
  */
 function displayMessage(text, type) {
     statusMessage.textContent = text;
-    statusMessage.classList.remove('hidden', 'status-success', 'status-info', 'status-error');
-    
-    // Limpiar clases
-    statusMessage.classList.remove('status-success', 'status-info', 'status-error');
+    statusMessage.className = 'status-message block'; // Reset clases
 
-    if (type === 'success') {
-        statusMessage.classList.add('status-success');
-    } else if (type === 'info') {
-        statusMessage.classList.add('status-info');
-    } else if (type === 'error') {
-        statusMessage.classList.add('status-error');
-    }
+    if (type === 'success') statusMessage.classList.add('status-success');
+    else if (type === 'error') statusMessage.classList.add('status-error');
+    else statusMessage.classList.add('status-info');
     
     statusMessage.classList.remove('hidden');
 
+    // Desaparece tras 8 segundos
     setTimeout(() => {
         statusMessage.classList.add('hidden');
     }, 8000);
 }
 
 /**
- * Inhabilita/habilita el botón durante la petición.
+ * Controla el estado visual de los botones durante la carga.
  */
 function setButtonLoading(button, isLoading) {
     if (isLoading) {
-        button.originalText = button.innerHTML;
+        button.dataset.originalHtml = button.innerHTML;
         button.disabled = true;
-        button.classList.add('opacity-70', 'cursor-not-allowed');
-        button.innerHTML = `<span class="mr-2 animate-spin"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg></span> Procesando...`;
+        button.classList.add('opacity-50', 'cursor-wait');
+        button.innerHTML = `<span class="flex items-center gap-2"><svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>...</span>`;
     } else {
         button.disabled = false;
-        button.classList.remove('opacity-70', 'cursor-not-allowed');
-        button.innerHTML = button.originalText;
+        button.classList.remove('opacity-50', 'cursor-wait');
+        button.innerHTML = button.dataset.originalHtml;
     }
 }
 
-// --- Lógica Principal del Backup (Con Logging Detallado) ---
-
 /**
- * Maneja la acción de backup, copia de tabla o carga.
+ * Ejecuta la acción de Backup (crear .sql o snapshot en DB).
  */
 async function handleBackup(tipo, accion, button) {
-    console.log(`[JS LOG 2] handleBackup llamado. Tipo: ${tipo}, Acción: ${accion}`);
+    console.log(`[ACTION] Tipo: ${tipo} | Acción: ${accion}`);
 
-    const actionLabels = {
-        'crear': 'Copia de Seguridad (archivo .sql)',
-        'copia': 'Copia de Tabla Espejo (en DB)',
-        'cargar': 'Restauración de Tabla'
+    const confirmMsgs = {
+        'crear': `¿Confirmar la creación del archivo de BACKUP (.sql) para ${tipo.toUpperCase()}?`,
+        'copia': `¿Desea crear un SNAPSHOT (tabla espejo) de ${tipo.toUpperCase()} en la base de datos?`,
+        'cargar': `⚠️ ¡ATENCIÓN! ¿Desea RESTAURAR la tabla ${tipo.toUpperCase()}? Los datos actuales se perderán.`
     };
-    
-    // Bloques de confirmación de seguridad
-    if (accion === 'cargar') {
-         if (!confirm(`⚠️ ¿Desea continuar con la acción de RESTAURAR la tabla **${tipo.toUpperCase()}**?\n¡Esta acción es irreversible y sobrescribirá los datos actuales de la tabla!`)) {
-            console.log(`[JS LOG 3] Acción de Restauración CANCELADA por el usuario.`);
-            displayMessage(`Cancelado: Restauración de **${tipo.toUpperCase()}** abortada.`, 'info');
-            return;
-        }
-    } else if (accion === 'copia') {
-         if (!confirm(`❓ ¿Desea crear una COPIA DE TABLA (Snapshot) de **${tipo.toUpperCase()}**?\nEsto creará una tabla nueva en la DB, ej: ${tipo}_copia_timestamp.`)) {
-            console.log(`[JS LOG 3] Acción de Copia de Tabla CANCELADA por el usuario.`);
-            displayMessage(`Cancelación: Creación de copia de tabla de **${tipo.toUpperCase()}** abortada.`, 'info');
-            return;
-        }
-    } else if (accion === 'crear') {
-         if (!confirm(`💾 ¿Confirmar la creación del archivo de BACKUP (.sql) para **${tipo.toUpperCase()}**?`)) {
-            console.log(`[JS LOG 3] Acción de Creación de Backup CANCELADA por el usuario.`);
-            displayMessage(`Cancelación: Creación de backup de **${tipo.toUpperCase()}** abortada.`, 'info');
-            return;
-        }
-    }
+
+    if (!confirm(confirmMsgs[accion] || "¿Continuar?")) return;
     
     setButtonLoading(button, true);
 
-    const apiURL = `${BASE_API_URL}/${tipo}/${accion}`;
-    const jwtToken = window.getJWTToken ? getJWTToken() : 'TOKEN_NO_ENCONTRADO';
-    
-    console.log(`[JS LOG 4] Iniciando FETCH a la API.`);
-    console.log(`[JS LOG 5] URL: POST ${apiURL}`);
-    console.log(`[JS LOG 6] Token JWT (Parcial): ${jwtToken.substring(0, 30)}...`);
-
     try {
-        const response = await fetch(apiURL, {
+        const response = await fetch(`${BASE_API_URL}/${tipo}/${accion}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + jwtToken, 
-            },
+            headers: { 'Content-Type': 'application/json' }
+            // Las cookies de sesión se envían automáticamente
         });
 
         const data = await response.json();
-        
-        console.log(`[JS LOG 7] Respuesta recibida. Estado HTTP: ${response.status}`);
-        console.log('[JS LOG 8] Datos del Servidor:', data);
-        
-        if (response.ok || response.status === 206) { 
-            if (response.status === 206) {
-                displayMessage(`⚠️ Éxito parcial: ${data.message}`, 'error');
-            } else {
-                displayMessage(data.message, 'success');
-            }
 
-            if (accion === 'crear') {
-                console.log("[JS LOG 9] Backup .sql exitoso. Recargando lista de archivos.");
-                fetchBackupList();
-            }
-
+        if (response.ok) {
+            displayMessage(data.message, 'success');
+            if (accion === 'crear') fetchBackupList(); // Recargar lista de archivos
         } else {
-            // Manejo de errores de la API (4xx o 5xx)
-            console.error(`[JS ERROR 1] Fallo de API: ${response.status} - ${data.error || 'Respuesta desconocida'}`);
-            displayMessage(`❌ Error en ${actionLabels[accion]} de **${tipo.toUpperCase()}**: ${data.error || 'Respuesta desconocida del servidor'}`, 'error');
+            displayMessage(`Error: ${data.error || 'No se pudo completar la acción'}`, 'error');
         }
-        
     } catch (error) {
-        console.error(`[JS ERROR 2] Error de red (No se pudo conectar):`, error);
-        displayMessage(`❌ Error de red o servidor: No se pudo conectar a la API.`, 'error');
+        console.error("Fetch error:", error);
+        displayMessage("Error de conexión con el servidor", "error");
     } finally {
         setButtonLoading(button, false);
     }
 }
 
 /**
- * Maneja la acción genérica de Volver.
+ * Obtiene y renderiza la lista de archivos .sql del servidor.
+ */
+async function fetchBackupList() {
+    backupListContainer.innerHTML = '<div class="text-center p-4 text-gray-500 italic text-xs">Actualizando lista...</div>';
+    
+    try {
+        const response = await fetch(`${BASE_API_URL}/list`);
+        const data = await response.json();
+        
+        backupListContainer.innerHTML = '';
+
+        if (response.ok && Array.isArray(data) && data.length > 0) {
+            data.forEach(item => {
+                // Si el backend envía un mensaje de "No encontrado" en el primer elemento
+                if (item.name && item.name.includes("No se encontraron")) {
+                    backupListContainer.innerHTML = `<div class="text-center p-4 text-gray-400 text-xs italic">${item.name}</div>`;
+                    return;
+                }
+
+                const icon = item.type === 'full' ? 'database' : 'file-text';
+                const color = item.type === 'full' ? 'text-orange-600' : 'text-green-600';
+                
+                const itemHtml = `
+                    <div class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:bg-gray-50 border border-gray-100 transition-all duration-200 group">
+                        <div class="mr-3 p-2 bg-gray-50 rounded-lg group-hover:bg-white">
+                            <i data-lucide="${icon}" class="h-4 w-4 ${color}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-bold text-[11px] text-gray-800 truncate uppercase tracking-tighter">${item.name}</p>
+                            <p class="text-[10px] text-gray-400 font-medium">${item.date} • ${item.size}</p>
+                        </div>
+                        <div class="flex gap-1">
+                            <a href="/backups/${item.name}" download 
+                               class="p-1.5 bg-orange-100 text-orange-600 rounded-md hover:bg-orange-600 hover:text-white transition-colors" title="Descargar">
+                                <i data-lucide="download" class="h-3.5 w-3.5"></i>
+                            </a>
+                        </div>
+                    </div>
+                `;
+                backupListContainer.insertAdjacentHTML('beforeend', itemHtml);
+            });
+            if (window.lucide) window.lucide.createIcons();
+        } else {
+            backupListContainer.innerHTML = '<div class="text-center p-4 text-gray-400 text-xs italic">No hay archivos .sql disponibles</div>';
+        }
+    } catch (error) {
+        console.error("List error:", error);
+        backupListContainer.innerHTML = '<div class="text-center p-4 text-red-400 text-xs italic">Error al cargar listado</div>';
+    }
+}
+
+/**
+ * Gestión de botones de navegación.
  */
 function handleAction(actionType) {
     if (actionType === 'volver') {
-        console.log(`[JS LOG 10] Acción 'Volver' ejecutada. Redirigiendo a /admin.`);
         window.location.href = '/admin';
     }
 }
 
 /**
- * Simulación de restauración genérica.
+ * Simulación/Placeholder para restaurar.
  */
 function handleRestoreGeneric() {
-    console.log(`[JS LOG 11] Botón 'Restaurar...' pulsado (Simulación).`);
-    displayMessage('⚠️ La restauración desde un archivo (.sql) requiere que subas y selecciones el archivo. Esta función está simulada.', 'info');
-}
-
-/**
- * Función para cargar la lista de archivos de backup recientes del servidor.
- */
-async function fetchBackupList() {
-    // ... (El código de fetchBackupList es extenso, mantenlo sin cambios por ahora)
-    // Asegúrate de que esta función también tiene acceso a getJWTToken()
-    backupListContainer.innerHTML = '<div class="text-center p-4 text-gray-500 italic"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500 inline-block mr-2"></div> Cargando lista de backups...</div>';
-    
-    try {
-        const response = await fetch(`${BASE_API_URL}/list`, {
-            headers: {
-                'Authorization': 'Bearer ' + (window.getJWTToken ? getJWTToken() : 'TOKEN_NO_ENCONTRADO'), 
-            },
-        });
-        const data = await response.json();
-        
-        // Si el listado se carga, el resto está funcionando.
-        // ... (Tu lógica de renderizado de lista)
-        backupListContainer.innerHTML = '';
-        if (response.ok && Array.isArray(data)) {
-            data.forEach(item => {
-                if (item.name && item.name.startsWith('No')) {
-                    backupListContainer.innerHTML = `<div class="text-center p-4 text-gray-500 italic">${item.name}</div>`;
-                    return;
-                }
-                
-                let iconHtml = item.type === 'full' ? '<i data-lucide="database" class="h-4 w-4 text-orange-600"></i>' : '<i data-lucide="archive" class="h-4 w-4 text-green-600"></i>';
-                let tableRef = item.tableRef || item.name.split('_')[0];
-                
-                const itemHtml = `
-                    <div class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:bg-gray-50 border border-gray-100 transition duration-200">
-                        <div class="mr-3">${iconHtml}</div>
-                        <div class="flex-1 min-w-0">
-                            <p class="font-semibold text-xs truncate">${item.name}</p>
-                            <p class="text-xs text-gray-500">${item.date} | ${item.size}</p>
-                        </div>
-                        <button onclick="handleBackup('${tableRef}', 'cargar', this)"
-                                class="ml-2 p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition duration-200" title="Restaurar a la tabla: ${tableRef}">
-                             <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
-                        </button>
-                        <a href="/backups/${item.name}" download 
-                           class="ml-2 p-1.5 bg-primary-link text-white rounded-lg hover:bg-orange-600 transition duration-200" title="Descargar archivo">
-                            <i data-lucide="download" class="h-4 w-4"></i>
-                        </a>
-                    </div>
-                `;
-                backupListContainer.innerHTML += itemHtml;
-            });
-             if (window.lucide) { window.lucide.createIcons(); }
-        } else {
-            console.error("[JS ERROR 3] Error al listar backups:", data.error || 'Respuesta no válida.');
-            backupListContainer.innerHTML = '<div class="text-center p-4 text-red-500 italic">Error al cargar la lista de archivos.</div>';
-        }
-
-    } catch (error) {
-        console.error(`[JS ERROR 4] Fallo de red al cargar la lista:`, error);
-        backupListContainer.innerHTML = `<div class="text-center p-4 text-red-500 italic">Error de conexión con la API al cargar la lista.</div>`;
-    }
+    displayMessage('Para restaurar, seleccione el icono de flecha roja junto al archivo en la lista (Simulado).', 'info');
 }

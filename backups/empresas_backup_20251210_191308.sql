@@ -1,3 +1,0 @@
--- Backup de la tabla empresas
--- Fecha: 2025-12-10 19:13:08.826677 +0100 CET m=+978.542905701
--- Contenido simulado de CREATE TABLE y INSERT INTO

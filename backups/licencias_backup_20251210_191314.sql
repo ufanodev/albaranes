@@ -1,3 +1,0 @@
--- Backup de la tabla licencias
--- Fecha: 2025-12-10 19:13:14.2830179 +0100 CET m=+983.999246601
--- Contenido simulado de CREATE TABLE y INSERT INTO
