@@ -27,11 +27,7 @@ func AuthRedirectMiddleware() gin.HandlerFunc {
 		isSessionValid := utils.CheckSessionForView(c)
 
 		isProtectedView := strings.HasPrefix(c.Request.URL.Path, "/admin") ||
-			strings.HasPrefix(c.Request.URL.Path, "/titulares") ||
-			strings.HasPrefix(c.Request.URL.Path, "/admin/titulares") ||
-			strings.HasPrefix(c.Request.URL.Path, "/admin/empresas") ||
-			strings.HasPrefix(c.Request.URL.Path, "/admin/usuarios") ||
-			strings.HasPrefix(c.Request.URL.Path, "/admin/conductor")
+			strings.HasPrefix(c.Request.URL.Path, "/titulares")
 
 		if !isSessionValid && isProtectedView {
 			c.Redirect(http.StatusTemporaryRedirect, "/login")
@@ -84,28 +80,28 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/albaranes/borrar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_borrar.html", nil) })
 			adminViews.GET("/albaranes/copiar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_copiar.html", nil) })
 
-			// Vistas de Titulares (CRUD)
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
 			adminViews.GET("/titulares/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
 			adminViews.GET("/titulares/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
-			adminViews.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) }) // 👈 CORREGIDO: Ruta para ver titular
+			adminViews.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
 
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
+			adminViews.GET("/empresas/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
+			adminViews.GET("/empresas/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
+
 			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
-			adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
+			adminViews.GET("/usuarios/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
+			adminViews.GET("/usuarios/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
+
 			adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) })
+			adminViews.GET("/conductor/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
+			adminViews.GET("/conductor/update/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
+			adminViews.GET("/conductor/view/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
+
+			adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
 			adminViews.GET("/pago_emp", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_emp.html", nil) })
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
 		}
-
-		// Rutas CRUD auxiliares (Conductor, Empresas, Usuarios)
-		viewGroup.GET("/admin/conductor/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
-		viewGroup.GET("/admin/conductor/update/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
-		viewGroup.GET("/admin/conductor/view/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
-		viewGroup.GET("/admin/usuarios/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
-		viewGroup.GET("/admin/usuarios/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
-		viewGroup.GET("/admin/empresas/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
-		viewGroup.GET("/admin/empresas/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
 	}
 
 	// 3. API REST
@@ -121,43 +117,41 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		protected := api.Group("/")
 		protected.Use(utils.JWTAuthMiddleware())
 		{
-			// 🔐 Identidad de Usuario
+			// 🔐 Rutas accesibles por Titulares y Admins
 			protected.GET("/user/licencia_info", func(c *gin.Context) { controllers.GetLicenciaInfoForUser(c, db) })
-			protected.GET("/user/licencia_ref", func(c *gin.Context) { controllers.GetLicenciaInfoForUser(c, db) })
-
 			protected.GET("/empresas", func(c *gin.Context) { controllers.GetEmpresas(c, db) })
-			protected.GET("/conductores", func(c *gin.Context) { controllers.GetConductores(c, db) })
 
-			// CRUD CONDUCTORES
+			// 👈 CORRECCIÓN: Esta ruta permite al Titular cargar sus conductores
+			protected.GET("/conductores/mis-conductores", func(c *gin.Context) { controllers.GetMisConductores(c, db) })
+
+			// CRUD CONDUCTORES (Protegido para Admin)
 			conductorGroup := protected.Group("/conductores")
 			conductorGroup.Use(controllers.RequireRole("admin"))
 			{
+				conductorGroup.GET("/", func(c *gin.Context) { controllers.GetConductores(c, db) })
 				conductorGroup.POST("/", func(c *gin.Context) { controllers.CreateConductor(c, db) })
-				conductorGroup.GET("/:licencia", func(c *gin.Context) { controllers.GetConductor(c, db) })
-				conductorGroup.PUT("/:licencia", func(c *gin.Context) { controllers.UpdateConductor(c, db) })
 				conductorGroup.GET("/licencia_conductor/:licencia/:nconductor", func(c *gin.Context) { controllers.GetConductorByLicenciaYNumero(c, db) })
 				conductorGroup.PUT("/licencia_conductor/:licencia/:conductor", func(c *gin.Context) { controllers.UpdateConductorByLicenciaYConductor(c, db) })
-				conductorGroup.DELETE("/:licencia", func(c *gin.Context) { controllers.DeleteConductor(c, db) })
 				conductorGroup.DELETE("/id/:id", func(c *gin.Context) { controllers.DeleteConductorByID(c, db) })
 				conductorGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportConductoresPDF(c, db) })
 				conductorGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportConductoresXLSX(c, db) })
 			}
 
-			// CRUD LICENCIAS (Titulares)
+			// CRUD LICENCIAS (Titulares - Protegido para Admin)
 			licenciaGroup := protected.Group("/licencias")
 			licenciaGroup.Use(controllers.RequireRole("admin"))
 			{
 				licenciaGroup.POST("/", func(c *gin.Context) { controllers.CreateLicencia(c, db) })
 				licenciaGroup.GET("/search", func(c *gin.Context) { controllers.SearchLicencias(c, db) })
 				licenciaGroup.GET("/", func(c *gin.Context) { controllers.GetLicencias(c, db) })
-				licenciaGroup.GET("/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) }) // 👈 Importante para el fetch individual
+				licenciaGroup.GET("/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) })
 				licenciaGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
 				licenciaGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
 				licenciaGroup.POST("/export/pdf", controllers.ExportTitularesPDFHandler)
 				licenciaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportTitularesXLSX(c, db) })
 			}
 
-			// CRUD EMPRESAS
+			// CRUD EMPRESAS (Protegido para Admin)
 			empresaGroup := protected.Group("/empresas")
 			empresaGroup.Use(controllers.RequireRole("admin"))
 			{
@@ -169,7 +163,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				empresaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
 			}
 
-			// CRUD USUARIOS
+			// CRUD USUARIOS (Protegido para Admin)
 			userGroup := protected.Group("/users")
 			userGroup.Use(controllers.RequireRole("admin"))
 			{
@@ -182,11 +176,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				userGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportUsersXLSX(c, db) })
 			}
 
-			// BACKUP
 			protected.GET("/backup/list", controllers.ObtenerBackupsList)
 			protected.POST("/backup/:tipo/:accion", controllers.RealizarBackup)
 
-			// ALBARANES
 			albaranGroup := protected.Group("/albaranes")
 			{
 				albaranGroup.GET("/search-user", func(c *gin.Context) { controllers.SearchAlbaranesUser(c, db) })

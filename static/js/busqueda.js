@@ -1,6 +1,6 @@
 /**
  * busqueda.js - Panel de Usuario (Titular)
- * Gestión de albaranes con logs de auditoría para sincronización con Go.
+ * Gestión de albaranes con soporte para nombres de empresa dinámicos y seguridad JWT.
  */
 
 const APP = {
@@ -62,22 +62,15 @@ const UI = {
     },
 
     updatePageInfo() {
-        // Calcular total de páginas basándose en el total de registros de la API
         APP.state.totalPages = Math.ceil(APP.state.totalRecords / APP.state.pageSize) || 1;
-        
-        // 1. Actualizar indicador de página (Ej: 1 / 2)
         if (APP.elements.pageInfo) {
             APP.elements.pageInfo.textContent = `${APP.state.currentPage} / ${APP.state.totalPages}`;
         }
-        
-        // 2. Actualizar el Badge de Registros (Ej: 18 REGISTROS)
         const countDisplay = document.getElementById('resultsCount');
         if (countDisplay) {
             countDisplay.textContent = `${APP.state.totalRecords} REGISTROS`;
         }
-        
         this.updatePaginationButtons();
-        this.updateActiveFiltersCount();
     },
 
     updatePaginationButtons() {
@@ -86,22 +79,9 @@ const UI = {
         if(nextBtn) nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
     },
 
-    updateActiveFiltersCount() {
-        const filters = ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta', 'palabra'];
-        let count = 0;
-        filters.forEach(id => {
-            const val = document.getElementById(id)?.value;
-            if (val && val !== "") count++;
-        });
-        // Sincronizar el texto del badge de filtros si existe
-        const activeCountEl = document.getElementById('activeFiltersCount');
-        if (activeCountEl) activeCountEl.textContent = count;
-    },
-
     updateSortIcons() {
         const { key, direction } = APP.state.currentSort;
         const sortKeys = ['numero_albaran', 'fecha', 'empresa', 'referencia', 'importe_total', 'estado'];
-        
         sortKeys.forEach(k => {
             const icon = document.getElementById(`sort-${k}`);
             if (icon) {
@@ -119,12 +99,19 @@ const UI = {
 };
 
 // =================================================================================
-// 📡 API SERVICES
+// 📡 API SERVICES (CON JWT)
 // =================================================================================
 const API = {
+    getHeaders() {
+        return {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+        };
+    },
+
     async fetchMyLicencia() {
         try {
-            const response = await fetch('/api/v1/user/licencia_info');
+            const response = await fetch('/api/v1/user/licencia_info', { headers: this.getHeaders() });
             const data = await response.json();
             if (data && data.licencia_id !== undefined) {
                 APP.state.userLicenciaId = data.licencia_id;
@@ -140,15 +127,15 @@ const API = {
 
     async loadEmpresas() {
         try {
-            const r = await fetch('/api/v1/empresas');
+            const r = await fetch('/api/v1/empresas', { headers: this.getHeaders() });
             const d = await r.json();
             const list = d.data || d;
-            if(APP.elements.empresaSelect) {
+            if(APP.elements.empresaSelect && Array.isArray(list)) {
                 let html = '<option value="">Todas las empresas</option>';
                 list.forEach(e => { html += `<option value="${e.id}">${e.nombre}</option>`; });
                 APP.elements.empresaSelect.innerHTML = html;
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Error empresas:", e); }
     },
 
     async searchAlbaranes() {
@@ -160,27 +147,20 @@ const API = {
         params.append('page', APP.state.currentPage);
         params.append('pageSize', APP.state.pageSize);
         
-        // Captura de filtros dinámicos
-        const empresa = document.getElementById('empresa').value;
-        const estado = document.getElementById('state').value;
-        const referencia = document.getElementById('referencia').value;
-        const desde = document.getElementById('fecha_desde').value;
-        const hasta = document.getElementById('fecha_hasta').value;
-        const palabra = document.getElementById('palabra').value;
-
         if (APP.state.searchMode === 'campos') {
-            if (empresa) params.append('empresa_ref', empresa);
-            if (estado) params.append('state', estado);
-            if (referencia) params.append('referencia', referencia);
-            if (desde) params.append('fecha_desde', desde);
-            if (hasta) params.append('fecha_hasta', hasta);
+            const fields = ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'];
+            fields.forEach(f => {
+                const val = document.getElementById(f === 'empresa' ? 'empresa' : f).value;
+                if (val) params.append(f === 'empresa' ? 'empresa_ref' : f, val);
+            });
         } else {
+            const palabra = document.getElementById('palabra').value;
             if (palabra) params.append('palabra', palabra);
         }
 
         try {
             const url = `/api/v1/albaranes/search-user?${params.toString()}`;
-            const response = await fetch(url);
+            const response = await fetch(url, { headers: this.getHeaders() });
             const res = await response.json();
             APP.state.filteredAlbaranes = res.data || [];
             APP.state.totalRecords = res.total || 0;
@@ -206,12 +186,8 @@ const API = {
                     valB = parseFloat(b.importe_total || 0);
                     break;
                 case 'empresa':
-                    valA = (a.EmpresaData?.nombre || '').toLowerCase();
-                    valB = (b.EmpresaData?.nombre || '').toLowerCase();
-                    break;
-                case 'estado':
-                    const score = (i) => i.pagado ? 2 : (i.enviado ? 1 : 0);
-                    valA = score(a); valB = score(b);
+                    valA = (a.empresa_data?.nombre || a.empresa_nombre || '').toLowerCase();
+                    valB = (b.empresa_data?.nombre || b.empresa_nombre || '').toLowerCase();
                     break;
                 default:
                     valA = (a[key] || '').toString().toLowerCase();
@@ -230,26 +206,30 @@ const API = {
 const DOM = {
     showLoading() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Cargando datos...</td></tr>'; },
     showNoResults() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No se han encontrado resultados.</td></tr>'; },
+    
     renderResults() {
         if (!APP.elements.resultsBody) return;
         APP.elements.resultsBody.innerHTML = '';
         if (APP.state.filteredAlbaranes.length === 0) { this.showNoResults(); return; }
 
         APP.state.filteredAlbaranes.forEach(a => {
+            // 🔄 SISTEMA DE RESPALDO PARA EMPRESA
+            const nombreEmpresa = a.empresa_data?.nombre || a.EmpresaData?.nombre || a.empresa_nombre || `ID: ${a.empresa_ref}`;
+            
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm';
             tr.innerHTML = `
                 <td class="px-4 py-4 font-black text-gray-900">${a.numero_albaran || 'N/A'}</td>
                 <td class="px-4 py-4 text-gray-500">${UI.formatDate(a.fecha)}</td>
-                <td class="px-4 py-4 font-medium text-gray-700">${a.EmpresaData?.nombre || 'N/A'}</td>
+                <td class="px-4 py-4 font-medium text-gray-700">${nombreEmpresa}</td>
                 <td class="px-4 py-4 text-gray-400 italic text-xs">${a.referencia || '-'}</td>
                 <td class="px-4 py-4 text-gray-600">${a.asalariado || '-'}</td>
                 <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${parseFloat(a.importe_total || 0).toFixed(2)}</td>
                 <td class="px-4 py-4 text-center">${this.getBadge(a)}</td>
                 <td class="px-4 py-4 text-center">
                     <div class="flex justify-center space-x-2">
-                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1.5 text-secondary-blue hover:bg-blue-50 rounded-lg transition-colors"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1.5 text-secondary-blue hover:bg-blue-50 rounded-lg transition-colors" title="Ver"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                     </div>
                 </td>`;
             APP.elements.resultsBody.appendChild(tr);
@@ -257,6 +237,7 @@ const DOM = {
         UI.updatePageInfo();
         UI.updateSortIcons();
     },
+
     getBadge(a) {
         if (a.pagado) return '<span class="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-green-200">PAGADO</span>';
         if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-blue-200">ENVIADO</span>';
@@ -265,56 +246,22 @@ const DOM = {
 };
 
 // =================================================================================
-// 🚀 ORDENACIÓN Y EXPORTACIÓN
-// =================================================================================
-window.sortTable = function(key) {
-    const { currentSort } = APP.state;
-    if (currentSort.key === key) {
-        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-    } else {
-        currentSort.key = key;
-        currentSort.direction = 'asc';
-    }
-    API.applyLocalSort();
-    DOM.renderResults();
-};
-
-window.handleGeneratePDF = async () => {
-    if (APP.state.filteredAlbaranes.length === 0) return;
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'pt', 'a4');
-    const rows = APP.state.filteredAlbaranes.map(a => [a.numero_albaran, UI.formatDate(a.fecha), a.EmpresaData?.nombre || 'N/A', a.referencia || '-', `${parseFloat(a.importe_total || 0).toFixed(2)}€`]);
-    doc.setFontSize(16); doc.text(`Informe de Albaranes - Licencia ${APP.state.userLicenciaNumero}`, 40, 30);
-    doc.autoTable({ head: [['Nº Albarán', 'Fecha', 'Empresa', 'Ref', 'Total']], body: rows, startY: 50, headStyles: { fillColor: [255, 140, 0] } });
-    doc.save(`Busqueda_Licencia_${APP.state.userLicenciaNumero}.pdf`);
-};
-
-window.handleGenerateXLSX = async () => {
-    if (APP.state.filteredAlbaranes.length === 0) return;
-    const data = APP.state.filteredAlbaranes.map(a => ({ "Nº Albarán": a.numero_albaran, "Fecha": UI.formatDate(a.fecha), "Empresa": a.EmpresaData?.nombre, "Importe": a.importe_total }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Albaranes");
-    XLSX.writeFile(wb, `Busqueda_Licencia_${APP.state.userLicenciaNumero}.xlsx`);
-};
-
-// =================================================================================
-// 🚀 INITIALIZATION
+// 🚀 INICIALIZACIÓN Y EVENTOS
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     if (await API.fetchMyLicencia()) {
         await API.loadEmpresas();
         UI.setSearchModeManual('campos');
         
-        // Listeners automáticos para filtros
         ['empresa', 'state', 'fecha_desde', 'fecha_hasta'].forEach(id => {
             document.getElementById(id)?.addEventListener('change', () => { APP.state.currentPage = 1; API.searchAlbaranes(); });
         });
 
-        // Paginación y Registros
         APP.elements.recordsSelect.onchange = (e) => {
             APP.state.pageSize = e.target.value === 'todos' ? 9999 : parseInt(e.target.value);
             APP.state.currentPage = 1; API.searchAlbaranes();
         };
+
         APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
         APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
 
@@ -322,7 +269,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+window.sortTable = (key) => {
+    if (APP.state.currentSort.key === key) {
+        APP.state.currentSort.direction = APP.state.currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        APP.state.currentSort.key = key;
+        APP.state.currentSort.direction = 'asc';
+    }
+    API.applyLocalSort();
+    DOM.renderResults();
+};
+
 window.handleSearch = (e) => { if(e) e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
+
 window.handleClearAllFilters = () => {
     if (APP.elements.searchForm) APP.elements.searchForm.reset();
     if (document.getElementById('palabra')) document.getElementById('palabra').value = '';
@@ -331,4 +290,9 @@ window.handleClearAllFilters = () => {
     UI.setSearchModeManual('campos');
     API.searchAlbaranes();
 };
-window.handleLogout = async () => { await fetch('/api/v1/logout', { method: 'POST' }); window.location.href = '/login'; };
+
+window.handleLogout = async () => { 
+    await fetch('/api/v1/logout', { method: 'POST', headers: API.getHeaders() }); 
+    localStorage.removeItem('token');
+    window.location.href = '/login'; 
+};

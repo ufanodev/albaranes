@@ -46,6 +46,7 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 }
 
 func preloadAlbaran(db *gorm.DB) *gorm.DB {
+	// 🛡️ CRÍTICO: Asegura que el JSON incluya los objetos relacionados
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
@@ -70,7 +71,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 	}
 
 	for key, value := range input {
-		// Bloqueo campos inmutables (Regla 2025-12-17)
+		// 🚫 REGLA 2025-12-17: El ID nunca se modifica vía Payload
 		if strings.ToLower(key) == "id" || key == "created_at" || key == "updated_at" {
 			continue
 		}
@@ -98,7 +99,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		case "matricula":
 			structKey = "Matricula"
 		case "nombre_pasajero":
-			structKey = "Cliente" // 👈 MAPEO VITAL: HTML -> DB
+			structKey = "Cliente" // 👈 MAPEO VITAL: HTML 'nombre_pasajero' -> DB 'Cliente'
 		case "num_factura":
 			structKey = "NumFactura"
 		case "noct_fest":
@@ -199,7 +200,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 
-	// Sincronizar nombres para consistencia en DB
+	// Sincronizar nombres para consistencia y evitar NULL en empresa_nombre
 	if ref, ok := cleanInput["EmpresaRef"].(float64); ok {
 		var emp models.Empresa
 		if err := db.First(&emp, uint(ref)).Error; err == nil {
@@ -219,7 +220,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Creado"})
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado correctamente"})
 }
 
 func CopyAlbaranAdmin(c *gin.Context, db *gorm.DB) {
@@ -271,6 +272,8 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "25"))
+
+	// 🛡️ CORRECCIÓN: Siempre usar preloadAlbaran para que el JS reciba EmpresaData
 	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("licencia_ref = ? AND estado = ?", userLicID, 0)
 
 	if v := c.Query("empresa_ref"); v != "" {
@@ -280,8 +283,10 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 		p := "%" + v + "%"
 		query = query.Where(db.Where("empresa_nombre LIKE ?", p).Or("referencia LIKE ?", p).Or("numero_albaran LIKE ?", p))
 	}
+
 	query.Count(&total)
 	query.Order("fecha DESC, id DESC").Limit(pageSize).Offset((page - 1) * pageSize).Find(&albaranes)
+
 	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
 }
 
@@ -298,7 +303,7 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 🛡️ Restricciones usuario (Instrucción 2025-12-17)
+	// 🚫 REGLA 2025-12-17: Protegemos campos inmutables para Titulares
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
 	delete(input, "estado")
@@ -344,6 +349,7 @@ func BulkUpdateEnviado(c *gin.Context, db *gorm.DB) {
 // SECCIÓN: EXPORTACIÓN
 // ---------------------------------------------------------------------
 
+// [REGLA 2026-01-02] Eliminado fragmento ExportRequest local por estar referenciado globalmente
 func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 	var req struct {
 		ReportName string      `json:"reportName"`

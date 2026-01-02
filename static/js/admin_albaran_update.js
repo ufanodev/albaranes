@@ -1,169 +1,156 @@
 /**
- * admin_albaran_update.js
- * Gestión Maestra para Administración.
- * Carga diccionarios dinámicos y procesa 40 campos.
+ * albaran_update.js - Panel Titular
+ * Gestión de edición con blindaje contra errores de API y seguridad JWT.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Obtener ID del albarán desde la URL (.../update/45)
+    // 1. Obtener ID del albarán desde la URL
     const urlParts = window.location.pathname.split('/');
     const albaranId = urlParts[urlParts.length - 1];
 
     if (!albaranId || isNaN(albaranId)) {
-        showError("ID de albarán no detectado o no válido.");
+        showError("ID de albarán no detectado.");
         return;
     }
 
-    console.log(`🚀 [MODO ADMIN] Iniciando edición integral - ID: ${albaranId}`);
+    console.log(`🚀 [UPDATE] Iniciando edición para ID: ${albaranId}`);
 
     try {
-        // 2. CARGA DE DICCIONARIOS (Triple Sincronización)
-        // Usamos useTextAsValue = true para conductores porque la tabla albaranes guarda el nombre (varchar)
-        await Promise.all([
-            loadSelectData('/api/v1/licencias', 'licencia_ref', 'licencia'),
-            loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre'),
-            loadSelectData('/api/v1/conductores', 'asalariado', 'nombre', true) 
+        // 2. CARGA DE DICCIONARIOS (Con blindaje individual)
+        // Usamos Promise.allSettled para que si conductores da 404, empresas sí cargue.
+        await Promise.allSettled([
+            loadSelectData('/api/v1/empresas', 'empresa', 'nombre'),
+            loadSelectData('/api/v1/conductores/mis-conductores', 'asalariado_select', 'nombre', true)
         ]);
 
-        // 3. RECUPERAR DATOS ACTUALES
-        const response = await fetch(`/api/v1/albaranes/id/${albaranId}`);
-        const result = await response.json();
-
-        if (!response.ok) throw new Error(result.error || "No se pudo recuperar el albarán");
-
-        // 4. POBLAR FORMULARIO
-        // Llama a admin_albaran_cargar.js (que debe estar incluido en el HTML)
-        if (typeof populateForm === 'function') {
-            populateForm(result.data);
-            document.getElementById('header_id').textContent = `#${albaranId}`;
-        } else {
-            throw new Error("El cargador de campos (admin_albaran_cargar.js) no está disponible.");
+        // 3. RECUPERAR DATOS DEL ALBARÁN
+        const response = await fetch(`/api/v1/albaranes/id/${albaranId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        // Validar si la respuesta es JSON antes de procesar (Evita SyntaxError)
+        const contentType = response.headers.get("content-type");
+        if (!response.ok || !contentType || !contentType.includes("application/json")) {
+            throw new Error("El servidor no devolvió un JSON válido para el albarán.");
         }
 
-        // Ocultar loader si existe
-        const loader = document.getElementById('loadingIndicator');
-        if (loader) loader.style.display = 'none';
+        const result = await response.json();
+
+        // 4. POBLAR FORMULARIO (Usa albaran_cargar.js)
+        if (typeof populateForm === 'function') {
+            populateForm(result.data);
+            
+            // Sincronización de campos específicos de la vista Update
+            if(document.getElementById('albaran_id')) document.getElementById('albaran_id').value = result.data.id;
+            if(document.getElementById('header_num')) document.getElementById('header_num').textContent = `#${result.data.numero_albaran}`;
+        } else {
+            throw new Error("Motor de carga (albaran_cargar.js) no encontrado.");
+        }
 
     } catch (err) {
-        console.error("❌ [ERROR INICIALIZACIÓN]:", err.message);
-        showError(err.message);
-    }
-
-    // 5. MANEJO DEL ENVÍO (PUT)
-    const updateForm = document.getElementById('updateForm');
-    if (updateForm) {
-        updateForm.onsubmit = async (e) => {
-            e.preventDefault();
-            
-            const statusMsg = document.getElementById('statusMessage');
-            const errorMsg = document.getElementById('errorMessage');
-            if (statusMsg) statusMsg.classList.add('hidden');
-            if (errorMsg) errorMsg.classList.add('hidden');
-
-            const formData = new FormData(updateForm);
-            const payload = Object.fromEntries(formData.entries());
-
-            // --- A. GESTIÓN DE CHECKBOXES (9 campos booleanos) ---
-            const checkboxes = [
-                'urbano', 'diurno', 'noct_fest', 'festivo', 
-                'finalizado', 'enganche', 'enviado', 'cobrado', 'pagado'
-            ];
-            checkboxes.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) payload[id] = el.checked;
-            });
-
-            // --- B. LIMPIEZA DE TIEMPOS (Evita Error 1292 en el servidor) ---
-            // Si el campo está vacío, enviamos string vacío para que el controlador Go asigne NULL
-            if (payload.hora && payload.hora.trim() === "") payload.hora = "";
-            if (payload.tiempo_espera && payload.tiempo_espera.trim() === "") payload.tiempo_espera = "";
-
-            // --- C. CONVERSIÓN DE TIPOS (GORM requiere tipos numéricos correctos) ---
-            payload.licencia_ref = parseInt(payload.licencia_ref);
-            payload.empresa_ref = parseInt(payload.empresa_ref);
-            payload.num_plazas = parseInt(payload.num_plazas) || 0;
-            
-            // Decimales
-            const floatFields = ['km_totales', 'km_nacionales', 'km_internacionales', 'importe_suplidos', 'importe_total'];
-            floatFields.forEach(field => {
-                payload[field] = parseFloat(payload[field]) || 0;
-            });
-
-            // --- D. PROTECCIÓN DE CAMPOS DE SISTEMA ---
-            delete payload.id;
-            delete payload.ID;
-
-            console.log("📤 [ADMIN SEND] Enviando paquete de datos maestros:");
-            console.table(payload); 
-
-            try {
-                // Endpoint específico de Administración (Poder Total)
-                const res = await fetch(`/api/v1/albaranes/admin/${albaranId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const updateRes = await res.json();
-                
-                if (!res.ok) throw new Error(updateRes.error || "Error al actualizar el registro.");
-
-                if (statusMsg) {
-                    statusMsg.textContent = "✅ Cambios guardados con éxito. Redirigiendo...";
-                    statusMsg.className = "mt-6 p-4 bg-green-600 text-white rounded-lg text-center font-black block shadow-lg";
-                    statusMsg.classList.remove('hidden');
-                }
-                
-                // Redirección a la raíz de administración tras 1.5s
-                setTimeout(() => { window.location.href = '/admin'; }, 1500);
-
-            } catch (err) {
-                console.error("❌ [PROCESS ERROR]:", err.message);
-                if (errorMsg) {
-                    errorMsg.textContent = "Error al guardar: " + err.message;
-                    errorMsg.classList.remove('hidden');
-                    errorMsg.className = "mt-6 p-4 bg-red-600 text-white rounded-lg text-center font-bold block shadow-xl";
-                }
-            }
-        };
+        console.error("❌ [ERROR FLUJO]:", err.message);
+        showError("No se pudieron cargar todos los datos: " + err.message);
     }
 });
 
 /**
- * Carga datos para elementos <select> desde la API
- * @param {string} url - Endpoint de la API
- * @param {string} elementId - ID del <select> en el HTML
- * @param {string} textField - Campo que se mostrará como texto
- * @param {boolean} useTextAsValue - Si es true, el value será el texto (para asalariado), si es false será el ID.
+ * Carga datos para selectores con manejo de errores y Token
  */
 async function loadSelectData(url, elementId, textField, useTextAsValue = false) {
+    const select = document.getElementById(elementId);
+    if (!select) return;
+
     try {
-        const r = await fetch(url);
-        const d = await r.json();
-        const list = d.data || d;
-        const select = document.getElementById(elementId);
-        if (!select) return;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
 
-        // Mantener la primera opción (ej: "-- Seleccione Conductor --")
-        const firstOption = select.options[0] ? select.options[0].outerHTML : '';
+        if (!response.ok) throw new Error(`Status ${response.status}`);
 
-        select.innerHTML = firstOption + list.map(item => {
-            const val = useTextAsValue ? item[textField] : item.id;
-            return `<option value="${val}">${item[textField]}</option>`;
-        }).join('');
+        const json = await response.json();
+        const list = json.data || json;
+
+        if (Array.isArray(list)) {
+            // Preservar la opción por defecto si existe
+            const defaultOpt = select.options[0] ? select.options[0].outerHTML : '<option value="">Seleccione...</option>';
+            
+            select.innerHTML = defaultOpt + list.map(item => {
+                const val = useTextAsValue ? item[textField] : item.id;
+                return `<option value="${val}">${item[textField]}</option>`;
+            }).join('');
+        }
     } catch (e) {
-        console.error(`❌ [LOAD ERROR] Combo ${elementId}:`, e);
+        console.warn(`⚠️ No se pudo cargar el selector ${elementId} (Ruta: ${url}). Continuando...`);
+        // No bloqueamos la ejecución, solo dejamos el select con su opción por defecto
     }
 }
 
-/**
- * Muestra error en la interfaz
- */
+// 5. MANEJO DEL ENVÍO (Mantiene las reglas de integridad de IDs)
+const albaranForm = document.getElementById('albaranForm');
+if (albaranForm) {
+    albaranForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const albaranId = window.location.pathname.split('/').pop();
+        
+        const formData = new FormData(albaranForm);
+        const payload = Object.fromEntries(formData.entries());
+
+        // Checkboxes
+        ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) payload[id] = el.checked;
+        });
+
+        // Conversión numérica para Go
+        payload.empresa_ref = parseInt(payload.empresa_ref) || 0;
+        payload.num_plazas = parseInt(payload.num_plazas) || 0;
+        ['km_totales', 'importe_suplidos', 'importe_total'].forEach(f => {
+            payload[f] = parseFloat(payload[f]) || 0;
+        });
+
+        // REGLA 2025-12-17: El ID se envía en la URL, se quita del body
+        delete payload.id;
+
+        try {
+            const res = await fetch(`/api/v1/albaranes/${albaranId}`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || "Error al actualizar");
+            }
+
+            showStatus("✅ Albarán actualizado correctamente", "success");
+            setTimeout(() => window.location.href = '/titulares', 1500);
+
+        } catch (err) {
+            showError(err.message);
+        }
+    };
+}
+
 function showError(msg) {
-    const errDiv = document.getElementById('errorMessage');
-    if (errDiv) {
-        errDiv.textContent = `❌ ERROR: ${msg}`;
-        errDiv.classList.remove('hidden');
-        errDiv.className = "mt-6 p-4 bg-red-600 text-white rounded-lg text-center font-bold block";
+    const el = document.getElementById('statusMessage');
+    if (el) {
+        el.textContent = msg;
+        el.className = "mt-6 p-4 bg-red-100 text-red-700 border-2 border-red-200 rounded-xl text-center font-bold block";
+        el.classList.remove('hidden');
+    }
+}
+
+function showStatus(msg, type) {
+    const el = document.getElementById('statusMessage');
+    if (el) {
+        el.textContent = msg;
+        el.className = `mt-6 p-4 rounded-xl text-center font-bold block border-2 ${
+            type === 'success' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'
+        }`;
+        el.classList.remove('hidden');
     }
 }
