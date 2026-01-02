@@ -1,6 +1,7 @@
 /**
  * busqueda.js - Panel de Usuario (Titular)
- * Gestión de albaranes con soporte para nombres de empresa dinámicos y seguridad JWT.
+ * Gestión de albaranes y exportación sincronizada con el servidor Go.
+ * Mapeo de campos: ID, Nº Albarán, Fecha, Empresa, Conductor, Origen, Destino, Total.
  */
 
 const APP = {
@@ -99,7 +100,7 @@ const UI = {
 };
 
 // =================================================================================
-// 📡 API SERVICES (CON JWT)
+// 📡 API SERVICES (JWT & Export)
 // =================================================================================
 const API = {
     getHeaders() {
@@ -150,8 +151,8 @@ const API = {
         if (APP.state.searchMode === 'campos') {
             const fields = ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'];
             fields.forEach(f => {
-                const val = document.getElementById(f === 'empresa' ? 'empresa' : f).value;
-                if (val) params.append(f === 'empresa' ? 'empresa_ref' : f, val);
+                const el = document.getElementById(f === 'empresa' ? 'empresa' : f);
+                if (el && el.value) params.append(f === 'empresa' ? 'empresa_ref' : f, el.value);
             });
         } else {
             const palabra = document.getElementById('palabra').value;
@@ -186,8 +187,8 @@ const API = {
                     valB = parseFloat(b.importe_total || 0);
                     break;
                 case 'empresa':
-                    valA = (a.empresa_data?.nombre || a.empresa_nombre || '').toLowerCase();
-                    valB = (b.empresa_data?.nombre || b.empresa_nombre || '').toLowerCase();
+                    valA = (a.EmpresaData?.nombre || a.empresa_nombre || '').toLowerCase();
+                    valB = (b.EmpresaData?.nombre || b.empresa_nombre || '').toLowerCase();
                     break;
                 default:
                     valA = (a[key] || '').toString().toLowerCase();
@@ -213,8 +214,7 @@ const DOM = {
         if (APP.state.filteredAlbaranes.length === 0) { this.showNoResults(); return; }
 
         APP.state.filteredAlbaranes.forEach(a => {
-            // 🔄 SISTEMA DE RESPALDO PARA EMPRESA
-            const nombreEmpresa = a.empresa_data?.nombre || a.EmpresaData?.nombre || a.empresa_nombre || `ID: ${a.empresa_ref}`;
+            const nombreEmpresa = a.EmpresaData?.nombre || a.empresa_nombre || `ID: ${a.empresa_ref}`;
             
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm';
@@ -246,6 +246,94 @@ const DOM = {
 };
 
 // =================================================================================
+// 🚀 ORDENACIÓN Y EXPORTACIÓN POR SERVIDOR
+// =================================================================================
+
+window.sortTable = (key) => {
+    if (APP.state.currentSort.key === key) {
+        APP.state.currentSort.direction = APP.state.currentSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        APP.state.currentSort.key = key;
+        APP.state.currentSort.direction = 'asc';
+    }
+    API.applyLocalSort();
+    DOM.renderResults();
+};
+
+/**
+ * handleGeneratePDF
+ * Envía mapeo exacto de campos al servidor para PDF.
+ * Importes como números limpios.
+ */
+window.handleGeneratePDF = async () => {
+    if (APP.state.filteredAlbaranes.length === 0) return;
+    
+    const payload = {
+        reportName: `ALBARANES_LICENCIA_${APP.state.userLicenciaNumero}`,
+        data: APP.state.filteredAlbaranes.map(a => ({
+            "ID": a.id.toString(),
+            "Nº ALBARAN": a.numero_albaran || 'S/N',
+            "FECHA": UI.formatDate(a.fecha),
+            "EMPRESA": a.EmpresaData?.nombre || a.empresa_nombre || 'N/A',
+            "CONDUCTOR": a.asalariado || 'TITULAR',
+            "ORIGEN": a.origen || '-',
+            "DESTINO": a.destino || '-',
+            "TOTAL": parseFloat(a.importe_total || 0).toFixed(2) // Solo número
+        }))
+    };
+
+    try {
+        const res = await fetch('/api/v1/albaranes/export/pdf', {
+            method: 'POST',
+            headers: API.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.success && result.downloadURL) window.open(result.downloadURL, '_blank');
+    } catch (e) { console.error("Error PDF:", e); }
+};
+
+/**
+ * handleGenerateXLSX
+ * Envía mapeo exacto de campos al servidor para Excel.
+ * Importes como Float para permitir sumas.
+ */
+window.handleGenerateXLSX = async () => {
+    if (APP.state.filteredAlbaranes.length === 0) return;
+
+    const payload = {
+        reportName: `EXCEL_LICENCIA_${APP.state.userLicenciaNumero}`,
+        data: APP.state.filteredAlbaranes.map(a => ({
+            "ID": a.id.toString(),
+            "NUMERO_ALBARAN": a.numero_albaran || 'S/N',
+            "FECHA": UI.formatDate(a.fecha),
+            "EMPRESA": a.EmpresaData?.nombre || a.empresa_nombre || 'N/A',
+            "CONDUCTOR": a.asalariado || 'TITULAR',
+            "ORIGEN": a.origen || '-',
+            "DESTINO": a.destino || '-',
+            "TOTAL": parseFloat(a.importe_total || 0) // Número puro
+        }))
+    };
+
+    try {
+        const res = await fetch('/api/v1/albaranes/export/xlsx', {
+            method: 'POST',
+            headers: API.getHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.success && result.downloadURL) {
+            const link = document.createElement('a');
+            link.href = result.downloadURL;
+            link.download = "";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    } catch (e) { console.error("Error Excel:", e); }
+};
+
+// =================================================================================
 // 🚀 INICIALIZACIÓN Y EVENTOS
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -268,17 +356,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         API.searchAlbaranes();
     }
 });
-
-window.sortTable = (key) => {
-    if (APP.state.currentSort.key === key) {
-        APP.state.currentSort.direction = APP.state.currentSort.direction === 'asc' ? 'desc' : 'asc';
-    } else {
-        APP.state.currentSort.key = key;
-        APP.state.currentSort.direction = 'asc';
-    }
-    API.applyLocalSort();
-    DOM.renderResults();
-};
 
 window.handleSearch = (e) => { if(e) e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
 

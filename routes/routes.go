@@ -121,7 +121,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			protected.GET("/user/licencia_info", func(c *gin.Context) { controllers.GetLicenciaInfoForUser(c, db) })
 			protected.GET("/empresas", func(c *gin.Context) { controllers.GetEmpresas(c, db) })
 
-			// 👈 CORRECCIÓN: Esta ruta permite al Titular cargar sus conductores
+			// ✅ Esta ruta permite al Titular cargar sus conductores filtrados
 			protected.GET("/conductores/mis-conductores", func(c *gin.Context) { controllers.GetMisConductores(c, db) })
 
 			// CRUD CONDUCTORES (Protegido para Admin)
@@ -190,6 +190,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albaranGroup.PUT("/admin/:id", func(c *gin.Context) { controllers.UpdateAlbaranAdmin(c, db) })
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
 				albaranGroup.PUT("/bulk-pay", func(c *gin.Context) { controllers.BulkChargeAlbaranes(c, db) })
+
+				// 🚀 EXPORTACIÓN: Usamos POST para recibir el JSON con los datos actuales de la tabla
 				albaranGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
 				albaranGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
 			}
