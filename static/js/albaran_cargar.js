@@ -1,35 +1,60 @@
+/**
+ * albaran_cargar.js
+ * Motor unificado para el mapeo de datos entre el Backend (JSON) y el Frontend (HTML).
+ * Este archivo es el "traductor" oficial para albaran_view.html y albaran_update.html.
+ */
+
 function populateForm(data) {
     console.log("📦 [MAPPER] Procesando datos del albarán:", data);
 
+    /**
+     * Helper para asignar contenido a elementos (Input o Div/Span)
+     */
     const setContent = (elementId, value) => {
         const el = document.getElementById(elementId);
         if (!el) return;
+
+        // Limpieza de valores: si es null o vacío, ponemos un guion para la vista
         const val = (value !== null && value !== undefined && value !== '') ? value : '-';
         
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+            // En inputs, si el valor es el guion de "vacío", lo dejamos en blanco
             el.value = (val === '-') ? '' : val;
         } else {
+            // En visualización (div/span), ponemos el valor procesado
             el.textContent = val;
         }
     };
 
+    /**
+     * Helper para gestionar Checkboxes
+     */
     const setCheck = (elementId, value) => {
         const el = document.getElementById(elementId);
-        if (el) el.checked = (value === true || value === 1 || value === 'Si');
+        if (el) {
+            // Acepta true, 1, "Si" o "1" como valores marcados
+            el.checked = (value === true || value === 1 || value === 'Si' || value === '1');
+        }
     };
 
+    /**
+     * Helper para extraer la hora (HH:mm) de un string ISO o MySQL DateTime
+     * Maneja: "2026-01-02T12:37:00Z" y "2026-01-02 12:37:00"
+     */
     const formatTime = (timeStr) => {
         if (!timeStr) return '';
-        // Si viene formato ISO "2026-01-01T08:30:00Z" o similar
+        let rawTime = timeStr;
+        // Si viene formato ISO o MySQL con fecha, extraemos solo la parte del tiempo
         if (timeStr.includes('T')) {
-            return timeStr.split('T')[1].substring(0, 5);
+            rawTime = timeStr.split('T')[1];
+        } else if (timeStr.includes(' ')) {
+            rawTime = timeStr.split(' ')[1];
         }
-        // Si ya viene como "HH:mm:ss"
-        return timeStr.substring(0, 5);
+        return rawTime.substring(0, 5); // Retorna "HH:mm"
     };
 
     // --- PARTE 1: IDENTIFICACIÓN ---
-    const nAlbaran = data.numero_albaran || data.Numero_albaran;
+    const nAlbaran = data.numero_albaran || data.Numero_albaran || '-';
     setContent('view_numero_albaran_header', nAlbaran);
     setContent('numero_albaran', nAlbaran);
     setContent('n_albaran', nAlbaran); // Para el input del update
@@ -38,7 +63,7 @@ function populateForm(data) {
         setContent('fecha', (data.fecha || data.Fecha).substring(0, 10));
     }
 
-    // Tiempos de Servicio
+    // Tiempos de Servicio (Mapeo a columnas hora_ini / hora_fin de la DB)
     setContent('hora_ini', formatTime(data.hora_ini));
     setContent('hora_fin', formatTime(data.hora_fin));
     setContent('hora', formatTime(data.hora)); // Compatibilidad legacy
@@ -49,25 +74,27 @@ function populateForm(data) {
         setContent('licencia', data.LicenciaData.licencia);
     } else {
         setContent('licencia_ref', data.licencia_ref);
+        setContent('licencia', data.licencia || data.licencia_ref);
     }
 
     if (data.EmpresaData) {
         setContent('empresa_nombre', data.EmpresaData.nombre);
-        // Si es un SELECT (en Update), asignamos el ID
         const empSelect = document.getElementById('empresa');
         if (empSelect) empSelect.value = data.empresa_ref;
     } else {
         setContent('empresa_nombre', data.empresa_nombre || '-');
     }
 
-    // --- PARTE 2: CLIENTE Y VEHÍCULO (NUEVOS CAMPOS) ---
+    // --- PARTE 2: CLIENTE Y VEHÍCULO (CORREGIDO) ---
     setContent('matricula', data.matricula);
-    setContent('nombre_pasajero', data.nombre_pasajero); // Nuevo
+    
+    // 👤 MAPEO CRÍTICO: La DB devuelve 'cliente', la vista espera 'nombre_pasajero'
+    setContent('nombre_pasajero', data.cliente || data.nombre_pasajero); 
+    
     setContent('dni_pasajero', data.dni_pasajero);
     setContent('referencia', data.referencia);
     setContent('asalariado', data.asalariado);
     
-    // Combo de asalariado si existe (en Update)
     const asalariadoSelect = document.getElementById('asalariado_select');
     if (asalariadoSelect) asalariadoSelect.value = data.asalariado;
 
@@ -84,7 +111,7 @@ function populateForm(data) {
     setCheck('urbano', data.urbano);
     setCheck('diurno', data.diurno);
     setCheck('noct_fest', data.noct_fest);
-    setCheck('remolque', data.remolque); // Nuevo
+    setCheck('remolque', data.remolque); 
     setCheck('festivo', data.festivo);
 
     // Kilómetros
@@ -98,19 +125,18 @@ function populateForm(data) {
     setContent('num_plazas', data.num_plazas);
     setContent('autorizado_por', data.autorizado_por);
     setContent('observaciones', data.observaciones);
-    setCheck('adjuntos', data.adjuntos); // Nuevo
+    setCheck('adjuntos', data.adjuntos);
 
-    // Formateo de moneda para visualización
+    // Formateo de moneda
     const fmt = (v) => (parseFloat(v) || 0).toFixed(2) + " €";
     
-    // Para el campo editable (Update)
-    const inputTotal = document.querySelector('input[name="importe_total"]');
-    if (inputTotal) {
-        inputTotal.value = (parseFloat(data.importe_total) || 0).toFixed(2);
-    } else {
-        // Para la vista (View)
-        const totalEl = document.getElementById('importe_total');
-        if (totalEl) totalEl.textContent = fmt(data.importe_total);
+    const totalEl = document.getElementById('importe_total');
+    if (totalEl) {
+        if (totalEl.tagName === 'INPUT') {
+            totalEl.value = (parseFloat(data.importe_total) || 0).toFixed(2);
+        } else {
+            totalEl.textContent = fmt(data.importe_total);
+        }
     }
     
     const suplidosEl = document.getElementById('importe_suplidos');

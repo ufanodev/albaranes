@@ -1,112 +1,149 @@
 /**
- * admin_albaran_cargar.js
- * Funciones para cargar y mapear datos de un albarán en la vista de ADMINISTRADOR.
- * Corregido: Sin símbolos de moneda en inputs numéricos para evitar errores de parseo.
+ * albaran_cargar.js
+ * Motor unificado para el mapeo de datos entre el Backend (JSON) y el Frontend (HTML).
+ * Compatible con albaran_view.html y albaran_update.html
  */
 
 function populateForm(data) {
-    console.log("📥 [DATA RECEIVE] Iniciando mapeo de datos desde el servidor:", data);
+    console.log("📦 [MAPPER] Iniciando mapeo de datos del albarán:", data);
 
-    // Helper para asignar valor a INPUTS (maneja nulos y tipos numéricos)
-    const setVal = (elementId, value) => {
+    /**
+     * Helper para asignar contenido a elementos (Input o Div/Span)
+     */
+    const setContent = (elementId, value) => {
         const el = document.getElementById(elementId);
-        if (!el) {
-            console.warn(`⚠️ [MAPPER] Elemento no encontrado: ${elementId}`);
-            return;
-        }
+        if (!el) return;
 
-        // Limpieza de datos: si es nulo o undefined, string vacío
-        let cleanValue = (value !== null && value !== undefined) ? value : '';
-
-        // REGLA CRÍTICA: Si es un input numérico, no enviar símbolos de moneda (€)
-        if (el.type === "number") {
-            // Aseguramos que sea un número válido para el input HTML5
-            el.value = cleanValue !== '' ? parseFloat(cleanValue).toFixed(2) : '';
-        } 
-        // Si es un input de hora, formatear a HH:mm
-        else if (el.type === "time" && cleanValue.includes('T')) {
-            el.value = cleanValue.substring(11, 16);
-        }
-        // Si es un input de fecha, formatear a YYYY-MM-DD
-        else if (el.type === "date" && cleanValue.includes('T')) {
-            el.value = cleanValue.substring(0, 10);
-        }
-        else {
-            el.value = cleanValue;
+        // Limpieza de valores nulos o indefinidos
+        const val = (value !== null && value !== undefined && value !== '') ? value : '-';
+        
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+            el.value = (val === '-') ? '' : val;
+        } else {
+            el.textContent = val;
         }
     };
 
-    // Helper para marcar CHECKBOXES
+    /**
+     * Helper para gestionar Checkboxes
+     */
     const setCheck = (elementId, value) => {
         const el = document.getElementById(elementId);
         if (el) {
-            el.checked = (value === true || value === 1 || value === 'Si');
+            el.checked = (value === true || value === 1 || value === 'Si' || value === '1');
         }
     };
 
-    // Helper para elementos de texto puro (span/div)
-    const setText = (elementId, value) => {
-        const el = document.getElementById(elementId);
-        if (el) el.textContent = (value !== null && value !== undefined && value !== "") ? value : '-';
+    /**
+     * Helper para extraer la hora (HH:mm) de un string ISO o MySQL DateTime
+     */
+    const formatTime = (timeStr) => {
+        if (!timeStr) return '';
+        // Si es formato ISO "2026-01-02T12:37:00Z" o MySQL "2026-01-02 12:37:00"
+        let rawTime = timeStr;
+        if (timeStr.includes('T')) {
+            rawTime = timeStr.split('T')[1];
+        } else if (timeStr.includes(' ')) {
+            rawTime = timeStr.split(' ')[1];
+        }
+        return rawTime.substring(0, 5); // Retorna "12:37"
     };
 
-    try {
-        // --- 1. DATOS IDENTIFICATIVOS ---
-        console.log("🔍 [MAPPER] Mapeando Identificación...");
-        if (data.LicenciaData) setVal('licencia_ref', data.LicenciaData.id);
-        else setVal('licencia_ref', data.licencia_ref);
-        
-        setVal('numero_albaran', data.numero_albaran);
-        setText('view_numero_albaran_header', data.numero_albaran);
-        if (data.fecha) setVal('fecha', data.fecha.substring(0, 10));
-
-        if (data.EmpresaData) setVal('empresa_ref', data.EmpresaData.id);
-        else setVal('empresa_ref', data.empresa_ref);
-        setVal('referencia', data.referencia);
-
-        // --- 2. CONDUCTOR Y VEHÍCULO ---
-        setVal('asalariado', data.asalariado);
-        setVal('matricula', data.matricula);
-        setVal('num_plazas', data.num_plazas);
-
-        // --- 3. ITINERARIO ---
-        setVal('cliente', data.cliente);
-        setVal('dni_pasajero', data.dni_pasajero);
-        setVal('hora', data.hora ? data.hora.substring(11, 16) : '');
-        setVal('origen', data.origen);
-        setVal('destino', data.destino);
-        setVal('parada', data.parada);
-
-        // --- 4. CHECKBOXES ---
-        setCheck('urbano', data.urbano);
-        setCheck('diurno', data.diurno);
-        setCheck('noct_fest', data.noct_fest);
-        setCheck('festivo', data.festivo);
-        setCheck('finalizado', data.finalizado);
-        setCheck('enganche', data.enganche);
-        setCheck('cobrado', data.cobrado);
-        setCheck('pagado', data.pagado);
-
-        // --- 5. LIQUIDACIÓN (IMPORTES PUROS SIN €) ---
-        console.log("🔍 [MAPPER] Mapeando Importes...");
-        setVal('km_totales', data.km_totales);
-        setVal('km_nacionales', data.km_nacionales);
-        setVal('km_internacionales', data.km_internacionales);
-        setVal('tiempo_espera', data.tiempo_espera ? data.tiempo_espera.substring(11, 16) : '');
-        setVal('importe_suplidos', data.importe_suplidos);
-        setVal('importe_total', data.importe_total);
-        setVal('autorizado_por', data.autorizado_por);
-        setVal('observaciones', data.observaciones);
-
-        // --- 6. GESTIÓN ADMINISTRATIVA ---
-        setVal('observaciones_admin', data.observaciones_admin);
-        setVal('num_factura', data.num_factura);
-        
-        if (data.fecha_cobro) setVal('fecha_cobro', data.fecha_cobro.substring(0, 10));
-        if (data.fecha_pago) setVal('fecha_pago', data.fecha_pago.substring(0, 10));
-
-        console.log("✅ [DATA RECEIVE] Formulario mapeado con éxito.");
-    } catch (err) {
-        console.error("❌ [MAPPER ERROR] Error al procesar datos:", err);
+    // --- SECCIÓN 1: IDENTIFICACIÓN Y TIEMPOS ---
+    const nAlbaran = data.numero_albaran || '-';
+    setContent('view_numero_albaran_header', nAlbaran);
+    setContent('numero_albaran', nAlbaran);
+    setContent('n_albaran', nAlbaran); 
+    
+    if (data.fecha) {
+        setContent('fecha', data.fecha.substring(0, 10));
     }
+
+    // 🕒 Tiempos de Servicio (Mapeo exacto a columnas DB)
+    setContent('hora_ini', formatTime(data.hora_ini));
+    setContent('hora_fin', formatTime(data.hora_fin));
+
+    // Licencia (Muestra el número de licencia si existe, si no el ID)
+    setContent('licencia_ref', data.licencia || data.licencia_ref);
+    setContent('licencia', data.licencia || data.licencia_ref); // Para el input readonly
+
+    // Empresa
+    if (data.empresa_data) {
+        setContent('empresa_nombre', data.empresa_data.nombre);
+    } else {
+        setContent('empresa_nombre', data.empresa_nombre);
+    }
+    // Si estamos en edición, pre-seleccionamos el ID en el SELECT
+    const empSelect = document.getElementById('empresa');
+    if (empSelect) empSelect.value = data.empresa_ref;
+
+    // --- SECCIÓN 2: CLIENTE Y VEHÍCULO ---
+    setContent('matricula', data.matricula);
+    setContent('dni_pasajero', data.dni_pasajero);
+    setContent('referencia', data.referencia);
+    setContent('asalariado', data.asalariado);
+    
+    // 👤 MAPEO CRÍTICO: La DB guarda en 'cliente', la vista muestra en 'nombre_pasajero'
+    setContent('nombre_pasajero', data.cliente); 
+
+    // Pre-selección de asalariado en combo de edición
+    const asalariadoSelect = document.getElementById('asalariado_select');
+    if (asalariadoSelect) asalariadoSelect.value = data.asalariado;
+
+    // --- SECCIÓN 3: TRAYECTO Y DATOS TÉCNICOS ---
+    setContent('origen', data.origen);
+    setContent('destino', data.destino);
+    setContent('parada', data.parada);
+    
+    // ⏳ Tiempos de Espera (Mapeo exacto a columnas DB)
+    setContent('espera_ini', formatTime(data.espera_ini));
+    setContent('espera_fin', formatTime(data.espera_fin));
+
+    setCheck('urbano', data.urbano);
+    setCheck('diurno', data.diurno);
+    setCheck('noct_fest', data.noct_fest);
+    setCheck('remolque', data.remolque); 
+    setCheck('festivo', data.festivo);
+
+    // Kilómetros
+    setContent('km_ini', data.km_ini);
+    setContent('km_fin', data.km_fin);
+    setContent('km_totales', data.km_totales);
+    setContent('km_nacionales', data.km_nacionales);
+    setContent('km_internacionales', data.km_internacionales);
+
+    // --- SECCIÓN 4: IMPORTES Y OTROS ---
+    setContent('num_plazas', data.num_plazas);
+    setContent('autorizado_por', data.autorizado_por);
+    setContent('observaciones', data.observaciones);
+    setCheck('adjuntos', data.adjuntos);
+
+    // Formateo de moneda
+    const fmt = (v) => (parseFloat(v) || 0).toFixed(2) + " €";
+    
+    // Total Albarán
+    const totalView = document.getElementById('importe_total');
+    if (totalView) {
+        if (totalView.tagName === 'INPUT') {
+            totalView.value = (parseFloat(data.importe_total) || 0).toFixed(2);
+        } else {
+            totalView.textContent = fmt(data.importe_total);
+        }
+    }
+    
+    // Suplidos
+    const suplidosView = document.getElementById('importe_suplidos');
+    if (suplidosView) {
+        if (suplidosView.tagName === 'INPUT') {
+            suplidosView.value = (parseFloat(data.importe_suplidos) || 0).toFixed(2);
+        } else {
+            suplidosView.textContent = fmt(data.importe_suplidos);
+        }
+    }
+
+    // Finalización visual
+    const loader = document.getElementById('loadingIndicator');
+    if (loader) loader.classList.add('hidden');
+    
+    console.log("✅ [MAPPER] Mapeo completado satisfactoriamente.");
 }

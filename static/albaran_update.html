@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <title>Actualizar Albarán - Panel Titular</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <script src="/js/security.js"></script>
-    <script src="/js/albaran_update.js" defer></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/js/albaran_cargar.js"></script> <script src="/js/albaran_update.js" defer></script> <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         tailwind.config = { theme: { extend: { colors: { 'primary-pastel': '#FFDAB9', 'primary-link': '#FF8C00' } } } }
     </script>
@@ -152,7 +152,7 @@
                             <option value="1">1</option>
                             <option value="2">2</option>
                             <option value="3">3</option>
-                            <option value="4" selected>4</option>
+                            <option value="4">4</option>
                             <option value="5">5</option>
                             <option value="6">6</option>
                             <option value="7">7</option>
@@ -198,7 +198,7 @@
                     id="observaciones"
                     rows="4" 
                     class="input-field italic w-full resize-none p-4" 
-                    placeholder="Escriba aquí cualquier detalle relevante..."></textarea>
+                    placeholder="Escriba aquí cualquier detalle relevante sobre el trayecto, equipaje, incidencias..."></textarea>
                 <div class="flex justify-end mt-1">
                     <span id="wordCount" class="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-0.5 rounded border">0 palabras registradas</span>
                 </div>
