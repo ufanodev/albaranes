@@ -1,97 +1,97 @@
 /**
  * albaran_view.js
- * Lógica principal para la visualización de un albarán específico (Panel Titular).
- * Extrae el ID de la ruta /titulares/view/:id y sincroniza los datos del servidor.
+ * Lógica para la visualización detallada de un albarán (Panel Titular).
+ * Conecta con el endpoint GET /api/v1/albaranes/id/:id
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Obtener el ID del albarán desde la URL actual
-    // Ejemplo de URL: http://localhost:8080/titulares/view/47
+    // 1. Extracción del ID desde la URL
+    // Soporta rutas tipo: /titulares/view/123
     const pathParts = window.location.pathname.split('/');
     const albaranId = pathParts[pathParts.length - 1];
 
-    // Validación de seguridad para el ID
     if (!albaranId || isNaN(albaranId)) {
-        console.error("❌ [VIEW] ID de albarán no detectado o inválido en la URL.");
-        showError("El identificador del albarán no es válido.");
+        console.error("❌ [VIEW] ID no válido en la URL.");
+        showError("El identificador del albarán es inválido o no existe.");
         return;
     }
 
-    console.log(`🔎 [VIEW] Iniciando sincronización para el Albarán ID: ${albaranId}`);
+    console.log(`🔎 [VIEW] Sincronizando datos del Albarán ID: ${albaranId}`);
 
     try {
-        // 2. Solicitar los datos al backend (Garantizando el cumplimiento de roles de seguridad)
+        // 2. Consulta a la API
         const response = await fetch(`/api/v1/albaranes/id/${albaranId}`);
 
-        // Manejo de expiración de sesión
+        // Control de Sesión Expirada
         if (response.status === 401) {
-            console.warn("⚠️ [VIEW] Sesión no válida o caducada. Redirigiendo a login.");
+            console.warn("⚠️ [VIEW] Sesión caducada.");
             window.location.href = '/login';
             return;
         }
 
-        // Manejo de errores de servidor o permisos
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error del servidor (${response.status})`);
+            throw new Error(errorData.error || `Error ${response.status}: No se pudo acceder al albarán.`);
         }
 
-        // 3. Procesar la respuesta JSON
+        // 3. Procesamiento de datos
         const result = await response.json();
         const data = result.data;
 
         if (!data) {
-            throw new Error("No se han encontrado datos registrados para este albarán.");
+            throw new Error("El albarán solicitado no contiene información válida.");
         }
 
-        console.log("📦 [VIEW] Datos recibidos con éxito:", data);
+        console.log("📦 [VIEW] Datos cargados:", data);
 
-        // 4. Poblar el formulario/vista (Utiliza la función global en albaran_cargar.js)
+        // 4. Mapeo al HTML (Usa la función unificada en albaran_cargar.js)
         if (typeof populateForm === 'function') {
             populateForm(data);
         } else {
-            console.error("❌ [VIEW] Error crítico: No se encuentra la función global 'populateForm' en albaran_cargar.js");
-            showError("Error de carga: El script de mapeo no está disponible.");
+            throw new Error("Error interno: No se pudo cargar el motor de mapeo de datos.");
         }
 
-        // 5. Actualizar elementos estéticos y visuales fuera del formulario principal
-        
-        // Actualizar el número del albarán en la cabecera naranja
-        const headerTitle = document.getElementById('view_numero_albaran_header');
-        if (headerTitle) {
-            headerTitle.textContent = data.numero_albaran || `ID: ${data.id}`;
+        // 5. Ajustes estéticos finales
+        // Actualizamos el número en la cabecera con el formato oficial
+        const headerNum = document.getElementById('view_numero_albaran_header');
+        if (headerNum) {
+            headerNum.textContent = data.numero_albaran || `#${data.id}`;
         }
 
-        // Ocultar el spinner de carga una vez finalizado el proceso
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        if (loadingIndicator) {
-            loadingIndicator.classList.add('hidden');
+        // Finalizar estado de carga
+        const loader = document.getElementById('loadingIndicator');
+        if (loader) {
+            loader.classList.add('hidden');
         }
 
-        console.log("✅ [VIEW] Proceso de renderizado completado satisfactoriamente.");
+        console.log("✅ [VIEW] Renderizado completado satisfactoriamente.");
 
     } catch (error) {
-        console.error("❌ [VIEW] Fallo en la comunicación con la API:", error);
+        console.error("❌ [VIEW] Error en proceso:", error);
         showError(error.message);
     }
 });
 
 /**
- * Muestra visualmente el error en la interfaz de usuario.
+ * Gestión visual de errores en la interfaz
  */
 function showError(msg) {
     const errorContainer = document.getElementById('errorMessage');
     const loadingContainer = document.getElementById('loadingIndicator');
 
     if (errorContainer) {
-        errorContainer.textContent = `🛑 ERROR: ${msg}`;
+        errorContainer.innerHTML = `
+            <div class="flex items-center justify-center gap-3">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+                <span>${msg}</span>
+            </div>
+        `;
         errorContainer.classList.remove('hidden');
+        // Re-inicializar iconos de Lucide para el nuevo HTML inyectado
+        if (window.lucide) lucide.createIcons();
     }
 
     if (loadingContainer) {
         loadingContainer.classList.add('hidden');
     }
-    
-    // Si hay un error crítico, notificamos visualmente en la consola
-    console.error(`🚨 [VIEW ERROR]: ${msg}`);
 }
