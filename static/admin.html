@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏢  Administrador</title>
+    <title>🏢  Administrador - Gestión de Albaranes</title>
     <script src="/js/security.js"></script>    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -13,7 +13,7 @@
                 extend: {
                     colors: {
                         'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
+                        'primary-link': '#FF8C00',  // Naranja más vivo
                         'black-pure': '#000000',
                     }
                 }
@@ -42,24 +42,8 @@
   .status-error {
     @apply bg-red-400 text-white border border-red-600;
   }
-  .status-info, .status-neutral {
-    @apply bg-gray-200 text-gray-700 border border-gray-400;
-  }
 
-  /* Tabla */
-  .total-row td {
-    @apply bg-primary-pastel/70 font-extrabold text-gray-800 text-lg;
-  }
-  .sortable {
-    @apply flex items-center cursor-pointer select-none;
-  }
-  .sort-icon {
-    @apply ml-2 w-4 h-4 inline-block;
-  }
-
-    /* ==============================
-        DROPDOWNS / MENÚS DESPLEGABLES
-        ============================== */
+    /* DROPDOWNS */
     .dropdown-content {
         display: none;
         position: absolute;
@@ -69,11 +53,9 @@
         z-index: 1000;
         border-radius: 0.5rem;
         margin-top: 0.5rem;
-        /* Contenedor del menú desplegable */
     }
     .dropdown.active .dropdown-content {
         display: block;
-        /* Mostrar el dropdown cuando tenga clase activa */
     }
     .dropdown-content a {
         color: #374151;
@@ -82,16 +64,10 @@
         display: block;
         border-bottom: 1px solid #f3f4f6;
         transition: background-color 0.2s;
-        /* Links dentro del dropdown */
     }
     .dropdown-content a:hover {
         background-color: #FFDAB9;
         color: #000;
-        /* Hover para mejorar visibilidad */
-    }
-    .dropdown-content a:last-child {
-        border-bottom: none;
-        /* Último link sin borde inferior */
     }
 
   /* Tabla compacta */
@@ -102,8 +78,8 @@
   .compact-table th {
     @apply whitespace-nowrap;
   }
-  .compact-table .text-truncate {
-    @apply max-w-[120px] overflow-hidden whitespace-nowrap text-ellipsis;
+  .sortable {
+    @apply flex items-center cursor-pointer select-none;
   }
 </style>
 
@@ -115,20 +91,18 @@
             <div class="flex justify-between items-center py-4">
                 <div class="flex items-center space-x-3">
                     <span class="text-3xl">🏢 </span>
-                    <h1 class="text-xl font-bold">Administrador</h1>
+                    <h1 class="text-xl font-bold uppercase tracking-widest">Administrador</h1>
                 </div>
 
                 <nav class="hidden md:flex items-center space-x-6">
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Titulares</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/titulares">Titulares Gestión</a>
-                            <a href="/admin/pago_tit">Titulares Pagos</a>
+                            <a href="/admin/titulares">Gestión de Titulares</a>
+                            <a href="/admin/pago_tit">Pagos a Titulares</a>
                         </div>
                     </div>
 
@@ -138,372 +112,229 @@
                             <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/">Albaranes Inicio</a> 
-                            <a href="/admin/nuevo_albaran">Albaranes Crear</a>
+                            <a href="/admin/">Listado Principal</a> 
+                            <a href="/admin/nuevo_albaran">Crear Nuevo</a>
                         </div>
                     </div>
 
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Empresas</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/empresas">Empresas Gestión</a>
-                            <a href="/admin/pago_emp">Empresas Pagos</a>
+                            <a href="/admin/empresas">Gestión de Empresas</a>
+                            <a href="/admin/pago_emp">Cobros a Empresas</a>
                         </div>
                     </div>
 
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
                             <span>Sistema</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
+                            <i data-lucide="settings" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/usuarios">Usuarios Gestión</a>
-                            <a href="/admin/conductor">Conductores Gestión</a>
-                            <a href="/admin/backup">Backup</a>
+                            <a href="/admin/usuarios">Usuarios</a>
+                            <a href="/admin/conductor">Conductores</a>
+                            <a href="/admin/backup">Copias de Seguridad</a>
                         </div>
                     </div>
 
-                    <div class="flex space-x-3 mt-4 sm:mt-0">
-                        <button title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleGeneratePDF()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                    <div class="flex space-x-3 border-l border-orange-400 pl-4">
+                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-full shadow-md transition active:scale-95">
+                            <i data-lucide="printer" class="h-5 w-5"></i>
                         </button>
-                        <button title="Exportar a Word" class="bg-indigo-500 text-white hover:bg-indigo-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleAction('Exportar Word', 'Función no implementada')">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+                        <button onclick="handleGenerateXLSX()" title="Exportar Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 p-2 rounded-full shadow-md transition active:scale-95">
+                            <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
                         </button>
-                        <button title="Exportar a Excel" class="bg-emerald-500 text-white hover:bg-emerald-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95" onclick="handleGenerateXLSX()">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M11 15h6"/><path d="M14 12v6"/><path d="M8 12h2"/><path d="M8 15h2"/><path d="M8 18h2"/></svg>
-                        </button>
-                        <button onclick="handleLogout()" 
-                            title="Salir y cerrar sesión"
-                            class="bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full shadow-md transition duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                        <button onclick="handleLogout()" title="Cerrar Sesión" class="bg-red-500 text-white hover:bg-red-600 p-2 rounded-full shadow-md transition active:scale-95">
+                            <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
                     </div>
-                    
                 </nav>
 
                 <button class="md:hidden p-2 rounded-lg hover:bg-orange-600 transition duration-200" onclick="toggleMobileMenu()">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="3" y1="12" x2="21" y2="12"></line>
-                        <line x1="3" y1="6" x2="21" y2="6"></line>
-                        <line x1="3" y1="18" x2="21" y2="18"></line>
-                    </svg>
+                    <i data-lucide="menu" class="h-6 w-6"></i>
                 </button>
             </div>
-
-            <div id="mobileMenu" class="md:hidden hidden py-4 border-t border-orange-300">
-                <div class="space-y-2">
-                    <a href="/admin/titulares" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Titulares Gestión</a>
-                    <a href="/admin/pago_tit" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Titulares Pagos</a>
-                    <a href="/admin/nuevo_albaran" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Crear</a>
-                    <a href="/admin/albaran" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Modificar</a>
-                    <a href="/busqueda" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Albaranes Ver</a>
-                    <a href="/admin/empresas" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Empresas Gestión</a>
-                    <a href="/admin/pago_emp" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Empresas Pagos</a>
-                    <a href="/admin/usuarios" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Usuarios Gestión</a>
-                    <a href="/admin/conductor" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Conductores</a>
-                    <a href="/admin/backup" class="block px-4 py-2 hover:bg-orange-600 rounded-lg transition duration-200">Backup</a>
-                    <a href="/login" class="block px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg transition duration-200 mt-4">Salir</a>
-                </div>
-            </div>
-
-                    
-
-
-    </header>
-
-    <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="showModal(false)">
-        <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
-            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure">Acción Realizada</h3>
-            <p id="modalBody" class="text-gray-700 mb-4"></p>
-            <button onclick="showModal(false)" class="w-full bg-primary-link text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
         </div>
-    </div>
+    </header>
 
     <main class="p-4 sm:p-6 lg:p-8">
         <div class="max-w-[1800px] mx-auto">
 
-            <div class="card mb-4">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-gray-200 pb-4">
-                    <h1 class="text-2xl font-bold text-black-pure mb-3 sm:mb-0 flex items-center">
+            <div class="card mb-6">
+                <div class="flex flex-col sm:flex-row justify-between items-center border-b border-gray-200 pb-4">
+                    <h1 class="text-2xl font-bold text-black-pure flex items-center">
                         <span class="text-3xl mr-3">📋</span>
-                        <span class="text-xl">ALBARANES PRINCIPAL</span>
+                        <span class="text-xl uppercase tracking-tighter">Panel de Control: Albaranes</span>
                     </h1>
-
-
                 </div>
-                
-               
             </div>
 
-            <div class="card mb-8 filter-section">
-            <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center">
-                <span class="mr-2">🔍</span>
-                Filtros de Búsqueda Avanzada
-                <span class="ml-auto text-sm font-normal text-gray-500">
-                    <span id="activeFiltersCount">0</span> filtro(s) activo(s)
-                </span>
-            </h2>
-            
-            <form id="searchForm" onsubmit="handleSearch(event)">
+            <div class="card mb-8">
+                <h2 class="text-lg font-bold text-black-pure mb-4 flex items-center">
+                    <i data-lucide="search" class="mr-2 h-5 w-5 text-primary-link"></i>
+                    Búsqueda Avanzada
+                    <span class="ml-auto text-xs font-normal text-gray-400 uppercase">
+                        Filtros activos: <span id="activeFiltersCount" class="font-bold text-primary-link">0</span>
+                    </span>
+                </h2>
                 
-                <div class="flex flex-wrap gap-3 mb-4 items-center">
-                    <span class="font-medium text-gray-700">Modo de filtro:</span>
-                    
-                    <button type="button" 
-                            id="btn-mode-campos"
-                            onclick="UI.setSearchModeManual('campos')"
-                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                bg-blue-600 text-white hover:bg-blue-700 active:scale-95">
-                        <span class="mr-2">📝</span> Búsqueda por Campos
-                    </button>
-
-                    <button type="button" 
-                            id="btn-mode-palabra"
-                            onclick="UI.setSearchModeManual('palabra')"
-                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                bg-primary-pastel text-black-pure hover:bg-orange-300 active:scale-95">
-                        <span class="mr-2">💬</span> Búsqueda por Palabra
-                    </button>
-
-                    <button type="button" 
-                            id="btn-limpiar"
-                            onclick="handleClearAllFilters()" 
-                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                bg-red-600 text-white hover:bg-red-700 active:scale-95 ml-2">
-                        Limpiar
-                    </button>
-
-                </div>
-
-                <hr class="mb-6 border-gray-100">
-
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
-
-                    <div>
-                        <label for="licenciaSelect" class="block text-sm font-medium text-gray-600 mb-1">
-                            <i data-lucide="id-card" class="h-3 w-3 mr-1"></i>
-                            LICENCIA
-                        </label>
-                        <select id="licenciaSelect" name="licencia_ref" class="input-field appearance-none text-xs">
-                            <option value="">Cargando licencias...</option>
-                        </select>
+                <form id="searchForm" onsubmit="handleSearch(event)">
+                    <div class="flex flex-wrap gap-3 mb-6 items-center">
+                        <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg transition duration-200 shadow-md bg-blue-600 text-white font-bold text-[10px] uppercase tracking-wider">📝 Por Campos</button>
+                        <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg transition duration-200 shadow-md bg-primary-pastel text-black-pure font-bold text-[10px] uppercase tracking-wider">💬 Por Palabra</button>
+                        <button type="button" onclick="handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-red-600 text-white text-[10px] font-bold uppercase hover:bg-red-700 ml-auto transition shadow-sm">Limpiar Todo</button>
                     </div>
 
-                    <div>
-                        <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">
-                            Empresa *
-                        </label>
-                        <select id="empresa" name="empresa_ref" required class="input-field appearance-none">
-                            <option value="" disabled selected>Cargando empresas...</option>
-                        </select>
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Licencia</label>
+                            <select id="licenciaSelect" name="licencia_ref" class="input-field text-xs h-10"></select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Empresa</label>
+                            <select id="empresa" name="empresa_ref" class="input-field text-xs h-10"></select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Estado</label>
+                            <select id="state" name="state" class="input-field text-xs h-10">
+                                <option value="">🎯 Todos los estados</option>
+                                <option value="creado">🆕 Creado</option>
+                                <option value="enviado">📧 Enviado</option>
+                                <option value="pagado">💰 Pagado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Referencia</label>
+                            <input type="text" id="referencia" name="referencia" placeholder="Buscar ref..." class="input-field text-xs h-10">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Desde</label>
+                            <input type="date" id="fecha_desde" name="fecha_desde" class="input-field text-xs h-10">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Hasta</label>
+                            <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field text-xs h-10">
+                        </div>
                     </div>
 
-                    <div>
-                        <label for="state" class="filter-label">
-                            <i data-lucide="activity" class="h-3 w-3 mr-1"></i>
-                            Estado
-                        </label>
-                        <select id="state" name="state" class="input-field appearance-none text-xs">
-                            <option value="">🎯 Todos los estados</option>
-                            <option value="creado">🆕 Creado</option>
-                            <option value="enviado">📧 Enviado</option>
-                            <option value="pagado">💰 Pagado</option>
-                            <option value="finalizado">✅ Finalizado</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="referencia" class="filter-label">
-                            <i data-lucide="hash" class="h-3 w-3 mr-1"></i>
-                            Referencia
-                        </label>
-                        <input type="text" 
-                               id="referencia" 
-                               name="referencia" 
-                               placeholder="Ref..." 
-                               class="input-field text-xs"
-                               title="Buscar por número de referencia">
-                    </div>
-
-                    <div>
-                        <label for="fecha_desde" class="filter-label">
-                            <i data-lucide="calendar" class="h-3 w-3 mr-1"></i>
-                            Fecha (Desde)
-                        </label>
-                        <input type="date" 
-                               id="fecha_desde" 
-                               name="fecha_desde" 
-                               class="input-field text-xs">
-                    </div>
-
-                    <div>
-                        <label for="fecha_hasta" class="filter-label">
-                            <i data-lucide="calendar" class="h-3 w-3 mr-1"></i>
-                            Fecha (Hasta)
-                        </label>
-                        <input type="date" 
-                               id="fecha_hasta" 
-                               name="fecha_hasta" 
-                               class="input-field text-xs">
-                    </div>
-                </div>
-
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        
-                        <div class="flex-1 max-w-full">
-                            <label for="palabra" class="filter-label">
-                                <i data-lucide="file-text" class="h-3 w-3 mr-1"></i>
-                                🔍 Buscar por palabras
-                            </label>
-                            <div class="flex gap-2">
-                                <input type="text" 
-                                       id="palabra" 
-                                       name="palabra" 
-                                       placeholder="Ej: RACE Madrid cliente123..." 
-                                       class="input-field flex-1 search-highlight"
-                                       title="Busca en: nº albarán, referencia, conductor, DNI, matrícula, cliente, origen, destino, observaciones...">
-                                <button type="button" 
-                                         onclick="document.getElementById('palabra').value = '';"
-                                         class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
-                                         title="Limpiar búsqueda">
-                                    <i data-lucide="x" class="h-4 w-4"></i>
-                                </button>
+                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                        <div class="flex gap-2">
+                            <div class="relative flex-1">
+                                <i data-lucide="search" class="absolute left-3 top-2.5 h-4 w-4 text-gray-400"></i>
+                                <input type="text" id="palabra" name="palabra" placeholder="Escriba cualquier dato (nombre, matrícula, DNI...)" class="input-field pl-10 py-2.5">
                             </div>
-                            
-                            <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
-                                <div class="font-medium text-gray-700 flex items-center">
-                                    Tipo de búsqueda de texto:
-                                </div>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link" checked>
-                                    <span class="ml-2 font-medium">Frase Exacta</span>
-                                </label>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                    <span class="ml-2 font-medium">Todas las palabras</span>
-                                </label>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                    <span class="ml-2 font-medium">Cualquier palabra</span>
-                                </label>
+                            <button type="submit" class="bg-primary-link text-white px-10 py-2.5 rounded-lg font-black text-xs uppercase shadow-md hover:bg-orange-600 transition active:scale-95">Buscar</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-black-pure flex items-center">
+                        <span class="mr-2">📊</span> Resultados 
+                        <span id="resultsCount" class="ml-3 text-[11px] font-black bg-primary-link text-white px-3 py-1 rounded-full uppercase shadow-sm">0</span>
+                    </h2>
+
+                    <div class="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-100 shadow-inner">
+                        <div class="flex items-center gap-2 px-2 border-r border-gray-200">
+                            <span class="text-[10px] font-black text-gray-400 uppercase">Ver:</span>
+                            <select id="recordsPerPage" class="bg-transparent text-xs font-bold text-gray-700 focus:outline-none cursor-pointer h-8">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="todos">Todos</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button id="prevPageBtn" class="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition disabled:opacity-20"><i data-lucide="chevron-left" class="h-4 w-4"></i></button>
+                            <div class="bg-white px-4 py-1 rounded border shadow-sm min-w-[70px] text-center">
+                                <span id="pageInfo" class="text-xs font-black text-primary-link">1 / 1</span>
                             </div>
-                            <p class="text-xs text-gray-500 mt-1">
-                                📝 Busca en múltiples campos: referencia, cliente, conductor, observaciones, etc.
-                            </p>
+                            <button id="nextPageBtn" class="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition disabled:opacity-20"><i data-lucide="chevron-right" class="h-4 w-4"></i></button>
                         </div>
                     </div>
                 </div>
-            </form>
-        </div>
 
-        <div class="card">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-                <h2 class="text-xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
-                    <span class="mr-2">📊</span>
-                    Resultados de Búsqueda
-                    <span id="resultsCount" class="ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full">
-                        Cargando...
-                    </span>
-                </h2>
-
-                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <div class="flex items-center space-x-2 text-sm text-gray-600">
-                        <span>Registros por página:</span>
-                        <select id="recordsPerPage" class="input-field w-auto px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500">
-                            </select>
-                        <span id="totalLabel" class="text-xs text-gray-500 ml-2"></span>
-                    </div>
-                    
-                    <div class="flex items-center space-x-2">
-                        <button id="prevPageBtn" 
-                                class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 
-                                title="Página anterior">
-                            <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                        </button>
-                        <span id="pageInfo" class="text-sm text-gray-600 font-medium px-3 py-1 bg-gray-100 rounded">
-                            Página 1 de 1
-                        </span>
-                        <button id="nextPageBtn" 
-                                class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-lg transition duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" 
-                                title="Página siguiente">
-                            <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-
-            <div class="shadow-lg rounded-xl border border-gray-100 compact-table">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-primary-link text-white">
-                        <tr>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider rounded-tl-xl">
-                                <div class="sortable" onclick="sortTable('numero_albaran')">Nº Albarán<span class="sort-icon" id="sort-numero_albaran"></span></div>
-                            </th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable" onclick="sortTable('fecha')">Fecha<span class="sort-icon" id="sort-fecha"></span></div>
-                            </th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Licencia</th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Empresa</th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">
-                                <div class="sortable" onclick="sortTable('referencia')">Ref.<span class="sort-icon" id="sort-referencia"></span></div>
-                            </th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Factura</th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Env.</th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Cob.</th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Pag.</th>
-                            <th scope="col" class="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider">Observaciones</th>
-                            <th scope="col" class="px-3 py-2 text-center text-xs font-bold uppercase tracking-wider rounded-tr-xl">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
+                <div class="shadow-lg rounded-xl border border-gray-100 compact-table overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-primary-link text-white text-[10px] uppercase font-black tracking-widest">
+                            <tr>
+                                <th scope="col" class="px-3 py-4 text-left">Nº Albarán</th>
+                                <th scope="col" class="px-3 py-4 text-left">Fecha</th>
+                                <th scope="col" class="px-3 py-4 text-left">Licencia</th>
+                                <th scope="col" class="px-3 py-4 text-left">Empresa</th>
+                                <th scope="col" class="px-3 py-4 text-left">Ref.</th>
+                                <th scope="col" class="px-3 py-4 text-left">Factura</th>
+                                <th scope="col" class="px-3 py-4 text-right">Importe</th>
+                                <th scope="col" class="px-3 py-4 text-center">Env.</th>
+                                <th scope="col" class="px-3 py-4 text-center">Cob.</th>
+                                <th scope="col" class="px-3 py-4 text-center">Pag.</th>
+                                <th scope="col" class="px-3 py-4 text-left">Observaciones</th>
+                                <th scope="col" class="px-3 py-4 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="12" class="text-center py-20 italic text-gray-400">Iniciando búsqueda maestra...</td></tr>
                         </tbody>
-                </table>
+                        <tfoot id="tableFooter" class="bg-gray-100 border-t-2 border-gray-300 hidden">
+                            <tr class="font-black text-gray-900">
+                                <td colspan="6" class="px-3 py-4 text-right uppercase text-[10px] text-gray-500">Total Importe Vista:</td>
+                                <td id="totalImporte" class="px-3 py-4 text-right text-primary-link text-sm font-black bg-orange-50 border-x border-gray-200 italic shadow-inner">€0.00</td>
+                                <td colspan="5" class="bg-gray-100"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div id="statusMessage" class="hidden mt-4 status-message"></div>
+                <div id="totalLabel" class="text-[10px] text-gray-400 mt-2 text-right uppercase font-bold tracking-tighter"></div>
             </div>
-            <div id="statusMessage" class="hidden status-message text-sm" role="alert"></div>
         </div>
     </main>
 
+    <div id="actionModal" class="fixed inset-0 z-50 bg-black/60 hidden flex items-center justify-center p-4" onclick="showModal(false)">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-sm w-full transform transition-all scale-95" onclick="event.stopPropagation()">
+            <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="info" class="text-primary-link h-8 w-8"></i>
+            </div>
+            <h3 id="modalTitle" class="text-xl font-black mb-2 text-center text-black-pure tracking-tighter">Acción Realizada</h3>
+            <p id="modalBody" class="text-gray-500 mb-6 text-center text-sm leading-relaxed"></p>
+            <button onclick="showModal(false)" class="w-full bg-primary-link text-white font-black py-3 rounded-xl hover:bg-orange-600 transition active:scale-95 shadow-lg uppercase text-xs tracking-widest">Aceptar</button>
+        </div>
+    </div>
+
     <script src="/js/admin.js"></script>
     <script>
-        /**
-         * Funciones de interfaz que dependen del layout (Header/Menús)
-         */
         function toggleDropdown(button) {
-            document.querySelectorAll('.dropdown').forEach(dropdown => {
-                if (dropdown !== button.parentElement) dropdown.classList.remove('active');
+            const dropdown = button.parentElement;
+            document.querySelectorAll('.dropdown').forEach(d => {
+                if (d !== dropdown) d.classList.remove('active');
             });
-            button.parentElement.classList.toggle('active');
+            dropdown.classList.toggle('active');
         }
 
         function toggleMobileMenu() {
-            const mobileMenu = document.getElementById('mobileMenu');
-            mobileMenu.classList.toggle('hidden');
+            const menu = document.getElementById('mobileMenu');
+            menu.classList.toggle('hidden');
         }
 
-        document.addEventListener('click', function(event) {
-            if (!event.target.closest('.dropdown')) {
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.dropdown')) {
                 document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
             }
         });
 
         function showModal(show, title = '', body = '') {
             const modal = document.getElementById('actionModal');
-            document.getElementById('modalTitle').textContent = title;
-            document.getElementById('modalBody').textContent = body;
+            if(title) document.getElementById('modalTitle').textContent = title;
+            if(body) document.getElementById('modalBody').textContent = body;
             modal.classList.toggle('hidden', !show);
         }
 
-        // Carga inicial de iconos
         lucide.createIcons();
     </script>
 </body>
