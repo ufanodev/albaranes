@@ -1,12 +1,14 @@
 /**
  * busqueda.js - Panel de Usuario (Titular)
- * Gestión de albaranes y exportación sincronizada con el servidor Go.
- * Mapeo de campos: ID, Nº Albarán, Fecha, Empresa, Conductor, Origen, Destino, Total.
+ * Gestión de albaranes, exportación por servidor y sumatorio de importes.
+ * Actualizado: Paginación y conteo dinámico sincronizado con el selector de registros.
  */
 
 const APP = {
     elements: {
         resultsBody: document.getElementById('albaranResults'),
+        tableFooter: document.getElementById('tableFooter'),
+        totalImporte: document.getElementById('totalImporte'),
         statusMessage: document.getElementById('statusMessage'),
         numLicenciaHeader: document.getElementById('num_licencia_header'),
         licenciaDisplay: document.getElementById('licencia_display'),
@@ -63,10 +65,13 @@ const UI = {
     },
 
     updatePageInfo() {
+        // Recalcular páginas totales basándose en el total que devolvió el servidor
         APP.state.totalPages = Math.ceil(APP.state.totalRecords / APP.state.pageSize) || 1;
+        
         if (APP.elements.pageInfo) {
             APP.elements.pageInfo.textContent = `${APP.state.currentPage} / ${APP.state.totalPages}`;
         }
+        
         const countDisplay = document.getElementById('resultsCount');
         if (countDisplay) {
             countDisplay.textContent = `${APP.state.totalRecords} REGISTROS`;
@@ -100,7 +105,7 @@ const UI = {
 };
 
 // =================================================================================
-// 📡 API SERVICES (JWT & Export)
+// 📡 API SERVICES
 // =================================================================================
 const API = {
     getHeaders() {
@@ -163,11 +168,16 @@ const API = {
             const url = `/api/v1/albaranes/search-user?${params.toString()}`;
             const response = await fetch(url, { headers: this.getHeaders() });
             const res = await response.json();
+            
+            // Actualización del estado con datos del servidor
             APP.state.filteredAlbaranes = res.data || [];
             APP.state.totalRecords = res.total || 0;
             
             this.applyLocalSort();
             DOM.renderResults();
+            
+            // Actualización dinámica de UI tras recibir datos
+            UI.updatePageInfo();
         } catch (e) { 
             DOM.showNoResults(); 
         }
@@ -205,15 +215,26 @@ const API = {
 // 🖼️ DOM RENDERING
 // =================================================================================
 const DOM = {
-    showLoading() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Cargando datos...</td></tr>'; },
-    showNoResults() { APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No se han encontrado resultados.</td></tr>'; },
+    showLoading() { 
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Cargando datos...</td></tr>'; 
+        if(APP.elements.tableFooter) APP.elements.tableFooter.classList.add('hidden');
+    },
+    showNoResults() { 
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No se han encontrado resultados.</td></tr>'; 
+        if(APP.elements.tableFooter) APP.elements.tableFooter.classList.add('hidden');
+    },
     
     renderResults() {
         if (!APP.elements.resultsBody) return;
         APP.elements.resultsBody.innerHTML = '';
         if (APP.state.filteredAlbaranes.length === 0) { this.showNoResults(); return; }
 
+        let sumatorio = 0;
+
         APP.state.filteredAlbaranes.forEach(a => {
+            const importe = parseFloat(a.importe_total || 0);
+            sumatorio += importe;
+
             const nombreEmpresa = a.EmpresaData?.nombre || a.empresa_nombre || `ID: ${a.empresa_ref}`;
             
             const tr = document.createElement('tr');
@@ -224,7 +245,7 @@ const DOM = {
                 <td class="px-4 py-4 font-medium text-gray-700">${nombreEmpresa}</td>
                 <td class="px-4 py-4 text-gray-400 italic text-xs">${a.referencia || '-'}</td>
                 <td class="px-4 py-4 text-gray-600">${a.asalariado || '-'}</td>
-                <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${parseFloat(a.importe_total || 0).toFixed(2)}</td>
+                <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${importe.toFixed(2)}</td>
                 <td class="px-4 py-4 text-center">${this.getBadge(a)}</td>
                 <td class="px-4 py-4 text-center">
                     <div class="flex justify-center space-x-2">
@@ -234,6 +255,13 @@ const DOM = {
                 </td>`;
             APP.elements.resultsBody.appendChild(tr);
         });
+
+        // Actualizar Footer con total formateado (basado en lo que se ve en la página)
+        if(APP.elements.totalImporte) {
+            APP.elements.totalImporte.textContent = `€${sumatorio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            APP.elements.tableFooter.classList.remove('hidden');
+        }
+
         UI.updatePageInfo();
         UI.updateSortIcons();
     },
@@ -246,7 +274,7 @@ const DOM = {
 };
 
 // =================================================================================
-// 🚀 ORDENACIÓN Y EXPORTACIÓN POR SERVIDOR
+// 🚀 EXPORTACIÓN Y EVENTOS
 // =================================================================================
 
 window.sortTable = (key) => {
@@ -260,14 +288,8 @@ window.sortTable = (key) => {
     DOM.renderResults();
 };
 
-/**
- * handleGeneratePDF
- * Envía mapeo exacto de campos al servidor para PDF.
- * Importes como números limpios.
- */
 window.handleGeneratePDF = async () => {
     if (APP.state.filteredAlbaranes.length === 0) return;
-    
     const payload = {
         reportName: `ALBARANES_LICENCIA_${APP.state.userLicenciaNumero}`,
         data: APP.state.filteredAlbaranes.map(a => ({
@@ -278,10 +300,9 @@ window.handleGeneratePDF = async () => {
             "CONDUCTOR": a.asalariado || 'TITULAR',
             "ORIGEN": a.origen || '-',
             "DESTINO": a.destino || '-',
-            "TOTAL": parseFloat(a.importe_total || 0).toFixed(2) // Solo número
+            "TOTAL": parseFloat(a.importe_total || 0).toFixed(2)
         }))
     };
-
     try {
         const res = await fetch('/api/v1/albaranes/export/pdf', {
             method: 'POST',
@@ -293,14 +314,8 @@ window.handleGeneratePDF = async () => {
     } catch (e) { console.error("Error PDF:", e); }
 };
 
-/**
- * handleGenerateXLSX
- * Envía mapeo exacto de campos al servidor para Excel.
- * Importes como Float para permitir sumas.
- */
 window.handleGenerateXLSX = async () => {
     if (APP.state.filteredAlbaranes.length === 0) return;
-
     const payload = {
         reportName: `EXCEL_LICENCIA_${APP.state.userLicenciaNumero}`,
         data: APP.state.filteredAlbaranes.map(a => ({
@@ -311,10 +326,9 @@ window.handleGenerateXLSX = async () => {
             "CONDUCTOR": a.asalariado || 'TITULAR',
             "ORIGEN": a.origen || '-',
             "DESTINO": a.destino || '-',
-            "TOTAL": parseFloat(a.importe_total || 0) // Número puro
+            "TOTAL": parseFloat(a.importe_total || 0)
         }))
     };
-
     try {
         const res = await fetch('/api/v1/albaranes/export/xlsx', {
             method: 'POST',
@@ -325,17 +339,11 @@ window.handleGenerateXLSX = async () => {
         if (result.success && result.downloadURL) {
             const link = document.createElement('a');
             link.href = result.downloadURL;
-            link.download = "";
-            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
         }
     } catch (e) { console.error("Error Excel:", e); }
 };
 
-// =================================================================================
-// 🚀 INICIALIZACIÓN Y EVENTOS
-// =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     if (await API.fetchMyLicencia()) {
         await API.loadEmpresas();
@@ -345,14 +353,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById(id)?.addEventListener('change', () => { APP.state.currentPage = 1; API.searchAlbaranes(); });
         });
 
+        // Listener dinámico para el cambio de tamaño de página
         APP.elements.recordsSelect.onchange = (e) => {
-            APP.state.pageSize = e.target.value === 'todos' ? 9999 : parseInt(e.target.value);
-            APP.state.currentPage = 1; API.searchAlbaranes();
+            const val = e.target.value;
+            APP.state.pageSize = val === 'todos' ? 999999 : parseInt(val);
+            APP.state.currentPage = 1; // Reset a primera página
+            API.searchAlbaranes();
         };
 
         APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
         APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
-
+        
         API.searchAlbaranes();
     }
 });

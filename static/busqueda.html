@@ -186,11 +186,19 @@
                     <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
                         <tr><td colspan="8" class="text-center py-20 text-gray-400 italic">Cargando datos...</td></tr>
                     </tbody>
+                    <tfoot id="tableFooter" class="bg-gray-50 border-t-2 border-gray-200 hidden">
+                        <tr class="font-black text-gray-900">
+                            <td colspan="5" class="px-4 py-4 text-right uppercase tracking-tighter text-[10px] text-gray-500">Total acumulado en vista:</td>
+                            <td id="totalImporte" class="px-4 py-4 text-right text-primary-link text-base border-l border-gray-200 bg-orange-50 font-bold">€0.00</td>
+                            <td colspan="2" class="bg-gray-50"></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
             
             <div id="statusMessage" class="hidden mt-4 status-message"></div>
-            <div id="activeFiltersCount" class="hidden"></div> </div>
+            <div id="activeFiltersCount" class="hidden"></div> 
+        </div>
     </div>
 
     <script>
@@ -199,9 +207,11 @@
         });
         function handleActionModal(show, title = '', body = '') {
             const modal = document.getElementById('actionModal');
-            document.getElementById('modalTitle').textContent = title;
-            document.getElementById('modalBody').textContent = body;
-            modal.classList.toggle('hidden', !show);
+            const titleEl = document.getElementById('modalTitle');
+            const bodyEl = document.getElementById('modalBody');
+            if(titleEl) titleEl.textContent = title;
+            if(bodyEl) bodyEl.textContent = body;
+            if(modal) modal.classList.toggle('hidden', !show);
         }
     </script>
 </body>
