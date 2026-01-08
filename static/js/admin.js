@@ -1,6 +1,7 @@
 /**
  * admin.js - Gestión Maestra de Albaranes (Panel de Administrador)
  * Versión: FINAL consolidada con sumatorio de importes y 12 columnas.
+ * Incluye acciones: VER, EDITAR, COPIAR y BORRAR.
  */
 
 const APP = {
@@ -99,7 +100,6 @@ const API = {
         try {
             const r = await fetch('/api/v1/licencias', { headers: this.getHeaders() });
             const data = await r.json();
-            // GORM suele devolver el array directamente o dentro de un campo 'data'
             const list = Array.isArray(data) ? data : (data.data || []);
             
             if (APP.elements.licenciaSelect) {
@@ -129,7 +129,6 @@ const API = {
         formData.forEach((val, key) => { if(val) params.append(key, val); });
         if (APP.elements.palabraInput?.value) params.append('palabra', APP.elements.palabraInput.value);
         
-        // El administrador suele buscar en todos los registros
         params.append('pageSize', '10000'); 
 
         try {
@@ -171,14 +170,12 @@ const DOM = {
             const importe = parseFloat(a.importe_total || 0);
             sumatorioVista += importe;
 
-            // Lógica robusta para Licencia
             const txtLicencia = a.LicenciaData?.licencia || a.licencia || (a.licencia_ref ? `Ref: ${a.licencia_ref}` : 'N/A');
             const txtEmpresa = a.EmpresaData?.nombre || a.empresa_nombre || 'N/A';
 
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-[11px]';
             
-            // 📝 Construcción de 12 celdas para coincidir con el thead
             tr.innerHTML = `
                 <td class="px-3 py-3 font-bold text-gray-900">${a.numero_albaran || 'N/A'}</td>
                 <td class="px-3 py-3 text-gray-500">${UI.formatDate(a.fecha)}</td>
@@ -190,18 +187,18 @@ const DOM = {
                 <td class="px-3 py-3 text-center">${a.enviado ? '✅' : '❌'}</td>
                 <td class="px-3 py-3 text-center">${a.cobrado ? '✅' : '❌'}</td>
                 <td class="px-3 py-3 text-center">${a.pagado ? '✅' : '❌'}</td>
-                <td class="px-3 py-3 text-gray-500 truncate max-w-[120px]" title="${a.observaciones_admin || ''}">${a.observaciones_admin || '-'}</td>
+                <td class="px-3 py-3 text-gray-500 truncate max-w-[120px]" title="${a.observaciones || ''}">${a.observaciones || '-'}</td>
                 <td class="px-3 py-3 text-center">
                     <div class="flex justify-center gap-1">
-                        <button onclick="window.location.href='/admin/albaranes/view/${a.id}'" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
-                        <button onclick="window.location.href='/admin/albaranes/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                        <button onclick="handleDeleteAction(${a.id})" class="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="window.location.href='/admin/albaranes/view/${a.id}'" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition" title="Ver"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="window.location.href='/admin/albaranes/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition" title="Editar"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="window.location.href='/admin/albaranes/copiar/${a.id}'" class="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-md transition" title="Copiar"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="handleDeleteAction(${a.id})" class="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition" title="Borrar"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                     </div>
                 </td>`;
             resultsBody.appendChild(tr);
         });
 
-        // 💰 Actualizar Footer (Sumatorio de la página actual)
         if (totalImporte) {
             totalImporte.textContent = `€${sumatorioVista.toLocaleString('es-ES', { minimumFractionDigits: 2 })}`;
             tableFooter?.classList.remove('hidden');
@@ -244,10 +241,8 @@ window.handleLogout = () => {
 // 🚀 INITIALIZATION
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Cargar datos maestros
     await Promise.all([API.loadLicencias(), API.loadEmpresas()]);
 
-    // 2. Configurar select de registros por página
     if (APP.elements.recordsSelect) {
         APP.elements.recordsSelect.onchange = (e) => {
             const val = e.target.value;
@@ -257,16 +252,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
     
-    // 3. Navegación de páginas
     APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
     APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
 
-    // 4. Listeners para filtros rápidos
     [APP.elements.licenciaSelect, APP.elements.empresaSelect, APP.elements.stateSelect].forEach(el => {
         if(el) el.onchange = () => API.searchAlbaranes();
     });
 
-    // 5. Búsqueda por palabra (debounce)
     let timeout;
     if (APP.elements.palabraInput) {
         APP.elements.palabraInput.oninput = () => {
@@ -275,6 +267,5 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    // 6. Carga inicial de datos
     API.searchAlbaranes();
 });
