@@ -1,26 +1,27 @@
 /**
- * albaran_update.js - Panel Titular
- * Gestión de edición con blindaje contra errores de API y seguridad JWT.
+ * admin_albaran_update.js - PANEL ADMINISTRADOR
+ * Gestión de edición con carga total de diccionarios y control de facturación.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Obtener ID del albarán desde la URL
+    // 1. Obtener ID desde la URL (/admin/albaranes/update/123)
     const urlParts = window.location.pathname.split('/');
     const albaranId = urlParts[urlParts.length - 1];
 
     if (!albaranId || isNaN(albaranId)) {
-        showError("ID de albarán no detectado.");
+        showStatus("ID de albarán no válido en la URL", "error");
         return;
     }
 
-    console.log(`🚀 [UPDATE] Iniciando edición para ID: ${albaranId}`);
+    console.log(`🚀 [ADMIN-UPDATE] Cargando Albarán ID: ${albaranId}`);
 
     try {
-        // 2. CARGA DE DICCIONARIOS (Con blindaje individual)
-        // Usamos Promise.allSettled para que si conductores da 404, empresas sí cargue.
+        // 2. CARGA DE DICCIONARIOS MAESTROS (Simultáneo)
+        // Nota: Cargamos conductores globalmente para evitar errores de licencia_id
         await Promise.allSettled([
-            loadSelectData('/api/v1/empresas', 'empresa', 'nombre'),
-            loadSelectData('/api/v1/conductores/mis-conductores', 'asalariado_select', 'nombre', true)
+            loadSelectData('/api/v1/licencias', 'licencia_ref', 'licencia'),
+            loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre'),
+            loadSelectData('/api/v1/conductores/licencia/all', 'asalariado_select', 'nombre', true)
         ]);
 
         // 3. RECUPERAR DATOS DEL ALBARÁN
@@ -28,33 +29,64 @@ document.addEventListener('DOMContentLoaded', async () => {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
-        // Validar si la respuesta es JSON antes de procesar (Evita SyntaxError)
-        const contentType = response.headers.get("content-type");
-        if (!response.ok || !contentType || !contentType.includes("application/json")) {
-            throw new Error("El servidor no devolvió un JSON válido para el albarán.");
-        }
+        if (!response.ok) throw new Error("No se pudo obtener el registro del servidor.");
 
         const result = await response.json();
+        const data = result.data;
 
-        // 4. POBLAR FORMULARIO (Usa albaran_cargar.js)
-        if (typeof populateForm === 'function') {
-            populateForm(result.data);
-            
-            // Sincronización de campos específicos de la vista Update
-            if(document.getElementById('albaran_id')) document.getElementById('albaran_id').value = result.data.id;
-            if(document.getElementById('header_num')) document.getElementById('header_num').textContent = `#${result.data.numero_albaran}`;
-        } else {
-            throw new Error("Motor de carga (albaran_cargar.js) no encontrado.");
+        // 4. POBLAR FORMULARIO
+        // Usamos la lógica de mapeo manual para asegurar que todos los campos (incluidos admin) se llenen
+        populateAdminForm(data);
+
+        // UI Helpers
+        if(document.getElementById('header_num')) {
+            document.getElementById('header_num').textContent = `#${data.numero_albaran}`;
         }
 
     } catch (err) {
-        console.error("❌ [ERROR FLUJO]:", err.message);
-        showError("No se pudieron cargar todos los datos: " + err.message);
+        console.error("❌ [ERROR]:", err.message);
+        showStatus("Error al cargar datos: " + err.message, "error");
     }
+
+    // Inicializar utilidades
+    initCalculosKms();
+    lucide.createIcons();
 });
 
 /**
- * Carga datos para selectores con manejo de errores y Token
+ * Mapeo de datos al formulario (Lógica robusta para Admin)
+ */
+function populateAdminForm(data) {
+    const form = document.getElementById('albaranForm');
+    if (!form) return;
+
+    // Campos de texto y select
+    for (const key in data) {
+        const el = form.querySelector(`[name="${key}"]`);
+        if (el) {
+            if (el.type === 'checkbox') {
+                el.checked = !!data[key];
+            } else if (el.type === 'date') {
+                el.value = data[key] ? data[key].substring(0, 10) : '';
+            } else if (el.type === 'time') {
+                // Manejo de tiempos (asumiendo formato HH:mm:ss o ISO)
+                el.value = data[key] && data[key].includes('T') 
+                    ? data[key].split('T')[1].substring(0, 5) 
+                    : data[key] ? data[key].substring(0, 5) : '';
+            } else {
+                el.value = data[key] || '';
+            }
+        }
+    }
+
+    // Mapeo específico para campos que no coinciden exactamente con el JSON
+    if(data.id) document.getElementById('albaran_id').value = data.id;
+    if(data.numero_albaran) document.getElementById('n_albaran').value = data.numero_albaran;
+    if(data.cliente) document.getElementById('nombre_pasajero').value = data.cliente;
+}
+
+/**
+ * Carga genérica de selectores
  */
 async function loadSelectData(url, elementId, textField, useTextAsValue = false) {
     const select = document.getElementById(elementId);
@@ -64,93 +96,81 @@ async function loadSelectData(url, elementId, textField, useTextAsValue = false)
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-
-        if (!response.ok) throw new Error(`Status ${response.status}`);
-
         const json = await response.json();
         const list = json.data || json;
 
         if (Array.isArray(list)) {
-            // Preservar la opción por defecto si existe
-            const defaultOpt = select.options[0] ? select.options[0].outerHTML : '<option value="">Seleccione...</option>';
-            
-            select.innerHTML = defaultOpt + list.map(item => {
+            const currentHTML = select.innerHTML;
+            select.innerHTML = currentHTML + list.map(item => {
                 const val = useTextAsValue ? item[textField] : item.id;
                 return `<option value="${val}">${item[textField]}</option>`;
             }).join('');
         }
     } catch (e) {
-        console.warn(`⚠️ No se pudo cargar el selector ${elementId} (Ruta: ${url}). Continuando...`);
-        // No bloqueamos la ejecución, solo dejamos el select con su opción por defecto
+        console.warn(`No se cargó select ${elementId}`);
     }
 }
 
-// 5. MANEJO DEL ENVÍO (Mantiene las reglas de integridad de IDs)
-const albaranForm = document.getElementById('albaranForm');
-if (albaranForm) {
-    albaranForm.onsubmit = async (e) => {
-        e.preventDefault();
-        const albaranId = window.location.pathname.split('/').pop();
-        
-        const formData = new FormData(albaranForm);
-        const payload = Object.fromEntries(formData.entries());
+// 5. MANEJO DEL ENVÍO (PUT)
+document.getElementById('albaranForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const albaranId = document.getElementById('albaran_id').value;
+    const formData = new FormData(e.target);
+    const payload = Object.fromEntries(formData.entries());
 
-        // Checkboxes
-        ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) payload[id] = el.checked;
+    // Normalización de Booleanos (Checkboxes)
+    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos', 'cobrado', 'pagado', 'finalizado', 'festivo'];
+    bools.forEach(id => {
+        const el = e.target.querySelector(`[name="${id}"]`);
+        payload[id] = el ? el.checked : false;
+    });
+
+    // Conversión Numérica para Go/MySQL
+    const nums = ['licencia_ref', 'empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total'];
+    nums.forEach(f => payload[f] = parseFloat(payload[f]) || 0);
+
+    // REGLA 2025-12-17: El ID está en la URL, se limpia del body
+    delete payload.id;
+
+    try {
+        const res = await fetch(`/api/v1/albaranes/admin/${albaranId}`, {
+            method: 'PUT',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(payload)
         });
 
-        // Conversión numérica para Go
-        payload.empresa_ref = parseInt(payload.empresa_ref) || 0;
-        payload.num_plazas = parseInt(payload.num_plazas) || 0;
-        ['km_totales', 'importe_suplidos', 'importe_total'].forEach(f => {
-            payload[f] = parseFloat(payload[f]) || 0;
-        });
-
-        // REGLA 2025-12-17: El ID se envía en la URL, se quita del body
-        delete payload.id;
-
-        try {
-            const res = await fetch(`/api/v1/albaranes/${albaranId}`, {
-                method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || "Error al actualizar");
-            }
-
-            showStatus("✅ Albarán actualizado correctamente", "success");
-            setTimeout(() => window.location.href = '/titulares', 1500);
-
-        } catch (err) {
-            showError(err.message);
+        if (res.ok) {
+            showStatus("✅ REGISTRO MAESTRO ACTUALIZADO", "success");
+            setTimeout(() => window.location.href = '/admin/albaranes', 1500);
+        } else {
+            const errData = await res.json();
+            throw new Error(errData.error || "Error al actualizar");
         }
-    };
-}
-
-function showError(msg) {
-    const el = document.getElementById('statusMessage');
-    if (el) {
-        el.textContent = msg;
-        el.className = "mt-6 p-4 bg-red-100 text-red-700 border-2 border-red-200 rounded-xl text-center font-bold block";
-        el.classList.remove('hidden');
+    } catch (err) {
+        showStatus(err.message, "error");
     }
+};
+
+/**
+ * Utilidades UI
+ */
+function initCalculosKms() {
+    const v1 = document.querySelector('[name="km_ini"]');
+    const v2 = document.querySelector('[name="km_fin"]');
+    const tot = document.querySelector('[name="km_totales"]');
+    const c = () => { if(v1 && v2 && tot && v2.value > 0) tot.value = (v2.value - v1.value).toFixed(2); };
+    v1?.addEventListener('input', c); v2?.addEventListener('input', c);
 }
 
 function showStatus(msg, type) {
     const el = document.getElementById('statusMessage');
-    if (el) {
-        el.textContent = msg;
-        el.className = `mt-6 p-4 rounded-xl text-center font-bold block border-2 ${
-            type === 'success' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'
-        }`;
-        el.classList.remove('hidden');
-    }
+    if (!el) return;
+    el.textContent = msg;
+    el.className = `mt-8 p-5 rounded-2xl text-center font-black border-2 uppercase text-xs block ${
+        type === 'success' ? 'bg-green-100 text-green-700 border-green-500' : 'bg-red-100 text-red-700 border-red-500'
+    }`;
+    el.classList.remove('hidden');
 }
