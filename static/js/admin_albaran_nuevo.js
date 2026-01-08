@@ -33,7 +33,6 @@ async function cargarListaConductores() {
     if (!select) return;
 
     try {
-        // Llamamos a la ruta (que en el backend ahora devuelve todo)
         const res = await fetch('/api/v1/conductores/licencia/all', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -136,15 +135,18 @@ async function handleInsertMaestro(event) {
         });
 
         if (res.ok) {
-            statusMsg.className = "mt-6 p-4 rounded-xl text-center font-bold bg-green-100 text-green-700 block";
+            statusMsg.className = "mt-6 p-4 rounded-xl text-center font-bold bg-green-100 text-green-700 block border-2 border-green-500";
             statusMsg.textContent = "✅ ALBARÁN GUARDADO CON ÉXITO";
-            setTimeout(() => window.location.href = '/admin/albaranes', 1500);
+            
+            // 🔄 REDIRECCIÓN CORREGIDA AL PANEL ADMIN PRINCIPAL
+            setTimeout(() => window.location.href = '/admin/', 1500);
+            
         } else {
             const errResult = await res.json();
             throw new Error(errResult.error || "Fallo servidor");
         }
     } catch (err) {
-        statusMsg.className = "mt-6 p-4 rounded-xl text-center font-bold bg-red-100 text-red-700 block";
+        statusMsg.className = "mt-6 p-4 rounded-xl text-center font-bold bg-red-100 text-red-700 block border-2 border-red-500";
         statusMsg.textContent = `❌ ERROR: ${err.message}`;
     }
 }

@@ -17,7 +17,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         // 2. CARGA DE DICCIONARIOS MAESTROS (Simultáneo)
-        // Nota: Cargamos conductores globalmente para evitar errores de licencia_id
         await Promise.allSettled([
             loadSelectData('/api/v1/licencias', 'licencia_ref', 'licencia'),
             loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre'),
@@ -35,7 +34,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = result.data;
 
         // 4. POBLAR FORMULARIO
-        // Usamos la lógica de mapeo manual para asegurar que todos los campos (incluidos admin) se llenen
         populateAdminForm(data);
 
         // UI Helpers
@@ -48,7 +46,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         showStatus("Error al cargar datos: " + err.message, "error");
     }
 
-    // Inicializar utilidades
     initCalculosKms();
     lucide.createIcons();
 });
@@ -60,7 +57,6 @@ function populateAdminForm(data) {
     const form = document.getElementById('albaranForm');
     if (!form) return;
 
-    // Campos de texto y select
     for (const key in data) {
         const el = form.querySelector(`[name="${key}"]`);
         if (el) {
@@ -69,7 +65,6 @@ function populateAdminForm(data) {
             } else if (el.type === 'date') {
                 el.value = data[key] ? data[key].substring(0, 10) : '';
             } else if (el.type === 'time') {
-                // Manejo de tiempos (asumiendo formato HH:mm:ss o ISO)
                 el.value = data[key] && data[key].includes('T') 
                     ? data[key].split('T')[1].substring(0, 5) 
                     : data[key] ? data[key].substring(0, 5) : '';
@@ -79,7 +74,6 @@ function populateAdminForm(data) {
         }
     }
 
-    // Mapeo específico para campos que no coinciden exactamente con el JSON
     if(data.id) document.getElementById('albaran_id').value = data.id;
     if(data.numero_albaran) document.getElementById('n_albaran').value = data.numero_albaran;
     if(data.cliente) document.getElementById('nombre_pasajero').value = data.cliente;
@@ -118,14 +112,12 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     const formData = new FormData(e.target);
     const payload = Object.fromEntries(formData.entries());
 
-    // Normalización de Booleanos (Checkboxes)
     const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos', 'cobrado', 'pagado', 'finalizado', 'festivo'];
     bools.forEach(id => {
         const el = e.target.querySelector(`[name="${id}"]`);
         payload[id] = el ? el.checked : false;
     });
 
-    // Conversión Numérica para Go/MySQL
     const nums = ['licencia_ref', 'empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total'];
     nums.forEach(f => payload[f] = parseFloat(payload[f]) || 0);
 
@@ -144,7 +136,10 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
 
         if (res.ok) {
             showStatus("✅ REGISTRO MAESTRO ACTUALIZADO", "success");
-            setTimeout(() => window.location.href = '/admin/albaranes', 1500);
+            
+            // 🔄 MATIZ DE RUTA: Redirección al panel principal admin
+            setTimeout(() => window.location.href = '/admin/', 1500); 
+
         } else {
             const errData = await res.json();
             throw new Error(errData.error || "Error al actualizar");
