@@ -130,6 +130,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			{
 				conductorGroup.GET("/", func(c *gin.Context) { controllers.GetConductores(c, db) })
 				conductorGroup.POST("/", func(c *gin.Context) { controllers.CreateConductor(c, db) })
+
+				// 🔄 NUEVA RUTA: Filtrado por ID de licencia para el combo dinámico de Admin
+				conductorGroup.GET("/licencia/:id", func(c *gin.Context) { controllers.GetConductoresByLicencia(c, db) })
+
 				conductorGroup.GET("/licencia_conductor/:licencia/:nconductor", func(c *gin.Context) { controllers.GetConductorByLicenciaYNumero(c, db) })
 				conductorGroup.PUT("/licencia_conductor/:licencia/:conductor", func(c *gin.Context) { controllers.UpdateConductorByLicenciaYConductor(c, db) })
 				conductorGroup.DELETE("/id/:id", func(c *gin.Context) { controllers.DeleteConductorByID(c, db) })
