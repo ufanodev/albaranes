@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏢 Administrador - Gestión de Albaranes</title>
+    
     <script src="/js/security.js"></script>    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/admin.js" defer></script> 
+
     <script>
         tailwind.config = {
             theme: {
@@ -32,7 +35,7 @@
             display: none;
             position: absolute;
             background-color: white;
-            min-width: 200px;
+            min-width: 220px;
             box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
             z-index: 1000;
             border-radius: 0.75rem;
@@ -49,12 +52,17 @@
             transition: all 0.2s;
             font-size: 0.875rem;
         }
-        .dropdown-content a:hover { background-color: #FFDAB9; color: #000; }
+        .dropdown-content a:hover { background-color: #FFDAB9; color: #000; font-weight: bold; }
         .dropdown-content a:last-child { border-bottom: none; }
 
         /* Tabla Estilo Admin */
-        .compact-table th { @apply whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-4; }
+        .compact-table th { @apply whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-4 bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition; }
         .compact-table td { @apply px-3 py-3 text-[11px] border-b border-gray-100; }
+        
+        .status-message { @apply fixed bottom-5 right-5 z-[2000] p-4 rounded-xl shadow-2xl border-2; }
+        .status-success { @apply bg-green-100 text-green-700 border-green-200; }
+        .status-error { @apply bg-red-100 text-red-700 border-red-200; }
+        .status-info { @apply bg-blue-100 text-blue-700 border-blue-200; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -113,7 +121,13 @@
                         </div>
                     </div>
 
-                    <div class="flex space-x-2 border-l border-orange-400 pl-4 ml-2">
+                    <div class="flex items-center gap-2 border-l border-orange-400 pl-4 ml-2">
+                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-white/20 hover:bg-white/40 p-2 rounded-xl shadow-md transition active:scale-95">
+                            <i data-lucide="printer" class="h-5 w-5"></i>
+                        </button>
+                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
+                            <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
+                        </button>
                         <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl shadow-lg transition active:scale-95" title="Cerrar Sesión">
                             <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
@@ -131,7 +145,7 @@
                     <span class="bg-primary-link p-2 rounded-lg mr-4 shadow-lg text-white">
                         <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
                     </span>
-                    GESTIÓN MAESTRA DE ALBARANES
+                    SISTEMA CENTRALIZADO DE ALBARANES
                 </h1>
             </div>
 
@@ -167,7 +181,7 @@
                     <div class="flex gap-2 items-end pt-2">
                         <div class="relative flex-1">
                             <i data-lucide="search" class="absolute left-3 top-3 h-4 w-4 text-gray-400"></i>
-                            <input type="text" id="palabra" name="palabra" placeholder="Búsqueda global (Nombre, DNI, Matrícula...)" class="input-field pl-10 py-3 bg-slate-50 font-medium">
+                            <input type="text" id="palabra" name="palabra" placeholder="Búsqueda global..." class="input-field pl-10 py-3 bg-slate-50 font-medium">
                         </div>
                         <button type="submit" class="bg-primary-link text-white px-8 py-3 rounded-lg font-black text-xs uppercase shadow-lg hover:bg-orange-600 transition">Filtrar</button>
                         <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 px-4 py-3 rounded-lg font-black text-xs uppercase hover:bg-slate-300 transition">Limpiar</button>
@@ -177,7 +191,7 @@
 
             <div class="card overflow-hidden">
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-6 px-2">
-                    <h2 class="font-black text-slate-800 flex items-center tracking-tight">
+                    <h2 class="font-black text-slate-800 flex items-center tracking-tight text-sm">
                         <i data-lucide="list" class="mr-2 text-primary-link"></i>
                         ALBARANES REGISTRADOS 
                         <span id="resultsCount" class="ml-3 bg-primary-link text-white text-[10px] px-2 py-0.5 rounded-full">0</span>
@@ -188,6 +202,7 @@
                             <option value="10">10 filas</option>
                             <option value="25" selected>25 filas</option>
                             <option value="50">50 filas</option>
+                            <option value="100">100 filas</option>
                             <option value="todos">Ver Todos</option>
                         </select>
                         <div class="flex items-center bg-slate-100 rounded-lg p-1">
@@ -200,24 +215,23 @@
 
                 <div class="overflow-x-auto shadow-2xl rounded-xl border border-slate-200">
                     <table class="min-w-full divide-y divide-slate-200 compact-table">
-                        <thead class="bg-slate-800 text-white">
+                        <thead>
                             <tr>
-                                <th class="text-left">Nº Albarán</th>
-                                <th class="text-left">Fecha</th>
-                                <th class="text-left">Licencia</th>
-                                <th class="text-left">Empresa</th>
-                                <th class="text-left">Ref.</th>
-                                <th class="text-left">Factura</th>
-                                <th class="text-right">Importe</th>
+                                <th onclick="handleSort('numero_albaran')">Nº Albarán</th>
+                                <th onclick="handleSort('fecha')">Fecha</th>
+                                <th onclick="handleSort('licencia_ref')">Licencia</th>
+                                <th onclick="handleSort('empresa_nombre')">Empresa</th>
+                                <th>Ref.</th>
+                                <th>Factura</th>
+                                <th onclick="handleSort('importe_total')" class="text-right">Importe</th>
                                 <th class="text-center">Env.</th>
                                 <th class="text-center">Cob.</th>
                                 <th class="text-center">Pag.</th>
-                                <th class="text-left">Observaciones</th>
+                                <th>Observaciones</th>
                                 <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody id="albaranResults" class="bg-white divide-y divide-slate-100">
-                            </tbody>
+                        <tbody id="albaranResults" class="bg-white divide-y divide-slate-100"></tbody>
                         <tfoot id="tableFooter" class="bg-slate-50 hidden">
                             <tr class="font-black">
                                 <td colspan="6" class="text-right text-[10px] text-slate-400 uppercase py-4 px-3">Total en esta vista:</td>
@@ -227,14 +241,14 @@
                         </tfoot>
                     </table>
                 </div>
-                <div id="statusMessage" class="hidden mt-4 p-4 rounded-xl text-center font-bold"></div>
+                
+                <div id="statusMessage" class="hidden"></div>
+                <div id="totalLabel" class="text-[10px] text-gray-400 mt-4 text-right font-bold uppercase tracking-widest"></div>
             </div>
         </div>
     </main>
 
-    <script src="/js/admin.js"></script>
     <script>
-        // Función para los menús desplegables
         function toggleDropdown(button) {
             const dropdown = button.parentElement;
             document.querySelectorAll('.dropdown').forEach(d => {
@@ -243,15 +257,15 @@
             dropdown.classList.toggle('active');
         }
 
-        // Cerrar dropdowns al hacer clic fuera
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.dropdown')) {
                 document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
             }
         });
 
-        // Inicializar iconos Lucide
-        lucide.createIcons();
+        window.addEventListener('load', () => {
+            if (window.lucide) lucide.createIcons();
+        });
     </script>
 </body>
 </html>

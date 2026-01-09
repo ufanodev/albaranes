@@ -11,16 +11,14 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// GenerateTitularesXLSX genera un Excel aceptando interface{} para ser universal.
+// GenerateTitularesXLSX genera un Excel con sumatorio en la última línea.
 func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) {
-	// 1. Convertir la interfaz genérica a []TitularData (Type Assertion robusto)
 	var lista []TitularData
 
 	switch v := data.(type) {
 	case []TitularData:
 		lista = v
 	case []interface{}:
-		// Caso cuando Gin decodifica JSON genérico
 		for _, item := range v {
 			if m, ok := item.(map[string]interface{}); ok {
 				convertedMap := make(TitularData)
@@ -38,25 +36,34 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 		return "", fmt.Errorf("no hay datos para generar el XLSX")
 	}
 
-	// 2. Crear el archivo Excel
 	f := excelize.NewFile()
 	sheetName := "Reporte"
 	f.SetSheetName("Sheet1", sheetName)
 
-	// 3. Obtener cabeceras (desde export_common.go)
 	headers := GetHeaders(lista)
 
-	// 4. Estilos (Cabecera Naranja)
+	// --- ESTILOS ---
 	headerStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true, Color: "#FFFFFF"},
 		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"#FF8C00"}},
 		Alignment: &excelize.Alignment{Horizontal: "center"},
 	})
 
-	// Estilo Filas Alternas (Gris claro)
 	rowAltStyle, _ := f.NewStyle(&excelize.Style{
 		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"#F3F4F6"}},
 	})
+
+	totalStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true},
+		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"#FFDAB9"}}, // Pastel
+		Border: []excelize.Border{
+			{Type: "top", Color: "000000", Style: 1},
+		},
+	})
+
+	// --- LÓGICA DE SUMATORIO ---
+	var granTotal float64
+	totalColIndex := -1
 
 	// 5. Renderizar Cabecera
 	for i, header := range headers {
@@ -64,29 +71,57 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 		f.SetCellValue(sheetName, cell, header)
 		f.SetCellStyle(sheetName, cell, cell, headerStyle)
 		f.SetColWidth(sheetName, cell[:len(cell)-1], cell[:len(cell)-1], 20)
+
+		// Identificar columna numérica
+		upH := strings.ToUpper(header)
+		if upH == "TOTAL" || upH == "IMPORTE" || upH == "TOTAL EUR" {
+			totalColIndex = i + 1
+		}
 	}
 
 	// 6. Renderizar Filas de Datos
+	lastRowNum := 1
 	for rowNum, rowData := range lista {
+		currentRow := rowNum + 2
 		for colIndex, header := range headers {
-			cell, _ := excelize.CoordinatesToCellName(colIndex+1, rowNum+2)
+			cell, _ := excelize.CoordinatesToCellName(colIndex+1, currentRow)
 			value := rowData[header]
 
-			// Intentar conversión numérica para que Excel pueda sumar/operar
 			if floatValue, err := tryConvertToFloat(value); err == nil {
 				f.SetCellValue(sheetName, cell, floatValue)
+				// Si es la columna de importe, sumar al gran total
+				if (colIndex + 1) == totalColIndex {
+					granTotal += floatValue
+				}
 			} else {
 				f.SetCellValue(sheetName, cell, value)
 			}
 
-			// Aplicar estilo de cebra
 			if rowNum%2 == 0 {
 				f.SetCellStyle(sheetName, cell, cell, rowAltStyle)
 			}
 		}
+		lastRowNum = currentRow
 	}
 
-	// 7. Guardar Archivo
+	// --- 7. FILA DE TOTAL FINAL ---
+	if totalColIndex != -1 {
+		totalRow := lastRowNum + 1
+
+		// Recorrer todas las columnas para aplicar el estilo a la fila final
+		for i := 1; i <= len(headers); i++ {
+			cell, _ := excelize.CoordinatesToCellName(i, totalRow)
+			f.SetCellStyle(sheetName, cell, cell, totalStyle)
+
+			if i == totalColIndex-1 {
+				f.SetCellValue(sheetName, cell, "TOTAL:")
+			} else if i == totalColIndex {
+				f.SetCellValue(sheetName, cell, granTotal)
+			}
+		}
+	}
+
+	// 8. Guardar Archivo
 	reportClean := strings.ReplaceAll(reportName, " ", "_")
 	if err := os.MkdirAll(DocumentsDir, 0755); err != nil {
 		return "", err
@@ -107,8 +142,9 @@ func tryConvertToFloat(s string) (float64, error) {
 	if strings.EqualFold(s, "Sí") || strings.EqualFold(s, "No") || s == "-" || s == "" {
 		return 0, fmt.Errorf("no numérico")
 	}
-	// Limpiar posibles símbolos de moneda o espacios antes de intentar convertir
 	cleanStr := strings.ReplaceAll(s, " €", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "€", "")
+	cleanStr = strings.ReplaceAll(cleanStr, " ", "")
 	cleanStr = strings.ReplaceAll(cleanStr, ",", ".")
 	return strconv.ParseFloat(cleanStr, 64)
 }
