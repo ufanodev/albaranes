@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚕 Pago Titulares - Administrador</title>
+    <title>Taxitot - Pago Titulares</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
@@ -39,7 +39,7 @@
         .dropdown-content a:last-child { border-bottom: none; }
         
         /* TABLA */
-        .compact-table th { @apply px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider whitespace-nowrap; }
+        .compact-table th { @apply px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider whitespace-nowrap bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition; }
         .compact-table td { @apply px-4 py-3 text-xs border-b border-gray-100; }
     </style>
 </head>
@@ -88,19 +88,13 @@
                         </div>
                     </div>
 
-                    <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
-                            <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
-                            <span>Sistema</span>
+                    <div class="flex items-center gap-2 border-l border-orange-400 pl-4 ml-2">
+                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-white/20 hover:bg-white/40 p-2 rounded-xl shadow-md transition active:scale-95">
+                            <i data-lucide="printer" class="h-5 w-5"></i>
                         </button>
-                        <div class="dropdown-content">
-                            <a href="/admin/usuarios">Usuarios</a>
-                            <a href="/admin/conductor">Conductores</a>
-                            <a href="/admin/backup">Seguridad / Backup</a>
-                        </div>
-                    </div>
-
-                    <div class="flex space-x-2 border-l border-orange-400 pl-4">
+                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
+                            <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
+                        </button>
                         <button onclick="handleLogout()" title="Salir" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl transition active:scale-95">
                             <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
@@ -127,35 +121,27 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
                             <label for="licencia" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Licencia</label>
-                            <select id="licencia" name="licencia" class="input-field font-bold text-blue-600">
-                                <option value="">Cargando...</option>
+                            <select id="licencia" name="licencia_ref" class="input-field font-bold text-blue-600">
+                                <option value="">-- Todas --</option>
                             </select>
                         </div>
                         <div>
                             <label for="empresa" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Empresa</label>
-                            <select id="empresa" name="empresa" class="input-field font-bold">
-                                <option value="">Cargando...</option>
+                            <select id="empresa" name="empresa_ref" class="input-field font-bold">
+                                <option value="">-- Todas --</option>
                             </select>
                         </div>
                         <div>
                             <label for="pagado" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Estado Pago</label>
                             <select id="pagado" name="pagado" class="input-field font-bold">
                                 <option value="">TODOS</option>
-                                <option value="no">PENDIENTES</option>
-                                <option value="si">PAGADOS</option>
+                                <option value="no" selected>PENDIENTES (NO)</option>
+                                <option value="si">PAGADOS (SÍ)</option>
                             </select>
                         </div>
                         <div>
                             <label for="referencia" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Referencia</label>
                             <input type="text" id="referencia" name="referencia" placeholder="Ref..." class="input-field">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label for="fecha_desde" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Desde</label>
-                            <input type="date" id="fecha_desde" name="fecha_desde" class="input-field">
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label for="fecha_hasta" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Hasta</label>
-                            <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field">
                         </div>
                     </div>
 
@@ -169,12 +155,8 @@
                 </form>
             </div>
 
-            <button onclick="handleBulkPay()" class="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase shadow-xl hover:bg-green-700 transition flex items-center gap-3 active:scale-95">
-                <i data-lucide="check-circle-2" class="w-6 h-6"></i> Pagar Seleccionados
-            </button>
-
             <div class="card overflow-hidden">
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 px-2">
                     <h2 class="font-black text-slate-800 flex items-center uppercase text-sm">
                         <i data-lucide="list" class="mr-2 text-primary-link"></i>
                         Resultados encontrados
@@ -182,7 +164,12 @@
                     </h2>
 
                     <div class="flex items-center gap-4">
-                        <select id="recordsPerPage" class="bg-slate-100 text-xs font-bold p-2 rounded-lg outline-none cursor-pointer border-none"></select>
+                        <select id="recordsPerPage" class="bg-slate-100 text-xs font-bold p-2 rounded-lg outline-none cursor-pointer border-none">
+                            <option value="10">10 filas</option>
+                            <option value="25" selected>25 filas</option>
+                            <option value="50">50 filas</option>
+                            <option value="99999">Ver Todos</option>
+                        </select>
                         <div class="flex items-center bg-slate-100 rounded-lg p-1">
                             <button id="prevPageBtn" class="p-1 hover:bg-white rounded transition disabled:opacity-20"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
                             <span id="pageInfo" class="px-4 text-[10px] font-black text-primary-link min-w-[100px] text-center">Página 1</span>
@@ -196,13 +183,13 @@
                         <thead class="bg-slate-800 text-white">
                             <tr>
                                 <th class="text-center w-12">Pagar</th>
-                                <th>ID</th>
-                                <th>Nº Albarán</th>
-                                <th>Licencia</th>
-                                <th>Fecha</th>
-                                <th>Empresa</th>
+                                <th onclick="handleSort('id', 'number')">ID</th>
+                                <th onclick="handleSort('numero_albaran', 'string')">Nº Albarán</th>
+                                <th onclick="handleSort('licencia_ref', 'string')">Licencia</th>
+                                <th onclick="handleSort('fecha', 'date')">Fecha</th>
+                                <th onclick="handleSort('empresa_nombre', 'string')">Empresa</th>
                                 <th>Ref.</th>
-                                <th class="text-right">Importe TOTAL</th>
+                                <th onclick="handleSort('importe_total', 'number')" class="text-right">Importe TOTAL</th>
                                 <th class="text-center">Pagado</th>
                                 <th>Fecha Pago</th>
                                 <th>Observaciones Admin</th>
@@ -210,9 +197,16 @@
                         </thead>
                         <tbody id="albaranResults" class="bg-white divide-y divide-slate-100">
                             </tbody>
+                        <tfoot id="tableFooter" class="bg-slate-50 hidden border-t-2 border-slate-200">
+                            <tr class="font-black">
+                                <td colspan="7" class="text-right text-[10px] text-slate-400 uppercase py-4 px-3">Total en esta vista:</td>
+                                <td id="totalImporte" class="text-right text-sm text-primary-link py-4 px-3 bg-orange-50 font-black">€0.00</td>
+                                <td colspan="3"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
-                <div id="statusMessage" class="hidden"></div>
+                <div id="statusMessage" class="hidden mt-4 p-4 rounded-xl text-center font-bold"></div>
                 <div id="totalLabel" class="text-[10px] text-gray-400 mt-4 text-right font-bold uppercase tracking-widest"></div>
             </div>
         </div>
