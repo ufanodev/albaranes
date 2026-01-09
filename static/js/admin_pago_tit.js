@@ -1,51 +1,60 @@
 /**
  * admin_pago_tit.js - Gestión de Pagos a Titulares
- * Carga de combos dinámicos, filtros avanzados y pagos masivos.
  */
 
-// Estado global de la vista
+// Estado global de la aplicación
 const STATE = {
-    filteredData: [],
+    allData: [],
     currentPage: 1,
     pageSize: 25
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("🚀 Cargando Panel de Pagos Administrativo...");
-    
-    // 1. Cargar Combos Maestros (IDs coinciden con el HTML)
+    console.log("🚀 Inicializando Panel de Pagos...");
+
+    // 1. Cargar selectores de los filtros
     await Promise.all([
         loadLicenciasCombo(),
         loadEmpresasCombo()
     ]);
-    
-    // 2. Configurar select de registros por página
-    const recs = document.getElementById('recordsPerPage');
-    if (recs) {
-        recs.innerHTML = `
+
+    // 2. Configurar el selector de registros por página
+    const recordsSelect = document.getElementById('recordsPerPage');
+    if (recordsSelect) {
+        recordsSelect.innerHTML = `
             <option value="10">10 registros</option>
             <option value="25" selected>25 registros</option>
             <option value="50">50 registros</option>
-            <option value="9999">Ver todos</option>
+            <option value="100">100 registros</option>
         `;
-        recs.onchange = (e) => {
-            STATE.pageSize = e.target.value === '9999' ? 99999 : parseInt(e.target.value);
+        recordsSelect.onchange = (e) => {
+            STATE.pageSize = parseInt(e.target.value);
             STATE.currentPage = 1;
             renderTable();
         };
     }
 
-    // 3. Configurar navegación
-    document.getElementById('prevPageBtn').onclick = () => { if (STATE.currentPage > 1) { STATE.currentPage--; renderTable(); } };
-    document.getElementById('nextPageBtn').onclick = () => { 
-        if (STATE.currentPage < Math.ceil(STATE.filteredData.length / STATE.pageSize)) { STATE.currentPage++; renderTable(); } 
+    // 3. Botones de paginación
+    document.getElementById('prevPageBtn').onclick = () => {
+        if (STATE.currentPage > 1) {
+            STATE.currentPage--;
+            renderTable();
+        }
+    };
+    document.getElementById('nextPageBtn').onclick = () => {
+        const maxPage = Math.ceil(STATE.allData.length / STATE.pageSize);
+        if (STATE.currentPage < maxPage) {
+            STATE.currentPage++;
+            renderTable();
+        }
     };
 
-    // 4. Búsqueda inicial automática
+    // 4. Búsqueda inicial
     window.handleSearch();
 });
 
-/** 🆔 Carga Licencias en id="licencia" */
+/** CARGA DE COMBOS */
+
 async function loadLicenciasCombo() {
     const select = document.getElementById('licencia');
     if (!select) return;
@@ -53,16 +62,18 @@ async function loadLicenciasCombo() {
         const res = await fetch('/api/v1/licencias', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        const json = await res.json();
-        const list = json.data || json;
+        const data = await res.json();
+        const list = data.data || data;
         select.innerHTML = '<option value="">-- Todas las Licencias --</option>';
         list.forEach(l => {
-            select.innerHTML += `<option value="${l.id}">${l.licencia}</option>`;
+            const opt = document.createElement('option');
+            opt.value = l.id;
+            opt.textContent = l.licencia;
+            select.appendChild(opt);
         });
-    } catch (e) { console.error("Error licencias:", e); }
+    } catch (e) { console.error("Error cargando licencias", e); }
 }
 
-/** 📋 Carga Empresas en id="empresa" */
 async function loadEmpresasCombo() {
     const select = document.getElementById('empresa');
     if (!select) return;
@@ -70,157 +81,185 @@ async function loadEmpresasCombo() {
         const res = await fetch('/api/v1/empresas', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        const json = await res.json();
-        const list = json.data || json;
+        const data = await res.json();
+        const list = data.data || data;
         select.innerHTML = '<option value="">-- Todas las Empresas --</option>';
         list.forEach(e => {
-            select.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
+            const opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.nombre;
+            select.appendChild(opt);
         });
-    } catch (e) { console.error("Error empresas:", e); }
+    } catch (e) { console.error("Error cargando empresas", e); }
 }
 
-/** 🔍 BÚSQUEDA PRINCIPAL (Campos + Palabra) */
+/** LÓGICA DE BÚSQUEDA */
+
 window.handleSearch = async function(event) {
     if (event) event.preventDefault();
-    
-    const resultsBody = document.getElementById('albaranResults');
-    resultsBody.innerHTML = `<tr><td colspan="11" class="text-center py-20 italic">Buscando datos...</td></tr>`;
+
+    const tbody = document.getElementById('albaranResults');
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center py-10 italic">Buscando datos...</td></tr>';
 
     const form = document.getElementById('searchForm');
     const formData = new FormData(form);
     const params = new URLSearchParams();
 
-    // Mapeo para el Backend Go
+    // Filtros de campos
     if (formData.get('licencia')) params.append('licencia_ref', formData.get('licencia'));
     if (formData.get('empresa')) params.append('empresa_ref', formData.get('empresa'));
     if (formData.get('referencia')) params.append('referencia', formData.get('referencia'));
     if (formData.get('fecha_desde')) params.append('fecha_desde', formData.get('fecha_desde'));
     if (formData.get('fecha_hasta')) params.append('fecha_hasta', formData.get('fecha_hasta'));
     
+    // Estado de pago
     const pagado = formData.get('pagado');
     if (pagado === 'si') params.append('pagado', 'true');
     else if (pagado === 'no') params.append('pagado', 'false');
 
-    // Palabra Global
+    // Búsqueda global por palabra
     const palabra = document.getElementById('palabra').value.trim();
     if (palabra) params.append('palabra', palabra);
 
-    // Reglas fijas para este panel
-    params.append('enviado', 'true'); 
-    params.append('pageSize', '5000'); 
+    // Obligatorio: solo albaranes enviados
+    params.append('enviado', 'true');
 
     try {
-        const res = await fetch(`/api/v1/albaranes/search?${params.toString()}`, {
+        const response = await fetch(`/api/v1/albaranes/search?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        const json = await res.json();
-        STATE.filteredData = json.data || [];
+        const json = await response.json();
+        STATE.allData = json.data || [];
         STATE.currentPage = 1;
         renderTable();
-    } catch (err) {
-        resultsBody.innerHTML = `<tr><td colspan="11" class="text-center py-20 text-red-500 font-bold">Error de conexión con el servidor</td></tr>`;
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-10 text-red-500">Error al conectar con el servidor.</td></tr>';
     }
 };
 
-/** 🧹 LIMPIAR TODO */
 window.handleClearAllFilters = function() {
     document.getElementById('searchForm').reset();
     document.getElementById('palabra').value = '';
-    STATE.currentPage = 1;
     window.handleSearch();
 };
 
-/** 🖼️ RENDERIZADO DE TABLA (11 Columnas) */
+/** RENDERIZADO */
+
 function renderTable() {
-    const resultsBody = document.getElementById('albaranResults');
-    resultsBody.innerHTML = '';
-    
+    const tbody = document.getElementById('albaranResults');
+    tbody.innerHTML = '';
+
     const start = (STATE.currentPage - 1) * STATE.pageSize;
     const end = start + STATE.pageSize;
-    const pageData = STATE.filteredData.slice(start, end);
+    const pageData = STATE.allData.slice(start, end);
 
     if (pageData.length === 0) {
-        resultsBody.innerHTML = `<tr><td colspan="11" class="text-center py-20 font-bold text-slate-400">Sin resultados</td></tr>`;
-        updateUI();
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-10 font-bold text-gray-400">No se encontraron albaranes con estos filtros.</td></tr>';
+        updatePaginationUI();
         return;
     }
 
-    pageData.forEach(alb => {
-        const isPaid = alb.pagado === true || alb.pagado === 1;
+    pageData.forEach(item => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-orange-50/50 border-b border-gray-100 text-xs transition-colors';
-        tr.dataset.id = alb.id;
+        tr.className = "hover:bg-slate-50 transition-colors border-b";
+        tr.dataset.id = item.id;
+
+        const isPaid = item.pagado === true || item.pagado === 1;
 
         tr.innerHTML = `
             <td class="px-4 py-3 text-center">
-                <input type="checkbox" class="pago-checkbox h-5 w-5 text-green-600 rounded cursor-pointer" 
-                       ${isPaid ? 'checked' : ''} onchange="handlePagoUIUpdate(${alb.id})">
+                <input type="checkbox" class="pago-checkbox w-5 h-5 accent-green-600" 
+                    ${isPaid ? 'checked' : ''} onchange="togglePagoLocal(${item.id})">
             </td>
-            <td class="px-4 py-3 font-bold text-gray-400">#${alb.id}</td>
-            <td class="px-4 py-3 font-black text-slate-700">${alb.numero_albaran}</td>
-            <td class="px-4 py-3 font-bold text-blue-600">${alb.LicenciaData?.licencia || alb.licencia_ref}</td>
-            <td class="px-4 py-3">${alb.fecha ? alb.fecha.substring(0, 10) : '-'}</td>
-            <td class="px-4 py-3 text-gray-600">${alb.EmpresaData?.nombre || alb.empresa_nombre}</td>
-            <td class="px-4 py-3 italic text-gray-400">${alb.referencia || '-'}</td>
-            <td class="px-4 py-3 text-right font-black text-primary-link">€${parseFloat(alb.importe_total || 0).toFixed(2)}</td>
-            <td class="px-4 py-3 text-center pagado-status">
-                ${isPaid ? '<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-black uppercase text-[9px]">SÍ</span>' 
-                        : '<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-black uppercase text-[9px]">NO</span>'}
+            <td class="px-4 py-3 text-gray-400 font-mono">#${item.id}</td>
+            <td class="px-4 py-3 font-black">${item.numero_albaran}</td>
+            <td class="px-4 py-3 font-bold text-blue-600">${item.LicenciaData?.licencia || item.licencia_ref}</td>
+            <td class="px-4 py-3">${item.fecha ? item.fecha.split('T')[0] : '-'}</td>
+            <td class="px-4 py-3 font-medium">${item.EmpresaData?.nombre || item.empresa_nombre || '-'}</td>
+            <td class="px-4 py-3 text-gray-500 italic">${item.referencia || '-'}</td>
+            <td class="px-4 py-3 text-right font-black text-orange-600">€${parseFloat(item.importe_total || 0).toFixed(2)}</td>
+            <td class="px-4 py-3 text-center status-cell">
+                ${isPaid ? '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-[9px] font-black">PAGADO</span>' 
+                         : '<span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[9px] font-black">PENDIENTE</span>'}
             </td>
             <td class="px-4 py-3">
-                <input type="date" class="fecha-pago-input input-field text-[10px] py-1 ${isPaid ? '' : 'hidden'}" 
-                       value="${alb.fecha_pago ? alb.fecha_pago.substring(0, 10) : ''}">
+                <input type="date" class="date-pago-input input-field text-[10px] py-1 ${isPaid ? '' : 'hidden'}" 
+                    value="${item.fecha_pago ? item.fecha_pago.split('T')[0] : ''}">
             </td>
-            <td class="px-4 py-3 text-gray-400 truncate max-w-[150px]">${alb.observaciones_admin || '-'}</td>
+            <td class="px-4 py-3 text-gray-400 text-[10px] truncate max-w-[120px]" title="${item.observaciones_admin || ''}">
+                ${item.observaciones_admin || '-'}
+            </td>
         `;
-        resultsBody.appendChild(tr);
+        tbody.appendChild(tr);
     });
 
-    updateUI();
+    updatePaginationUI();
 }
 
-function updateUI() {
-    const total = STATE.filteredData.length;
+function updatePaginationUI() {
+    const total = STATE.allData.length;
     const totalPages = Math.ceil(total / STATE.pageSize) || 1;
+    
     document.getElementById('resultsCount').textContent = total;
     document.getElementById('pageInfo').textContent = `Página ${STATE.currentPage} de ${totalPages}`;
-    document.getElementById('totalLabel').textContent = `REGISTROS ENCONTRADOS: ${total}`;
-    document.getElementById('prevPageBtn').disabled = STATE.currentPage === 1;
-    document.getElementById('nextPageBtn').disabled = STATE.currentPage >= totalPages;
+    document.getElementById('totalLabel').textContent = `Total registros: ${total} | Mostrando página ${STATE.currentPage}`;
+    
+    document.getElementById('prevPageBtn').disabled = (STATE.currentPage === 1);
+    document.getElementById('nextPageBtn').disabled = (STATE.currentPage === totalPages);
+
     if (window.lucide) lucide.createIcons();
 }
 
-/** Actualización visual inmediata de los checkboxes */
-window.handlePagoUIUpdate = (id) => {
+/** ACCIONES DE PAGO */
+
+window.togglePagoLocal = function(id) {
     const row = document.querySelector(`tr[data-id="${id}"]`);
     const cb = row.querySelector('.pago-checkbox');
-    const fInput = row.querySelector('.fecha-pago-input');
-    const status = row.querySelector('.pagado-status');
+    const status = row.querySelector('.status-cell');
+    const dateInput = row.querySelector('.date-pago-input');
+
     if (cb.checked) {
-        fInput.classList.remove('hidden');
-        fInput.value = new Date().toISOString().split('T')[0];
-        status.innerHTML = '<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-black uppercase text-[9px]">SÍ</span>';
+        status.innerHTML = '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-[9px] font-black">PAGADO</span>';
+        dateInput.classList.remove('hidden');
+        dateInput.value = new Date().toISOString().split('T')[0];
     } else {
-        fInput.classList.add('hidden');
-        status.innerHTML = '<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-black uppercase text-[9px]">NO</span>';
+        status.innerHTML = '<span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[9px] font-black">PENDIENTE</span>';
+        dateInput.classList.add('hidden');
+        dateInput.value = '';
     }
 };
 
-/** Lógica de Pago Masivo */
-window.handleBulkPay = async () => {
-    const checked = document.querySelectorAll('.pago-checkbox:checked');
-    const ids = Array.from(checked).map(cb => parseInt(cb.closest('tr').dataset.id));
-    if (ids.length === 0) return alert("Selecciona al menos un albarán");
-    if (!confirm(`¿Confirmar pago masivo para ${ids.length} albaranes?`)) return;
+window.handleBulkPay = async function() {
+    const checkboxes = document.querySelectorAll('.pago-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => parseInt(cb.closest('tr').dataset.id));
+
+    if (ids.length === 0) {
+        alert("Por favor, selecciona al menos un albarán para pagar.");
+        return;
+    }
+
+    if (!confirm(`¿Confirmar el pago de ${ids.length} albaranes seleccionados?`)) return;
 
     try {
-        const res = await fetch('/api/v1/albaranes/bulk-pay', {
+        const response = await fetch('/api/v1/albaranes/bulk-pay', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
             body: JSON.stringify({ ids: ids })
         });
-        if (res.ok) window.handleSearch();
-    } catch (e) { alert("Error en el servidor al procesar el pago masivo."); }
+
+        if (response.ok) {
+            alert("Pagos registrados correctamente.");
+            window.handleSearch();
+        } else {
+            alert("Error al procesar los pagos masivos.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error de conexión.");
+    }
 };
 
 window.handleLogout = () => {

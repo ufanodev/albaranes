@@ -162,22 +162,26 @@ func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
 }
 
-// SearchAlbaranes - REFACTORIZADA PARA BÚSQUEDA POR CAMPOS Y GLOBAL
+// SearchAlbaranes - REFACTORIZADA PARA FIX AUTOVAL Y FILTROS PRECISOS
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
 	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("estado = ?", 0)
 
-	// Filtros por IDs
+	// Filtros por IDs con búsqueda híbrida (ID + Nombre) para mayor seguridad
 	if v := c.Query("licencia_ref"); v != "" {
 		query = query.Where("licencia_ref = ?", v)
 	}
 	if v := c.Query("empresa_ref"); v != "" {
-		query = query.Where("empresa_ref = ?", v)
+		// Fix para casos donde se envía ID o se busca el nombre parcial
+		query = query.Where("(empresa_ref = ? OR empresa_nombre LIKE ?)", v, "%"+v+"%")
 	}
 
-	// Filtros de Estado
+	// Filtros de Estado (Conversión de string "true"/"false" a bool)
 	if v := c.Query("pagado"); v != "" {
 		query = query.Where("pagado = ?", v == "true")
+	}
+	if v := c.Query("cobrado"); v != "" {
+		query = query.Where("cobrado = ?", v == "true")
 	}
 	if v := c.Query("enviado"); v != "" {
 		query = query.Where("enviado = ?", v == "true")
@@ -189,17 +193,14 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	}
 
 	// Rango de Fechas
-	fechaDesde := c.Query("fecha_desde")
-	fechaHasta := c.Query("fecha_hasta")
-	if fechaDesde != "" && fechaHasta != "" {
-		query = query.Where("fecha BETWEEN ? AND ?", fechaDesde, fechaHasta)
-	} else if fechaDesde != "" {
-		query = query.Where("fecha >= ?", fechaDesde)
-	} else if fechaHasta != "" {
-		query = query.Where("fecha <= ?", fechaHasta)
+	if fDesde := c.Query("fecha_desde"); fDesde != "" {
+		query = query.Where("fecha >= ?", fDesde)
+	}
+	if fHasta := c.Query("fecha_hasta"); fHasta != "" {
+		query = query.Where("fecha <= ?", fHasta)
 	}
 
-	// 🔍 BÚSQUEDA GLOBAL (Palabra clave)
+	// 🔍 BÚSQUEDA GLOBAL (Palabra clave) - INCLUYE empresa_nombre para AUTOVAL
 	if v := c.Query("palabra"); v != "" {
 		p := "%" + v + "%"
 		query = query.Where(
@@ -208,7 +209,7 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 				Or("cliente LIKE ?", p).
 				Or("matricula LIKE ?", p).
 				Or("num_factura LIKE ?", p).
-				Or("empresa_nombre LIKE ?", p),
+				Or("empresa_nombre LIKE ?", p), // <--- FIX PARA BÚSQUEDA POR NOMBRE DE EMPRESA
 		)
 	}
 
@@ -301,8 +302,12 @@ func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		return
 	}
+	// Bulk charge actualiza cobrado, pagado y la fecha de hoy
 	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(map[string]interface{}{
-		"cobrado": true, "pagado": true, "fecha_pago": time.Now(),
+		"cobrado":     true,
+		"pagado":      true,
+		"fecha_pago":  time.Now(),
+		"fecha_cobro": time.Now(),
 	})
 	c.JSON(200, gin.H{"message": "✅ Procesado"})
 }
@@ -368,7 +373,6 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 // SECCIÓN: MÉTODOS ADMIN ADICIONALES
 // ---------------------------------------------------------------------
 
-// GetConductoresByLicencia - CARGA TODOS PARA EVITAR ERRORES DE COLUMNAS
 func GetConductoresByLicencia(c *gin.Context, db *gorm.DB) {
 	var conductores []models.Conductor
 	if err := db.Order("nombre asc").Find(&conductores).Error; err != nil {

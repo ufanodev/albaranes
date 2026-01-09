@@ -4,28 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏢 Cobro a Empresas - Administrador</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
     <script src="/js/utils.js"></script>
-    
-    <script>
-        // Definiciones de funciones globales mínimas que serán sobrescritas por admin_pago_emp.js
-        window.handleGeneratePDF = function() { console.warn('PDF handler not yet loaded.'); };
-        window.handleGenerateXLSX = function() { console.warn('XLSX handler not yet loaded.'); };
-        window.handleAction = function(t, d) { console.log(t, d); };
-        window.handleLogout = function() { window.location.href = '/login'; };
-        window.toggleDropdown = function() {};
-    </script>
     <script src="/js/admin_pago_emp.js" defer></script> 
     
     <script>
-        // Configuración para usar colores personalizados (Naranja Pastel)
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',  // Naranja más vivo para botones/links
+                        'primary-pastel': '#FFDAB9', 
+                        'primary-link': '#FF8C00',
                         'black-pure': '#000000',
                     }
                 }
@@ -35,347 +26,213 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
-        /* Clases base */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
         .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
-        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
-        .btn { @apply font-semibold py-2 px-4 rounded-lg shadow-md transition duration-200; }
-        .btn-primary { @apply bg-primary-link text-white hover:bg-orange-600; }
-        .btn-red { @apply bg-red-600 text-white hover:bg-red-700; }
-        .btn-gray { @apply bg-gray-200 text-gray-700 hover:bg-gray-300; }
+        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150 text-sm bg-slate-50; }
         
         /* DROPDOWNS */
-        .dropdown-content { display: none; position: absolute; background-color: white; min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1000; border-radius: 0.5rem; margin-top: 0.5rem; }
+        .dropdown-content { display: none; position: absolute; background-color: white; min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1); z-index: 1000; border-radius: 0.5rem; margin-top: 0.5rem; border: 1px solid #fed7aa; }
         .dropdown.active .dropdown-content { display: block; }
-        .dropdown-content a { color: #374151; padding: 12px 16px; text-decoration: none; display: block; border-bottom: 1px solid #f3f4f6; transition: background-color 0.2s; }
+        .dropdown-content a { color: #374151; padding: 12px 16px; text-decoration: none; display: block; border-bottom: 1px solid #fff7ed; transition: all 0.2s; font-size: 0.875rem; }
         .dropdown-content a:hover { background-color: #FFDAB9; color: #000; }
-        .dropdown-content a:last-child { border-bottom: none; }
         
         /* TABLA */
-        .compact-table th, .compact-table td { @apply px-3 py-2 text-xs; }
-        .compact-table th { @apply whitespace-nowrap; }
-        .compact-table .text-truncate { @apply max-w-[120px] overflow-hidden whitespace-nowrap text-ellipsis; }
+        .compact-table th { @apply px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider whitespace-nowrap; }
+        .compact-table td { @apply px-4 py-3 text-xs border-b border-gray-100; }
         
-        /* Mensajes de estado */
-        .status-message { @apply mt-4 p-3 rounded-md font-medium text-center; }
+        /* Animación suave para filas */
+        tbody tr { transition: background-color 0.2s; }
     </style>
 </head>
 
-<body class="bg-gray-50 font-inter">
+<body class="bg-slate-50">
 
-    <header class="bg-primary-link text-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header class="bg-primary-link text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-4">
-                <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location.href='/admin/'">
                     <span class="text-3xl">🏢 </span>
-                    <h1 class="text-xl font-bold">Administrador</h1>
+                    <h1 class="text-xl font-black uppercase tracking-tighter">Administrador</h1>
                 </div>
 
-                <nav class="hidden md:flex items-center space-x-6">
-                    
+                <nav class="hidden md:flex items-center space-x-4">
                     <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <span>Titulares</span>
                             <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/titulares">Titulares Gestión</a>
-                            <a href="/admin/pago_tit">Titulares Pagos</a> 
+                            <a href="/admin/titulares">Gestión de Titulares</a>
+                            <a href="/admin/pago_tit">Pagos a Titulares</a>
                         </div>
                     </div>
 
                     <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <span>Albaranes</span>
                             <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/">Albaranes Inicio</a> 
-                            <a href="/admin/nuevo_albaran">Albaranes Crear</a>
+                            <a href="/admin/">Listado Principal</a> 
+                            <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
                         </div>
                     </div>
 
                     <div class="dropdown relative active">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <span>Empresas</span>
                             <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/empresas">Empresas Gestión</a>
-                            <a href="/admin/pago_emp" class="bg-primary-pastel/50 font-bold">Empresas Cobro</a> 
+                            <a href="/admin/empresas">Gestión de Empresas</a>
+                            <a href="/admin/pago_emp" class="bg-primary-pastel/30 font-bold">Cobros a Empresas</a>
                         </div>
                     </div>
-                    
+
                     <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 font-medium" onclick="toggleDropdown(this)">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
                             <span>Sistema</span>
-                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/usuarios">Usuarios Gestión</a>
+                            <a href="/admin/usuarios">Usuarios</a>
                             <a href="/admin/conductor">Conductores</a>
                             <a href="/admin/backup">Backup</a>
                         </div>
                     </div>
 
-                    <div class="flex space-x-3 mt-4 sm:mt-0">
-                        <button title="Imprimir PDF" class="btn btn-gray rounded-full p-2" onclick="handleGeneratePDF()">
-                            <i data-lucide="printer" class="h-6 w-6"></i>
-                        </button>
-                        <button title="Exportar a Word" class="btn bg-indigo-500 text-white hover:bg-indigo-600 rounded-full p-2" onclick="handleAction('Exportar Word', 'Se exportará el listado actual a formato Word')">
-                            <i data-lucide="file-text" class="h-6 w-6"></i>
-                        </button>
-                        <button title="Exportar a Excel" class="btn bg-emerald-500 text-white hover:bg-emerald-600 rounded-full p-2" onclick="handleGenerateXLSX()">
-                            <i data-lucide="file-spreadsheet" class="h-6 w-6"></i>
-                        </button>
-                        
-                        <button onclick="handleLogout()" 
-                            title="Salir y cerrar sesión"
-                            class="btn bg-red-500 text-white hover:bg-red-600 font-semibold p-2 rounded-full">
-                            <i data-lucide="log-out" class="h-6 w-6"></i>
+                    <div class="flex space-x-2 border-l border-orange-400 pl-4">
+                        <button onclick="handleLogout()" title="Salir" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl transition active:scale-95">
+                            <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
                     </div>
                 </nav>
             </div>
-            </div>
+        </div>
     </header>
 
-    <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="showModal(false)">
-        <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
-            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure">Acción Realizada</h3>
-            <p id="modalBody" class="text-gray-700 mb-4"></p>
-            <button onclick="showModal(false)" class="w-full bg-primary-link text-white font-semibold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
-        </div>
-    </div>
-
-
     <main class="p-4 sm:p-6 lg:p-8">
-        <div class="max-w-[1800px] mx-auto">
+        <div class="max-w-[1800px] mx-auto space-y-6">
 
-            <div class="card mb-6">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
-                    <h1 class="text-3xl font-bold text-black-pure mb-4 sm:mb-0 flex items-center">
-                        <span class="text-4xl mr-3">🏢</span>
-                        <span class="text-2xl">GESTIÓN DE COBROS A EMPRESAS</span>
-                    </h1>
-                </div>
+            <div class="card bg-gradient-to-r from-white to-orange-50">
+                <h1 class="text-2xl font-black text-slate-800 flex items-center tracking-tight">
+                    <span class="bg-primary-link p-2 rounded-lg mr-4 shadow-lg text-white">
+                        <i data-lucide="building-2" class="w-6 h-6"></i>
+                    </span>
+                    GESTIÓN DE COBROS A EMPRESAS
+                </h1>
             </div>
 
-            <div class="card mb-8 filter-section">
-                
-                <form id="searchForm" onsubmit="handleSearch(event)">
-                    
-                    <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center">
-                        <span class="mr-2">🔍</span>
-                        Filtros de Búsqueda Avanzada
-                        <span class="ml-auto text-sm font-normal text-gray-500">
-                            <span id="activeFiltersCount">0</span> filtro(s) activo(s)
-                        </span>
-                    </h2>
-                    
-                    <div class="flex flex-wrap gap-3 mb-4 items-center">
-                        <span class="font-medium text-gray-700">Modo de filtro:</span>
-                        
-                        <button type="button" 
-                                id="btn-mode-campos"
-                                onclick="UI.setSearchModeManual('campos')"
-                                class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                        bg-blue-600 text-white hover:bg-blue-700 active:scale-95">
-                            <span class="mr-2">📝</span> Búsqueda por Campos
-                        </button>
-
-                        <button type="button" 
-                                id="btn-mode-palabra"
-                                onclick="UI.setSearchModeManual('palabra')"
-                                class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                        bg-primary-pastel text-black-pure hover:bg-orange-300 active:scale-95">
-                            <span class="mr-2">💬</span> Búsqueda por Palabra
-                        </button>
-
-                        <button type="button" 
-                            id="btn-limpiar"
-                            onclick="handleClearAllFilters()" 
-                            class="px-4 py-2 rounded-lg transition duration-200 shadow-md 
-                                bg-red-600 text-white hover:bg-red-700 active:scale-95 ml-2">
-                            Limpiar
-                        </button>
+            <div class="card">
+                <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Licencia</label>
+                            <select id="licenciaSelect" name="licencia" class="input-field font-bold text-blue-600">
+                                <option value="">-- Todas --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Empresa</label>
+                            <select id="empresa" name="empresa" class="input-field font-bold">
+                                <option value="">-- Todas --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Estado Cobro</label>
+                            <select id="cobrado" name="cobrado" class="input-field font-bold">
+                                <option value="no" selected>PENDIENTES (NO)</option>
+                                <option value="si">COBRADOS (SÍ)</option>
+                                <option value="no">COBRADOS (NO)</option>
+                                <option value="">TODOS</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Referencia</label>
+                            <input type="text" name="referencia" placeholder="Ref..." class="input-field">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Desde</label>
+                            <input type="date" name="fecha_desde" class="input-field">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Hasta</label>
+                            <input type="date" name="fecha_hasta" class="input-field">
+                        </div>
                     </div>
 
-                    <hr class="mb-6 border-gray-100">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
-                        
-                        <div>
-                            <label for="licenciaSelect" class="block text-sm font-medium text-gray-600 mb-1">
-                                <i data-lucide="id-card" class="h-3 w-3 mr-1"></i>
-                                LICENCIA
-                            </label>
-                            <select id="licenciaSelect" name="licencia" class="input-field appearance-none text-xs">
-                                <option value="">Cargando licencias...</option>
-                            </select>
+                    <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                        <label class="block text-[10px] font-black text-blue-400 uppercase mb-2 ml-1">🔍 Búsqueda de Texto Global</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="palabra" name="palabra" placeholder="Buscar por Nº Albarán, Cliente, Matrícula..." class="input-field flex-1 bg-white">
+                            <button type="submit" class="bg-primary-link text-white px-10 py-2 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-orange-600 transition">Buscar</button>
+                            <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 px-6 py-2 rounded-xl font-black text-xs uppercase hover:bg-slate-300 transition">Limpiar</button>
                         </div>
-                        
-                        <div>
-                            <label for="empresa" class="block text-sm font-medium text-gray-600 mb-1">
-                                Empresa
-                            </label>
-                            <select id="empresa" name="empresa" class="input-field appearance-none">
-                                <option value="">Por favor Seleccione</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label for="cobrado" class="block text-sm font-medium text-gray-600 mb-1">
-                                <i data-lucide="activity" class="h-3 w-3 mr-1"></i>
-                                Cobrado
-                            </label>
-                            <select id="cobrado" name="cobrado" class="input-field appearance-none">
-                                <option value="">Todos</option>
-                                <option value="si">Sí</option>
-                                <option value="no">No</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label for="referencia" class="block text-sm font-medium text-gray-600 mb-1">
-                                <i data-lucide="hash" class="h-3 w-3 mr-1"></i>
-                                Referencia
-                            </label>
-                            <input type="text" id="referencia" name="referencia" placeholder="Ref..." class="input-field text-xs" title="Buscar por número de referencia">
-                        </div>
-                        
-                        <div>
-                            <label for="fecha_desde" class="block text-sm font-medium text-gray-600 mb-1">Fecha (Desde)</label>
-                            <input type="date" id="fecha_desde" name="fecha_desde" class="input-field">
-                        </div>
-                        <div>
-                            <label for="fecha_hasta" class="block text-sm font-medium text-gray-600 mb-1">Fecha (Hasta)</label>
-                            <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field">
-                        </div>
-
-                    </div>
-                    
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-2">
-                            <label for="palabra" class="filter-label block text-xs font-medium text-gray-700 mb-1">
-                                🔍 Búsqueda Global (Licencia, Ref, Obs.)
-                            </label>
-                            <div class="flex gap-2">
-                                <input type="text" id="palabra" name="palabra" placeholder="Buscar texto libre..." class="input-field flex-1 search-highlight">
-                                <button type="button" 
-                                        onclick="document.getElementById('palabra').value = '';"
-                                        class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors"
-                                        title="Limpiar búsqueda">
-                                    <i data-lucide="x" class="h-4 w-4"></i>
-                                </button>
-                            </div>
-
-                            <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
-                                <div class="font-medium text-gray-700 flex items-center">
-                                    Tipo de búsqueda de texto:
-                                </div>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="exacta" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link" checked>
-                                    <span class="ml-2 font-medium">Frase Exacta</span>
-                                </label>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="todas" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                    <span class="ml-2 font-medium">Todas las palabras</span>
-                                </label>
-                                <label class="inline-flex items-center px-3 py-2 bg-white rounded-lg border border-gray-300 cursor-pointer transition-colors">
-                                    <input type="radio" name="search_type" value="cualquier" class="form-radio text-primary-link h-4 w-4 border-gray-300 focus:ring-primary-link">
-                                    <span class="ml-2 font-medium">Cualquier palabra</span>
-                                </label>
-                            </div>
                     </div>
                 </form>
             </div>
 
-            <button type="button" class="group relative inline-flex items-center justify-center px-6 py-3 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg hover:shadow-xl hover:shadow-green-500/50 hover:from-green-600 hover:to-green-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2" onclick="handleBulkPay()">
-                <i data-lucide="credit-card" class="h-5 w-5 mr-2 transition-transform group-hover:scale-110"></i>
-                <span class="relative">Cobrar Seleccionados</span>
+            <button onclick="handleBulkPay()" class="bg-green-600 text-white px-8 py-4 rounded-xl font-black text-sm uppercase shadow-xl hover:bg-green-700 transition flex items-center gap-3 active:scale-95">
+                <i data-lucide="check-circle-2" class="w-6 h-6"></i> Cobrar Seleccionados
             </button>
 
-            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 mt-6"> 
-                <div id="statusInfo" class="text-sm text-gray-600 mb-2 sm:mb-0">
-                    <span id="pageInfo">Página 1 de 1</span> 
-                    <span id="totalLabel"></span>
+            <div class="card overflow-hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 px-2">
+                    <h2 class="font-black text-slate-800 flex items-center uppercase text-sm">
+                        <i data-lucide="list" class="mr-2 text-primary-link"></i>
+                        Albaranes registrados
+                        <span id="resultsCount" class="ml-3 bg-primary-link text-white text-[10px] px-2 py-0.5 rounded-full">0</span>
+                    </h2>
+
+                    <div class="flex items-center gap-4">
+                        <select id="recordsPerPage" class="bg-slate-100 text-xs font-bold p-2 rounded-lg outline-none cursor-pointer border-none"></select>
+                        <div class="flex items-center bg-slate-100 rounded-lg p-1">
+                            <button id="prevPageBtn" class="p-1 hover:bg-white rounded transition disabled:opacity-20"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                            <span id="pageInfo" class="px-4 text-[10px] font-black text-primary-link min-w-[80px] text-center">Página 1</span>
+                            <button id="nextPageBtn" class="p-1 hover:bg-white rounded transition disabled:opacity-20"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="flex items-center space-x-2">
-                    <label for="recordsPerPage" class="text-sm text-gray-600">Mostrar:</label>
-                    <select id="recordsPerPage" class="input-field w-auto px-2 py-1 text-sm">
-                        </select>
-                    
-                    <button id="prevPageBtn" title="Página anterior" class="btn btn-gray p-2 disabled:opacity-50">
-                        <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                    </button>
-                    <button id="nextPageBtn" title="Página siguiente" class="btn btn-gray p-2 disabled:opacity-50">
-                        <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                    </button>
+                <div class="overflow-x-auto shadow-2xl rounded-xl border border-slate-200">
+                    <table class="min-w-full divide-y divide-slate-200 compact-table">
+                        <thead class="bg-slate-800 text-white">
+                            <tr>
+                                <th class="text-center w-12">Cobrar</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('id', 'number')">ID ↕</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('numero_albaran', 'string')">Nº Albarán ↕</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('licencia_ref', 'string')">Licencia ↕</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('fecha', 'date')">Fecha ↕</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('empresa_nombre', 'string')">Empresa ↕</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('referencia', 'string')">Ref. ↕</th>
+                                <th class="text-right cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('importe_total', 'number')">Importe TOTAL ↕</th>
+                                <th class="text-center cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('cobrado', 'number')">Cobrado ↕</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('fecha_cobro', 'date')">F. Cobro ↕</th>
+                                <th class="cursor-pointer hover:bg-slate-700 transition" onclick="handleSort('fecha_pago', 'date')">F. Pago ↕</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="albaranResults" class="bg-white divide-y divide-slate-100">
+                            <tr><td colspan="12" class="text-center py-20 italic text-gray-400">Iniciando sistema de cobros...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
+                
+                <div id="statusMessage" class="hidden"></div>
+                <div id="totalLabel" class="text-[10px] text-gray-400 mt-4 text-right font-bold uppercase tracking-widest"></div>
             </div>
-
-
-            <h2 class="text-xl font-bold text-black-pure mb-4">📊 Albaranes Enviados y Pendientes de Cobro</h2>
-
-            <div class="shadow-lg rounded-xl border border-gray-100 compact-table overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 table-fixed">
-                    <thead class="bg-primary-link text-white">
-                        <tr>
-                            <th scope="col" class="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider rounded-tl-xl w-20">Acciones</th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-24" onclick="sortTable('id', 'number')"><div class="sortable flex items-center">Nº Pago<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-24" onclick="sortTable('numero_albaran')"><div class="sortable flex items-center">Nº Albarán<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-16" onclick="sortTable('licencia_ref')"><div class="sortable flex items-center">Licencia<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-16" onclick="sortTable('fecha', 'date')"><div class="sortable flex items-center">Fecha<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th> 
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-24" onclick="sortTable('empresa_ref')"><div class="sortable flex items-center">Empresa<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-24" onclick="sortTable('referencia')"><div class="sortable flex items-center">Ref.<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-24" onclick="sortTable('importe_total', 'number')"><div class="sortable flex items-center">Importe TOTAL<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                            
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-16" onclick="sortTable('cobrado')"><div class="sortable flex items-center">Cobrado<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                            
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-16" onclick="sortTable('fecha_cobro', 'date')"><div class="sortable flex items-center">F. Cobro<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th> 
-                            
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-16" onclick="sortTable('fecha_pago', 'date')"><div class="sortable flex items-center">F. Pago<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th> 
-                            
-                            <th scope="col" class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider rounded-tr-xl w-40" onclick="sortTable('observaciones_admin')"><div class="sortable flex items-center">Obs. Admin<span class="sort-icon ml-2 w-4 h-4 inline-block"></span></div></th>
-                        </tr>
-                    </thead>
-                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="12" class="text-center py-4 text-gray-500 italic text-sm">Cargando albaranes...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="statusMessage" class="hidden status-message" role="alert"></div>
         </div>
     </main>
 
     <script>
-        // Funciones globales necesarias para la cabecera y el modal
-        window.showModal = (show, title = '', body = '') => {
-            const modal = document.getElementById('actionModal');
-            if (!modal) return;
-            document.getElementById('modalTitle').textContent = title;
-            document.getElementById('modalBody').textContent = body;
-            modal.classList.toggle('hidden', !show);
-        };
-
-        window.handleAction = (title, description) => { 
-            window.showModal(true, title, description);
-        };
-
-        window.handleLogout = () => { 
-            window.handleAction('Cerrar Sesión', 'Se ha simulado el cierre de sesión. Redirigiendo...'); 
-            setTimeout(() => window.location.href = '/login', 1500); 
-        };
-
-        window.toggleDropdown = (button) => { 
-            const parentDropdown = button.closest('.dropdown'); 
-            document.querySelectorAll('.dropdown').forEach(dropdown => {
-                if (dropdown !== parentDropdown) { dropdown.classList.remove('active'); }
-            });
-            if (parentDropdown) { parentDropdown.classList.toggle('active'); }
-        };
-        
-        window.toggleMobileMenu = () => { /* ... */ }; 
+        function toggleDropdown(button) {
+            const dropdown = button.parentElement;
+            document.querySelectorAll('.dropdown').forEach(d => { if (d !== dropdown) d.classList.remove('active'); });
+            dropdown.classList.toggle('active');
+        }
+        document.addEventListener('click', (e) => { if (!e.target.closest('.dropdown')) { document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); } });
+        lucide.createIcons();
     </script>
 </body>
 </html>

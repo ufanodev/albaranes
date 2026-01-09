@@ -36,11 +36,11 @@
         .dropdown.active .dropdown-content { display: block; }
         .dropdown-content a { color: #374151; padding: 12px 16px; text-decoration: none; display: block; border-bottom: 1px solid #fff7ed; transition: all 0.2s; font-size: 0.875rem; }
         .dropdown-content a:hover { background-color: #FFDAB9; color: #000; }
+        .dropdown-content a:last-child { border-bottom: none; }
         
         /* TABLA */
         .compact-table th { @apply px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider whitespace-nowrap; }
         .compact-table td { @apply px-4 py-3 text-xs border-b border-gray-100; }
-        .status-message { @apply mt-4 p-4 rounded-xl font-bold text-center border-2; }
     </style>
 </head>
 
@@ -54,17 +54,18 @@
                     <h1 class="text-xl font-black uppercase tracking-tighter">Administrador</h1>
                 </div>
 
-                <nav class="hidden md:flex items-center space-x-6">
-                    <div class="dropdown relative active">
+                <nav class="hidden md:flex items-center space-x-4">
+                    <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <span>Titulares</span>
                             <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="/admin/titulares">Titulares Gestión</a>
-                            <a href="/admin/pago_tit" class="bg-primary-pastel/50 font-bold">Titulares Pagos</a>
+                            <a href="/admin/titulares">Gestión de Titulares</a>
+                            <a href="/admin/pago_tit" class="bg-primary-pastel/30 font-bold">Pagos a Titulares</a>
                         </div>
                     </div>
+
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <span>Albaranes</span>
@@ -72,11 +73,35 @@
                         </button>
                         <div class="dropdown-content">
                             <a href="/admin/">Listado Principal</a> 
-                            <a href="/admin/nuevo_albaran">Crear Nuevo</a>
+                            <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
                         </div>
                     </div>
-                    <div class="flex space-x-3 border-l border-orange-400 pl-4">
-                        <button onclick="handleLogout()" title="Salir" class="bg-red-500 text-white p-2 rounded-full shadow-md transition active:scale-95">
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Empresas</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/empresas">Gestión de Empresas</a>
+                            <a href="/admin/pago_emp">Cobros a Empresas</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
+                            <span>Sistema</span>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/usuarios">Usuarios</a>
+                            <a href="/admin/conductor">Conductores</a>
+                            <a href="/admin/backup">Seguridad / Backup</a>
+                        </div>
+                    </div>
+
+                    <div class="flex space-x-2 border-l border-orange-400 pl-4">
+                        <button onclick="handleLogout()" title="Salir" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl transition active:scale-95">
                             <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
                     </div>
@@ -98,54 +123,45 @@
             </div>
 
             <div class="card">
-                <h2 class="text-sm font-black text-slate-400 uppercase mb-4 flex items-center">
-                    <i data-lucide="filter" class="w-4 h-4 mr-2"></i> Filtros de búsqueda
-                </h2>
                 <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        
                         <div>
-                            <label for="licencia" class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Licencia</label>
+                            <label for="licencia" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Licencia</label>
                             <select id="licencia" name="licencia" class="input-field font-bold text-blue-600">
                                 <option value="">Cargando...</option>
                             </select>
                         </div>
-                        
                         <div>
-                            <label for="empresa" class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Empresa</label>
+                            <label for="empresa" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Empresa</label>
                             <select id="empresa" name="empresa" class="input-field font-bold">
                                 <option value="">Cargando...</option>
                             </select>
                         </div>
-                        
                         <div>
-                            <label for="pagado" class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Estado Pago</label>
+                            <label for="pagado" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Estado Pago</label>
                             <select id="pagado" name="pagado" class="input-field font-bold">
                                 <option value="">TODOS</option>
-                                <option value="no">PENDIENTES (NO)</option>
-                                <option value="si">PAGADOS (SÍ)</option>
+                                <option value="no">PENDIENTES</option>
+                                <option value="si">PAGADOS</option>
                             </select>
                         </div>
-                        
                         <div>
-                            <label for="referencia" class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Referencia</label>
-                            <input type="text" id="referencia" name="referencia" placeholder="Ref. Expediente..." class="input-field">
+                            <label for="referencia" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Referencia</label>
+                            <input type="text" id="referencia" name="referencia" placeholder="Ref..." class="input-field">
                         </div>
-                        
                         <div class="lg:col-span-2">
-                            <label for="fecha_desde" class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Fecha Servicio (Desde)</label>
+                            <label for="fecha_desde" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Desde</label>
                             <input type="date" id="fecha_desde" name="fecha_desde" class="input-field">
                         </div>
                         <div class="lg:col-span-2">
-                            <label for="fecha_hasta" class="block text-[10px] font-black text-gray-500 uppercase mb-1 ml-1">Fecha Servicio (Hasta)</label>
+                            <label for="fecha_hasta" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Hasta</label>
                             <input type="date" id="fecha_hasta" name="fecha_hasta" class="input-field">
                         </div>
                     </div>
 
                     <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                        <label for="palabra" class="block text-[10px] font-black text-blue-400 uppercase mb-2 ml-1">🔍 Búsqueda de Texto Global</label>
                         <div class="flex gap-2">
-                            <input type="text" id="palabra" name="palabra" placeholder="Escribe Nº Albarán, Nombre Cliente, Matrícula..." class="input-field flex-1 bg-white">
+                            <input type="text" id="palabra" name="palabra" placeholder="Buscar por Nº Albarán, Cliente, Matrícula..." class="input-field flex-1 bg-white">
                             <button type="submit" class="bg-primary-link text-white px-10 py-2 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-orange-600 transition">Buscar</button>
                             <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 px-6 py-2 rounded-xl font-black text-xs uppercase hover:bg-slate-300 transition">Limpiar</button>
                         </div>
@@ -153,17 +169,15 @@
                 </form>
             </div>
 
-            <div class="flex justify-start">
-                <button onclick="handleBulkPay()" class="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase shadow-xl hover:bg-green-700 transition flex items-center gap-3 active:scale-95">
-                    <i data-lucide="check-circle-2" class="w-6 h-6"></i> Marcar Seleccionados como PAGADOS
-                </button>
-            </div>
+            <button onclick="handleBulkPay()" class="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase shadow-xl hover:bg-green-700 transition flex items-center gap-3 active:scale-95">
+                <i data-lucide="check-circle-2" class="w-6 h-6"></i> Pagar Seleccionados
+            </button>
 
             <div class="card overflow-hidden">
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 px-2">
-                    <h2 class="font-black text-slate-800 flex items-center tracking-tight uppercase text-sm">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+                    <h2 class="font-black text-slate-800 flex items-center uppercase text-sm">
                         <i data-lucide="list" class="mr-2 text-primary-link"></i>
-                        Albaranes Enviados 
+                        Resultados encontrados
                         <span id="resultsCount" class="ml-3 bg-primary-link text-white text-[10px] px-2 py-0.5 rounded-full">0</span>
                     </h2>
 
@@ -195,11 +209,9 @@
                             </tr>
                         </thead>
                         <tbody id="albaranResults" class="bg-white divide-y divide-slate-100">
-                            <tr><td colspan="11" class="text-center py-20 italic text-gray-400">Iniciando sistema de pagos...</td></tr>
-                        </tbody>
+                            </tbody>
                     </table>
                 </div>
-                
                 <div id="statusMessage" class="hidden"></div>
                 <div id="totalLabel" class="text-[10px] text-gray-400 mt-4 text-right font-bold uppercase tracking-widest"></div>
             </div>
