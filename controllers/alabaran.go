@@ -149,7 +149,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 }
 
 // ---------------------------------------------------------------------
-// SECCIÓN: CONTROLADORES GENERALES
+// SECCIÓN: CONTROLADORES GENERALES Y BÚSQUEDA AVANZADA
 // ---------------------------------------------------------------------
 
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
@@ -162,20 +162,57 @@ func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
 }
 
+// SearchAlbaranes - REFACTORIZADA PARA BÚSQUEDA POR CAMPOS Y GLOBAL
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
 	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("estado = ?", 0)
+
+	// Filtros por IDs
 	if v := c.Query("licencia_ref"); v != "" {
 		query = query.Where("licencia_ref = ?", v)
 	}
 	if v := c.Query("empresa_ref"); v != "" {
 		query = query.Where("empresa_ref = ?", v)
 	}
+
+	// Filtros de Estado
+	if v := c.Query("pagado"); v != "" {
+		query = query.Where("pagado = ?", v == "true")
+	}
+	if v := c.Query("enviado"); v != "" {
+		query = query.Where("enviado = ?", v == "true")
+	}
+
+	// Filtro Referencia
+	if v := c.Query("referencia"); v != "" {
+		query = query.Where("referencia LIKE ?", "%"+v+"%")
+	}
+
+	// Rango de Fechas
+	fechaDesde := c.Query("fecha_desde")
+	fechaHasta := c.Query("fecha_hasta")
+	if fechaDesde != "" && fechaHasta != "" {
+		query = query.Where("fecha BETWEEN ? AND ?", fechaDesde, fechaHasta)
+	} else if fechaDesde != "" {
+		query = query.Where("fecha >= ?", fechaDesde)
+	} else if fechaHasta != "" {
+		query = query.Where("fecha <= ?", fechaHasta)
+	}
+
+	// 🔍 BÚSQUEDA GLOBAL (Palabra clave)
 	if v := c.Query("palabra"); v != "" {
 		p := "%" + v + "%"
-		query = query.Where(db.Where("empresa_nombre LIKE ?", p).Or("referencia LIKE ?", p).Or("numero_albaran LIKE ?", p).Or("cliente LIKE ?", p))
+		query = query.Where(
+			db.Where("numero_albaran LIKE ?", p).
+				Or("referencia LIKE ?", p).
+				Or("cliente LIKE ?", p).
+				Or("matricula LIKE ?", p).
+				Or("num_factura LIKE ?", p).
+				Or("empresa_nombre LIKE ?", p),
+		)
 	}
-	query.Order("fecha desc, id desc").Find(&albaranes)
+
+	query.Order("fecha DESC, id DESC").Find(&albaranes)
 	c.JSON(http.StatusOK, gin.H{"data": albaranes})
 }
 
@@ -282,7 +319,6 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return
 	}
-
 	var processedData []utils.TitularData
 	for _, item := range req.Data {
 		row := make(utils.TitularData)
@@ -291,7 +327,6 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 		}
 		processedData = append(processedData, row)
 	}
-
 	url, _ := utils.GenerateGenericPDF(req.ReportName, processedData)
 	c.JSON(200, gin.H{"success": true, "downloadURL": url})
 }
@@ -304,7 +339,6 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		return
 	}
-
 	var processedData []utils.TitularData
 	for _, item := range req.Data {
 		row := make(utils.TitularData)
@@ -313,7 +347,6 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 		}
 		processedData = append(processedData, row)
 	}
-
 	url, _ := utils.GenerateTitularesXLSX(req.ReportName, processedData)
 	c.JSON(200, gin.H{"success": true, "downloadURL": url})
 }
@@ -335,17 +368,13 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 // SECCIÓN: MÉTODOS ADMIN ADICIONALES
 // ---------------------------------------------------------------------
 
-// GetConductoresByLicencia - AHORA CARGA TODOS PARA EVITAR ERRORES DE COLUMNAS
+// GetConductoresByLicencia - CARGA TODOS PARA EVITAR ERRORES DE COLUMNAS
 func GetConductoresByLicencia(c *gin.Context, db *gorm.DB) {
-	fmt.Println("📋 [ADMIN] Cargando lista completa de conductores")
 	var conductores []models.Conductor
-
-	// Cargamos todos ordenados por nombre. Sin WHERE no hay error de columna.
 	if err := db.Order("nombre asc").Find(&conductores).Error; err != nil {
 		c.JSON(500, gin.H{"error": "Error al cargar conductores"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": conductores})
 }
 
