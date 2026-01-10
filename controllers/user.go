@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"albaranes/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -56,12 +56,84 @@ func RequireRole(role string) gin.HandlerFunc {
 	}
 }
 
-// --- Controladores de Autenticación ---
+// =====================================================================
+// 🔑 CONTROLADORES DE AUTENTICACIÓN Y RECUPERACIÓN
+// =====================================================================
+
+// RequestPasswordReset genera el token y prepara el envío (Paso 1)
+// Se exporta con Mayúscula para que routes.go lo vea.
+func RequestPasswordReset(c *gin.Context, db *gorm.DB) {
+	var input struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email inválido"})
+		return
+	}
+
+	var user models.User
+	// Buscamos al usuario por email
+	if err := db.Where("email = ?", input.Email).First(&user).Error; err == nil {
+		// 1. Generar un token único y expiración (1 hora)
+		token := uuid.New().String()
+		expiration := time.Now().Add(1 * time.Hour)
+
+		// 2. Guardar en la base de datos
+		db.Model(&user).Updates(map[string]interface{}{
+			"reset_token":   token,
+			"reset_expires": expiration,
+		})
+
+		// 3. Log de simulación para desarrollo
+		fmt.Printf("\n--- 📧 SIMULACIÓN ENVÍO EMAIL ---\n")
+		fmt.Printf("Para: %s\n", user.Email)
+		fmt.Printf("Link: http://localhost:8080/resetpwd?token=%s\n", token)
+		fmt.Printf("---------------------------------\n")
+	}
+
+	// Respuesta genérica por seguridad (enumeración de cuentas)
+	c.JSON(http.StatusOK, gin.H{"message": "Si el email está registrado, recibirás un enlace de recuperación."})
+}
+
+// ConfirmPasswordReset valida el token y cambia la contraseña (Paso final)
+// Se exporta con Mayúscula para que routes.go lo vea.
+func ConfirmPasswordReset(c *gin.Context, db *gorm.DB) {
+	var input struct {
+		Token    string `json:"token" binding:"required"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos (mínimo 6 caracteres)"})
+		return
+	}
+
+	var user models.User
+	// Buscar usuario con el token y que no haya expirado (time.Now() < reset_expires)
+	err := db.Where("reset_token = ? AND reset_expires > ?", input.Token, time.Now()).First(&user).Error
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "El enlace ha expirado o es inválido."})
+		return
+	}
+
+	// 1. Hashear nueva contraseña
+	hashedPassword, _ := utils.GenerateHashPassword(input.Password)
+
+	// 2. Actualizar usuario y limpiar campos de reset para que el token no se use 2 veces
+	db.Model(&user).Updates(map[string]interface{}{
+		"password":      hashedPassword,
+		"reset_token":   "",
+		"reset_expires": nil,
+	})
+
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Contraseña actualizada correctamente."})
+}
 
 func Register(c *gin.Context, db *gorm.DB) {
 	var input RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos: " + err.Error()})
 		return
 	}
 
@@ -84,7 +156,7 @@ func Register(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Email o Usuario ya en uso."})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Usuario registrado"})
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Usuario registrado correctamente"})
 }
 
 func Login(c *gin.Context, db *gorm.DB) {
@@ -95,26 +167,17 @@ func Login(c *gin.Context, db *gorm.DB) {
 	}
 
 	var user models.User
-	// 1. Buscamos el usuario
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
 
-	// 🚩 [DEPURACIÓN EXTREMA] Lectura directa de la columna para evitar errores de mapeo
+	// Lectura directa RAW para asegurar LicenciaRef
 	var dbLicRef uint
 	db.Raw("SELECT licencia_ref FROM usuarios WHERE email = ?", input.Email).Scan(&dbLicRef)
 
-	fmt.Printf("\n--- 🔍 RESULTADOS DEPURACIÓN ---\n")
-	fmt.Printf("👤 Usuario: %s\n", user.Usuario)
-	fmt.Printf("🆔 GORM (Estructura): %d\n", user.LicenciaRef)
-	fmt.Printf("🆔 RAW (Directo DB): %d\n", dbLicRef)
-	fmt.Printf("-------------------------------\n")
-
-	// 🛡️ PARCHE: Si GORM falló pero la DB tiene el valor, lo asignamos manualmente
 	if user.LicenciaRef == 0 && dbLicRef > 0 {
 		user.LicenciaRef = dbLicRef
-		log.Println("⚠️ Aviso: Se ha forzado LicenciaRef desde lectura RAW.")
 	}
 
 	if !user.Activo {
@@ -127,7 +190,6 @@ func Login(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// 2. Generamos el token con el ID de licencia verificado
 	authCookie, err := utils.GenerateAuthCookie(user.ID, user.Role, user.LicenciaRef)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error de sesión"})
@@ -144,11 +206,12 @@ func Login(c *gin.Context, db *gorm.DB) {
 		authCookie.HttpOnly,
 	)
 
-	log.Printf("🔑 [Login OK] %s conectado con Licencia ID: %d", user.Usuario, user.LicenciaRef)
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Login exitoso", "role": user.Role, "usuario": user.Usuario})
 }
 
-// --- Controladores CRUD ---
+// =====================================================================
+// 🛠️ CONTROLADORES CRUD
+// =====================================================================
 
 func GetUsers(c *gin.Context, db *gorm.DB) {
 	var users []models.User
@@ -180,7 +243,10 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 	}
 
 	var input UpdateUserInput
-	c.ShouldBindJSON(&input)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
+		return
+	}
 
 	updates := make(map[string]interface{})
 	if input.Usuario != nil {
@@ -204,7 +270,7 @@ func UpdateUser(c *gin.Context, db *gorm.DB) {
 	}
 
 	db.Model(&user).Updates(updates)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado correctamente"})
 }
 
 func DeleteUser(c *gin.Context, db *gorm.DB) {
@@ -213,12 +279,12 @@ func DeleteUser(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Desactivado"})
 }
 
-// ---------------------------------------------------------------------
-// EXPORTACIÓN
-// ---------------------------------------------------------------------
+// =====================================================================
+// 📄 EXPORTACIÓN
+// =====================================================================
 
 func ExportUsersPDF(c *gin.Context, db *gorm.DB) {
-	var req ExportRequest
+	var req ExportRequest // Toma la estructura de common.go automáticamente
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
 		return
@@ -232,7 +298,7 @@ func ExportUsersPDF(c *gin.Context, db *gorm.DB) {
 }
 
 func ExportUsersXLSX(c *gin.Context, db *gorm.DB) {
-	var req ExportRequest
+	var req ExportRequest // Toma la estructura de common.go automáticamente
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
 		return
