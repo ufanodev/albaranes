@@ -3,129 +3,41 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nueva Contraseña - Radiotaxi</title>
+    <title>Nueva Contraseña - Albaranes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
-                extend: {
-                    colors: {
-                        'primary-pastel': '#FFDAB9', 
-                        'primary-link': '#FF8C00',
-                    }
-                }
+                extend: { colors: { 'primary-pastel': '#FFDAB9' } }
             }
         }
     </script>
 </head>
-<body class="bg-white min-h-screen flex items-center justify-center p-4">
-
-    <div class="max-w-sm w-full bg-white p-8 rounded-xl shadow-xl border border-primary-pastel">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-black mb-2 uppercase tracking-tight">
-                🔐 Nueva Clave
-            </h1>
-            <p class="text-gray-500 text-sm">Establece tu nueva contraseña de acceso</p>
-        </div>
-
-        <form id="resetForm" onsubmit="handleConfirmReset(event)">
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-sm w-full bg-white p-8 rounded-xl shadow-lg border border-primary-pastel">
+        <h1 class="text-2xl font-bold text-center mb-6">🔒 Nueva Contraseña</h1>
+        
+        <form id="resetForm">
             <div class="mb-4">
-                <label for="password" class="block text-sm font-medium text-black mb-1 ml-1">Nueva Contraseña</label>
-                <input type="password" id="password" name="password" required minlength="6"
-                       placeholder="Mínimo 6 caracteres"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:border-primary-pastel" />
+                <label class="block text-sm font-medium mb-1">Nueva Contraseña</label>
+                <input type="password" id="password" required minlength="6"
+                       class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary-pastel outline-none" />
             </div>
-
             <div class="mb-6">
-                <label for="confirmPassword" class="block text-sm font-medium text-black mb-1 ml-1">Confirmar Contraseña</label>
-                <input type="password" id="confirmPassword" name="confirmPassword" required minlength="6"
-                       placeholder="Repite la contraseña"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:border-primary-pastel" />
+                <label class="block text-sm font-medium mb-1">Confirmar Contraseña</label>
+                <input type="password" id="confirmPassword" required minlength="6"
+                       class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary-pastel outline-none" />
             </div>
-
-            <button type="submit" id="btnSubmit"
-                    class="w-full py-3 bg-primary-pastel text-black font-semibold rounded-lg hover:bg-orange-300 transition duration-200 shadow-md mb-4 uppercase text-sm">
+            
+            <button type="submit" id="btnCambiar"
+                    class="w-full py-3 bg-primary-pastel font-bold rounded-lg hover:bg-orange-200 transition">
                 Actualizar Contraseña
             </button>
 
-            <div id="statusMessage" class="hidden text-center p-3 rounded-md border border-opacity-50 font-medium text-xs" role="alert"></div>
+            <div id="statusMessage" class="hidden text-center mt-4 p-3 rounded-md font-medium"></div>
         </form>
-
-        <div class="text-center mt-4">
-            <a href="/login" class="text-sm font-medium text-primary-link hover:text-orange-500 transition duration-150">
-                ⬅️ Cancelar y volver al inicio
-            </a>
-        </div>
     </div>
 
-    <script>
-        async function handleConfirmReset(event) {
-            event.preventDefault();
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            const statusMessage = document.getElementById('statusMessage');
-            const btn = document.getElementById('btnSubmit');
-
-            // 1. Limpiar mensajes previos
-            statusMessage.classList.add('hidden');
-            statusMessage.classList.remove('bg-red-400', 'text-white', 'border-red-600', 'bg-green-100', 'text-green-700', 'border-green-400');
-
-            // 2. Validar que las contraseñas coincidan
-            if (password !== confirmPassword) {
-                showMsg("❌ Las contraseñas no coinciden", "error");
-                return;
-            }
-
-            // 3. Obtener el token de la URL (?token=UUID)
-            const urlParams = new URLSearchParams(window.location.search);
-            const token = urlParams.get('token');
-
-            if (!token) {
-                showMsg("❌ Token no encontrado en el enlace del email", "error");
-                return;
-            }
-
-            // 4. Bloquear botón para evitar doble click
-            btn.disabled = true;
-            btn.textContent = "Actualizando...";
-
-            try {
-                // Llamada a la API creada en controllers/user.go
-                const response = await fetch('/api/v1/auth/confirm-reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, password })
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    showMsg("✅ " + result.message, "success");
-                    // Redirigir al login después de 3 segundos
-                    setTimeout(() => window.location.href = "/login", 3000);
-                } else {
-                    showMsg("❌ " + (result.error || "Error al procesar el cambio"), "error");
-                    btn.disabled = false;
-                    btn.textContent = "Actualizar Contraseña";
-                }
-            } catch (error) {
-                showMsg("❌ Error de red: No se pudo conectar con el servidor", "error");
-                btn.disabled = false;
-                btn.textContent = "Actualizar Contraseña";
-            }
-        }
-
-        // Función auxiliar para mostrar mensajes de éxito o error
-        function showMsg(text, type) {
-            const el = document.getElementById('statusMessage');
-            el.textContent = text;
-            el.classList.remove('hidden');
-            if (type === 'error') {
-                el.classList.add('bg-red-400', 'text-white', 'border-red-600');
-            } else {
-                el.classList.add('bg-green-100', 'text-green-700', 'border-green-400');
-            }
-        }
-    </script>
+    <script src="/js/resetpwd.js"></script>
 </body>
 </html>

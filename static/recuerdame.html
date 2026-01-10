@@ -1,17 +1,17 @@
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Recuperar Contraseña</title>
+    <title>Recuperar Contraseña - Albaranes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Configuración para usar colores personalizados
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'primary-pastel': '#FFDAB9', // Naranja Pastel
-                        'primary-link': '#FF8C00',   // Naranja más vivo para enlaces
+                        'primary-pastel': '#FFDAB9',
+                        'primary-link': '#FF8C00',
                     }
                 }
             }
@@ -19,65 +19,36 @@
     </script>
 </head>
 <body class="bg-white min-h-screen flex items-center justify-center p-4">
-
     <div class="max-w-sm w-full bg-white p-8 rounded-xl shadow-xl border border-primary-pastel">
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-black mb-2">
-                🔑 ¿Olvidaste tu Contraseña?
-            </h1>
-            <p class="text-gray-500 text-sm">Albaranes Radiotaxi</p>
+            <div class="text-5xl mb-4">🔑</div>
+            <h1 class="text-3xl font-bold text-black mb-2">¿Olvidaste tu Contraseña?</h1>
+            <p class="text-gray-500 text-sm">Introduce tu email para recibir un enlace de recuperación.</p>
         </div>
         
-        <form id="recuperarForm" onsubmit="handleRecovery(event)">
+        <form id="recuperarForm">
             <div class="mb-5">
-                <label for="username" class="block text-sm font-medium text-black mb-1">Usuario / Email</label>
+                <label for="email" class="block text-sm font-medium text-black mb-1">Correo Electrónico</label>
                 <input type="email" id="email" name="email" required
-                       placeholder="Introduce tu email registrado"
+                       placeholder="ejemplo@email.com"
                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-pastel focus:border-primary-pastel" />
             </div>
             
-            <button type="submit" 
+            <button type="submit" id="btnEnviar"
                     class="w-full py-3 bg-primary-pastel text-black font-semibold rounded-lg hover:bg-orange-300 transition duration-200 shadow-md mb-4">
                 Enviar Enlace
             </button>
 
             <div class="text-center">
-                <a href="login.html" class="text-sm font-medium text-primary-link hover:text-orange-500 transition duration-150">
+                <a href="/login" class="text-sm font-medium text-primary-link hover:text-orange-500 transition duration-150">
                     ⬅️ Volver al Acceso
                 </a>
             </div>
             
-            <div id="statusMessage" class="hidden text-center mt-4 p-3 rounded-md border border-opacity-50 font-medium" role="alert"></div>
+            <div id="statusMessage" class="hidden text-center mt-6 p-3 rounded-md border border-opacity-50 font-medium" role="alert"></div>
         </form>
     </div>
 
-    <script>
-        function handleRecovery(event) {
-            event.preventDefault(); // Detiene el envío estándar del formulario
-            
-            const email = document.getElementById('email').value.trim();
-            const statusMessage = document.getElementById('statusMessage');
-
-            // 1. Limpiar y resetear clases de estado
-            statusMessage.classList.add('hidden');
-            statusMessage.classList.remove('bg-red-400', 'text-white', 'border-red-600', 'bg-green-100', 'text-green-700', 'border-green-400');
-            
-            // Credencial mockeada
-            const MOCK_EMAIL = "taxi@email.es";
-
-            if (email === MOCK_EMAIL) {
-                // Éxito: Usamos colores verdes estándar de Tailwind
-                statusMessage.classList.remove('hidden');
-                statusMessage.classList.add('bg-green-100', 'text-green-700', 'border-green-400');
-                statusMessage.textContent = '📧 ¡Hecho! Se ha enviado correctamente un email a su cuenta para nueva password.';
-                
-            } else {
-                // Error: Rojo Pastel (bg-red-400) y Letra Blanca (text-white)
-                statusMessage.classList.remove('hidden');
-                statusMessage.classList.add('bg-red-400', 'text-white', 'border-red-600'); 
-                statusMessage.textContent = '❌ Error: El usuario no está registrado.';
-            }
-        }
-    </script>
+    <script src="/js/recuerdame.js"></script>
 </body>
 </html>
