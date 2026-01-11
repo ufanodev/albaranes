@@ -43,18 +43,19 @@
 
 <body class="bg-slate-50">
 
-    <header class="bg-primary-link text-white shadow-lg sticky top-0 z-50">
+    <header class="bg-primary-link text-white shadow-xl sticky top-0 z-50">
         <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-4">
                 <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location.href='/admin/'">
-                    <span class="text-3xl">🏢 </span>
+                    <span class="text-3xl">🏢</span>
                     <h1 class="text-xl font-black uppercase tracking-tighter">Administrador</h1>
                 </div>
 
                 <nav class="hidden md:flex items-center space-x-4">
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
-                            <span>Titulares</span><i data-lucide="chevron-down" class="h-4 w-4"></i>
+                            <span>Titulares</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
                             <a href="/admin/titulares">Gestión de Titulares</a>
@@ -62,13 +63,37 @@
                         </div>
                     </div>
 
-                    <div class="dropdown relative active">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
-                            <span>Empresas</span><i data-lucide="chevron-down" class="h-4 w-4"></i>
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Albaranes</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/">Listado Principal</a> 
+                            <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Empresas</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
                         </button>
                         <div class="dropdown-content">
                             <a href="/admin/empresas">Gestión de Empresas</a>
-                            <a href="/admin/pago_emp" class="bg-primary-pastel/30 font-bold">Cobros a Empresas</a>
+                            <a href="/admin/pago_emp">Cobros a Empresas</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
+                            <span>Sistema</span>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/usuarios">Usuarios del Sistema</a>
+                            <a href="/admin/conductor">Base de Conductores</a>
+                            <a href="/admin/backup">Copias de Seguridad</a>
                         </div>
                     </div>
 
@@ -79,7 +104,7 @@
                         <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
                             <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
                         </button>
-                        <button onclick="handleLogout()" title="Salir" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl transition active:scale-95">
+                        <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl shadow-lg transition active:scale-95" title="Cerrar Sesión">
                             <i data-lucide="log-out" class="h-5 w-5"></i>
                         </button>
                     </div>

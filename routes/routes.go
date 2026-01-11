@@ -26,7 +26,6 @@ func AuthRedirectMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// No redirigir peticiones de API (el JWT middleware devolverá 401 si falla)
 		if strings.HasPrefix(path, "/api/v1") {
 			c.Next()
 			return
@@ -46,7 +45,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	// CONFIGURACIÓN ESTRICTA: Evita bucles 301/302 y ERR_TOO_MANY_REDIRECTS
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
 
@@ -59,18 +57,17 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 	r.LoadHTMLGlob("static/*.html")
 
-	// 2. VISTAS PÚBLICAS (Login y Recuperación)
+	// 2. VISTAS PÚBLICAS
 	publicViews := r.Group("/")
 	publicViews.Use(NoCacheMiddleware())
 	{
-		// Corregido: Solo una definición para la raíz '/' para evitar panic
 		publicViews.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
 		publicViews.GET("/login", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
 		publicViews.GET("/recuerdame", func(c *gin.Context) { c.HTML(http.StatusOK, "recuerdame.html", nil) })
 		publicViews.GET("/resetpwd", func(c *gin.Context) { c.HTML(http.StatusOK, "resetpwd.html", nil) })
 	}
 
-	// 3. VISTAS PROTEGIDAS (Admin y Titulares)
+	// 3. VISTAS PROTEGIDAS
 	protectedViews := r.Group("/")
 	protectedViews.Use(NoCacheMiddleware(), AuthRedirectMiddleware())
 	{
@@ -83,38 +80,30 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		protectedViews.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_view.html", nil) })
 		protectedViews.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "albaran_view.html", nil) })
 
-		// GRUPO ADMIN
 		adminViews := protectedViews.Group("/admin")
 		{
-			// En subgrupos sí podemos definir ambas para mayor compatibilidad
 			adminViews.GET("", func(c *gin.Context) { c.HTML(http.StatusOK, "admin.html", nil) })
 			adminViews.GET("/", func(c *gin.Context) { c.HTML(http.StatusOK, "admin.html", nil) })
-
 			adminViews.GET("/albaranes", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_busqueda.html", nil) })
 			adminViews.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_nuevo.html", nil) })
 			adminViews.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_view.html", nil) })
 			adminViews.GET("/albaranes/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_update.html", nil) })
 			adminViews.GET("/albaranes/borrar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_borrar.html", nil) })
 			adminViews.GET("/albaranes/copiar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_copiar.html", nil) })
-
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
 			adminViews.GET("/titulares/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
 			adminViews.GET("/titulares/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
 			adminViews.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
-
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
 			adminViews.GET("/empresas/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
 			adminViews.GET("/empresas/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
-
 			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
 			adminViews.GET("/usuarios/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
 			adminViews.GET("/usuarios/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
-
 			adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) })
 			adminViews.GET("/conductor/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 			adminViews.GET("/conductor/update/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 			adminViews.GET("/conductor/view/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
-
 			adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
 			adminViews.GET("/pago_emp", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_emp.html", nil) })
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
@@ -151,7 +140,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				userGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportUsersXLSX(c, db) })
 			}
 
-			// CRUD LICENCIAS
+			// CRUD LICENCIAS (TITULARES)
 			licenciaGroup := protectedAPI.Group("/licencias")
 			licenciaGroup.Use(controllers.RequireRole("admin"))
 			{
@@ -169,6 +158,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			empresaGroup := protectedAPI.Group("/empresas")
 			{
 				empresaGroup.GET("", func(c *gin.Context) { controllers.GetEmpresas(c, db) })
+
+				// ✅ NUEVAS RUTAS DE EXPORTACIÓN EMPRESAS
+				empresaGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportEmpresasPDF(c, db) })
+				empresaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
+
 				adminEmpresa := empresaGroup.Group("/")
 				adminEmpresa.Use(controllers.RequireRole("admin"))
 				{
