@@ -10,7 +10,6 @@ import (
 	"albaranes/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -60,7 +59,7 @@ func RequireRole(role string) gin.HandlerFunc {
 // 🔑 CONTROLADORES DE AUTENTICACIÓN Y RECUPERACIÓN
 // =====================================================================
 
-// RequestPasswordReset (Paso 1): Genera token y envía email
+// RequestPasswordReset (Paso 1): Genera código de 6 dígitos y envía email
 func RequestPasswordReset(c *gin.Context, db *gorm.DB) {
 	var input struct {
 		Email string `json:"email" binding:"required,email"`
@@ -74,47 +73,52 @@ func RequestPasswordReset(c *gin.Context, db *gorm.DB) {
 	var user models.User
 	// 1. Verificar si el email existe
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		// Por seguridad, respondemos OK aunque no exista
-		c.JSON(http.StatusOK, gin.H{"message": "Si el email está registrado, recibirá un enlace pronto."})
+		// Por seguridad (evitar enumeración), respondemos éxito genérico
+		c.JSON(http.StatusOK, gin.H{"message": "Si el email está registrado, recibirá un código pronto."})
 		return
 	}
 
-	// 2. Generar token único y expiración (24h para evitar desfases horarios)
-	token := uuid.New().String()
-	expiration := time.Now().Add(24 * time.Hour)
+	// 2. Generar código de 6 dígitos aleatorio
+	code := fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
+	expiration := time.Now().Add(15 * time.Minute) // Caduca en 15 min
 
 	// 3. Actualizar base de datos
 	db.Model(&user).Updates(map[string]interface{}{
-		"reset_token":   token,
+		"reset_token":   code,
 		"reset_expires": expiration,
 	})
 
-	// 4. Log de simulación (Sustituir por utils.SendResetPasswordEmail cuando AWS SES esté activo)
-	fmt.Printf("\n--- 📧 SOLICITUD DE RECUPERACIÓN ---\n")
-	fmt.Printf("Usuario: %s (%s)\n", user.Usuario, user.Email)
-	fmt.Printf("Link: http://localhost:8080/resetpwd?token=%s\n", token)
-	fmt.Printf("------------------------------------\n")
+	// 4. Envío de Email Real (SMTP configurado en .env)
+	err := utils.SendResetPasswordEmail(user.Email, code)
+	if err != nil {
+		fmt.Printf("❌ Error SMTP con %s: %v\n", user.Email, err)
+	} else {
+		fmt.Printf("✅ Código [%s] enviado con éxito a: %s\n", code, user.Email)
+	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Enlace de recuperación generado con éxito."})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Se ha enviado un código de seguridad a su email."})
 }
 
-// ConfirmPasswordReset (Paso 2): Valida token y cambia password
+// ConfirmPasswordReset (Paso 2): Valida Email + Código y cambia password
 func ConfirmPasswordReset(c *gin.Context, db *gorm.DB) {
 	var input struct {
-		Token    string `json:"token" binding:"required"`
+		Email    string `json:"email" binding:"required,email"`
+		Code     string `json:"code" binding:"required"`
 		Password string `json:"password" binding:"required,min=6"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "La contraseña debe tener al menos 6 caracteres."})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos (Contraseña mín. 6 caracteres)"})
 		return
 	}
 
 	var user models.User
-	// Buscamos usuario con el token y que no haya expirado
-	err := db.Where("reset_token = ? AND reset_expires > ?", input.Token, time.Now()).First(&user).Error
+	// Validar Email + Código + Expiración
+	err := db.Where("email = ? AND reset_token = ? AND reset_expires > ?",
+		input.Email, input.Code, time.Now()).First(&user).Error
+
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "El enlace es inválido o ha caducado."})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "El código es incorrecto o ha caducado."})
 		return
 	}
 
@@ -128,7 +132,7 @@ func ConfirmPasswordReset(c *gin.Context, db *gorm.DB) {
 		"reset_expires": nil,
 	})
 
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Contraseña actualizada. Ya puede iniciar sesión."})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Contraseña actualizada correctamente."})
 }
 
 func Register(c *gin.Context, db *gorm.DB) {
@@ -173,7 +177,7 @@ func Login(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Asegurar LicenciaRef (Fix para migraciones antiguas)
+	// Asegurar LicenciaRef para sesiones
 	var dbLicRef uint
 	db.Raw("SELECT licencia_ref FROM usuarios WHERE email = ?", input.Email).Scan(&dbLicRef)
 	if user.LicenciaRef == 0 && dbLicRef > 0 {

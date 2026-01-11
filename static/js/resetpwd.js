@@ -1,47 +1,67 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('resetForm');
     const statusMessage = document.getElementById('statusMessage');
+    const btn = document.getElementById('btnCambiar');
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        // Captura de datos
+        const email = document.getElementById('email').value.trim().toLowerCase();
+        const code = document.getElementById('code').value.trim();
         const password = document.getElementById('password').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-        
-        // Obtener el token de la URL (?token=XXXX)
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
 
-        if (!token) {
-            alert("Token no encontrado en la URL");
+        // Validación visual previa
+        if (code.length !== 6) {
+            mostrarMensaje("❌ El código debe tener 6 dígitos", "error");
             return;
         }
 
-        if (password !== confirmPassword) {
-            alert("Las contraseñas no coinciden");
-            return;
-        }
+        // Preparar UI para la carga
+        statusMessage.classList.add('hidden');
+        btn.disabled = true;
+        btn.textContent = "Validando código...";
 
         try {
             const response = await fetch('/api/v1/auth/confirm-reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, password })
+                body: JSON.stringify({ email, code, password })
             });
 
             const result = await response.json();
-            statusMessage.classList.remove('hidden');
 
             if (response.ok) {
-                statusMessage.className = "mt-4 p-3 bg-green-100 text-green-700 rounded-md";
-                statusMessage.textContent = "✅ Contraseña actualizada. Redirigiendo...";
-                setTimeout(() => window.location.href = "/login", 2000);
+                // ÉXITO: Contraseña cambiada
+                mostrarMensaje("✅ Contraseña actualizada. Redirigiendo al inicio...", "success");
+                
+                // Redirección al login tras 2 segundos
+                setTimeout(() => {
+                    window.location.href = "/login";
+                }, 2000);
             } else {
-                statusMessage.className = "mt-4 p-3 bg-red-100 text-red-700 rounded-md";
-                statusMessage.textContent = "❌ " + result.error;
+                // ERROR: Código inválido, expirado o error de servidor
+                mostrarMensaje("❌ " + (result.error || "Error al validar"), "error");
+                btn.disabled = false;
+                btn.textContent = "Actualizar Contraseña";
             }
         } catch (error) {
-            console.error(error);
+            // ERROR DE RED
+            mostrarMensaje("❌ Error de comunicación con el servidor", "error");
+            btn.disabled = false;
+            btn.textContent = "Actualizar Contraseña";
         }
     });
+
+    // Función auxiliar para mostrar mensajes con estilos Tailwind
+    function mostrarMensaje(texto, tipo) {
+        statusMessage.classList.remove('hidden');
+        statusMessage.textContent = texto;
+        
+        if (tipo === "success") {
+            statusMessage.className = "text-center mt-4 p-3 rounded-md bg-green-100 text-green-700 border border-green-400 font-medium text-sm";
+        } else {
+            statusMessage.className = "text-center mt-4 p-3 rounded-md bg-red-100 text-red-700 border border-red-400 font-medium text-sm";
+        }
+    }
 });
