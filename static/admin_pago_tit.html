@@ -46,7 +46,7 @@
 
 <body class="bg-slate-50">
 
-        <header class="bg-primary-link text-white shadow-xl sticky top-0 z-50">
+    <header class="bg-primary-link text-white shadow-xl sticky top-0 z-50">
         <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-4">
                 <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location.href='/admin/'">
@@ -62,7 +62,7 @@
                         </button>
                         <div class="dropdown-content">
                             <a href="/admin/titulares">Gestión de Titulares</a>
-                            <a href="/admin/pago_tit">Pagos a Titulares</a>
+                            <a href="/admin/pago_tit" class="bg-primary-pastel/30 font-bold">Pagos a Titulares</a>
                         </div>
                     </div>
 
@@ -132,8 +132,8 @@
                 <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
-                            <label for="licencia" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Licencia</label>
-                            <select id="licencia" name="licencia_ref" class="input-field font-bold text-blue-600">
+                            <label for="licenciaSelect" class="block text-[10px] font-black text-gray-500 uppercase mb-1">Licencia</label>
+                            <select id="licenciaSelect" name="licencia_ref" class="input-field font-bold text-blue-600">
                                 <option value="">-- Todas --</option>
                             </select>
                         </div>
@@ -157,15 +157,17 @@
                         </div>
                     </div>
 
-                    <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                        <div class="flex gap-2">
-                            <input type="text" id="palabra" name="palabra" placeholder="Buscar por Nº Albarán, Cliente, Matrícula..." class="input-field flex-1 bg-white">
-                            <button type="submit" class="bg-primary-link text-white px-10 py-2 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-orange-600 transition">Buscar</button>
-                            <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 px-6 py-2 rounded-xl font-black text-xs uppercase hover:bg-slate-300 transition">Limpiar</button>
-                        </div>
+                    <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex gap-2">
+                        <input type="text" id="palabra" name="palabra" placeholder="Buscar por Nº Albarán, Cliente..." class="input-field flex-1 bg-white">
+                        <button type="submit" class="bg-primary-link text-white px-10 py-2 rounded-xl font-black text-xs uppercase shadow-lg hover:bg-orange-600 transition">Buscar</button>
+                        <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 px-6 py-2 rounded-xl font-black text-xs uppercase hover:bg-slate-300 transition">Limpiar</button>
                     </div>
                 </form>
             </div>
+
+            <button onclick="handleBulkPay()" class="bg-green-600 text-white px-8 py-4 rounded-xl font-black text-sm uppercase shadow-xl hover:bg-green-700 flex items-center gap-3 transition active:scale-95">
+                <i data-lucide="check-circle" class="w-6 h-6"></i> Pagar Seleccionados
+            </button>
 
             <div class="card overflow-hidden">
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-6 px-2">
@@ -192,7 +194,7 @@
 
                 <div class="overflow-x-auto shadow-2xl rounded-xl border border-slate-200">
                     <table class="min-w-full divide-y divide-slate-200 compact-table">
-                        <thead class="bg-slate-800 text-white">
+                        <thead>
                             <tr>
                                 <th class="text-center w-12">Pagar</th>
                                 <th onclick="handleSort('id', 'number')">ID</th>
@@ -200,7 +202,6 @@
                                 <th onclick="handleSort('licencia_ref', 'string')">Licencia</th>
                                 <th onclick="handleSort('fecha', 'date')">Fecha</th>
                                 <th onclick="handleSort('empresa_nombre', 'string')">Empresa</th>
-                                <th>Ref.</th>
                                 <th onclick="handleSort('importe_total', 'number')" class="text-right">Importe TOTAL</th>
                                 <th class="text-center">Pagado</th>
                                 <th>Fecha Pago</th>
@@ -211,7 +212,7 @@
                             </tbody>
                         <tfoot id="tableFooter" class="bg-slate-50 hidden border-t-2 border-slate-200">
                             <tr class="font-black">
-                                <td colspan="7" class="text-right text-[10px] text-slate-400 uppercase py-4 px-3">Total en esta vista:</td>
+                                <td colspan="6" class="text-right text-[10px] text-slate-400 uppercase py-4 px-3">Total Página:</td>
                                 <td id="totalImporte" class="text-right text-sm text-primary-link py-4 px-3 bg-orange-50 font-black">€0.00</td>
                                 <td colspan="3"></td>
                             </tr>
@@ -219,7 +220,6 @@
                     </table>
                 </div>
                 <div id="statusMessage" class="hidden mt-4 p-4 rounded-xl text-center font-bold"></div>
-                <div id="totalLabel" class="text-[10px] text-gray-400 mt-4 text-right font-bold uppercase tracking-widest"></div>
             </div>
         </div>
     </main>
