@@ -1,10 +1,11 @@
 /**
- * albaran_nuevo.js
- * Lógica para la creación de albaranes desde el panel de Titular.
+ * ARCHIVO: static/js/albaran_nuevo.js
+ * DESCRIPCIÓN: Lógica para la creación de albaranes desde el panel de Titular.
+ * AUDITORÍA: Logs detallados para rastreo de carga de datos y envío de formularios.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("🚀 [INIT] Iniciando Formulario de Albarán Unificado");
+    console.log("🚀 [AUDITORÍA] [INIT] Iniciando Formulario de Albarán Unificado");
 
     // 1. Cargar datos iniciales (Licencia, Empresas, Asalariados)
     await Promise.all([
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Establecer fecha por defecto (hoy)
     document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
+    console.log(`[AUDITORÍA] [FECHA] Fecha inicializada: ${document.getElementById('fecha').value}`);
 
     // 3. Inicializar listeners para cálculos automáticos
     initCalculosKms();
@@ -25,18 +27,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 /**
  * Obtiene la info de la licencia del usuario autenticado
+ * CORRECCIÓN: Ruta ajustada a /api/v1/user/licencia_info según routes.go
  */
 async function getLicenciaInfo() {
+    console.log("[AUDITORÍA] [LICENCIA] Solicitando información de licencia...");
     try {
-        const res = await fetch('/api/v1/albaranes/user-licencia');
+        const res = await fetch('/api/v1/user/licencia_info');
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        
         const data = await res.json();
         if (data.licencia_numero) {
             document.getElementById('licencia').value = data.licencia_numero;
-            // Guardamos el ID en un atributo data para el envío
             document.getElementById('licencia').dataset.id = data.licencia_id;
+            console.log(`[AUDITORÍA] [LICENCIA] Cargada con éxito: ${data.licencia_numero} (ID: ${data.licencia_id})`);
         }
     } catch (err) {
-        console.error("❌ Error cargando licencia:", err);
+        console.error("❌ [AUDITORÍA] [LICENCIA] Error cargando licencia:", err);
     }
 }
 
@@ -44,10 +50,12 @@ async function getLicenciaInfo() {
  * Carga el selector de empresas disponibles
  */
 async function cargarEmpresas() {
+    console.log("[AUDITORÍA] [EMPRESAS] Cargando listado de empresas...");
     const select = document.getElementById('empresa');
     try {
         const res = await fetch('/api/v1/empresas');
         const result = await res.json();
+        
         select.innerHTML = '<option value="">-- Seleccionar Empresa --</option>';
         result.data.forEach(emp => {
             const opt = document.createElement('option');
@@ -55,8 +63,9 @@ async function cargarEmpresas() {
             opt.textContent = emp.nombre;
             select.appendChild(opt);
         });
+        console.log(`[AUDITORÍA] [EMPRESAS] ${result.data.length} empresas cargadas.`);
     } catch (err) {
-        console.error("❌ Error cargando empresas:", err);
+        console.error("❌ [AUDITORÍA] [EMPRESAS] Error:", err);
     }
 }
 
@@ -64,10 +73,12 @@ async function cargarEmpresas() {
  * Carga el selector de conductores (Asalariados) de esa licencia
  */
 async function cargarAsalariados() {
+    console.log("[AUDITORÍA] [CONDUCTORES] Cargando conductores asignados...");
     const select = document.getElementById('asalariado_select');
     try {
         const res = await fetch('/api/v1/conductores/mis-conductores');
         const result = await res.json();
+        
         select.innerHTML = '<option value="">-- Conductor Titular --</option>';
         result.data.forEach(con => {
             const opt = document.createElement('option');
@@ -75,8 +86,9 @@ async function cargarAsalariados() {
             opt.textContent = con.nombre;
             select.appendChild(opt);
         });
+        console.log(`[AUDITORÍA] [CONDUCTORES] ${result.data.length} conductores cargados.`);
     } catch (err) {
-        console.error("❌ Error cargando asalariados:", err);
+        console.error("❌ [AUDITORÍA] [CONDUCTORES] Error:", err);
     }
 }
 
@@ -109,6 +121,7 @@ function initCalculosKms() {
 function initWordCounter() {
     const obs = document.getElementById('observaciones');
     const count = document.getElementById('wordCount');
+    if (!obs) return;
     obs.addEventListener('input', () => {
         const words = obs.value.trim().split(/\s+/).filter(w => w.length > 0).length;
         count.textContent = `${words} palabras registradas`;
@@ -117,43 +130,60 @@ function initWordCounter() {
 
 /**
  * Maneja el envío del formulario al servidor
+ * CORRECCIÓN: Parseo estricto de decimales para evitar Error 1366 en MySQL
  */
 async function handleAction(action, event) {
     if (event) event.preventDefault();
+    
+    console.log("[AUDITORÍA] [ENVÍO] Iniciando captura de formulario para INSERT...");
     
     const form = document.getElementById('albaranForm');
     const statusMsg = document.getElementById('statusMessage');
     const formData = new FormData(form);
     
-    // Convertir FormData a JSON plano
     const plainData = {};
     formData.forEach((value, key) => {
-        // Manejo de checkboxes
+        // Manejo de checkboxes para enviar booleanos reales
         if (form.querySelector(`[name="${key}"]`).type === 'checkbox') {
-            plainData[key] = true;
+            plainData[key] = form.querySelector(`[name="${key}"]`).checked;
         } else {
             plainData[key] = value;
         }
     });
 
-    // Inyectar IDs numéricos correctos
-    plainData.licencia_ref = parseInt(document.getElementById('licencia').dataset.id);
-    plainData.empresa_ref = parseInt(plainData.empresa_ref);
+    // --- BLOQUE DE AUDITORÍA Y FORMATEO DE TIPOS ---
     
-    // Ajustes de tipos numéricos
-    plainData.km_ini = parseFloat(plainData.km_ini) || 0;
-    plainData.km_fin = parseFloat(plainData.km_fin) || 0;
-    plainData.importe_total = parseFloat(plainData.importe_total) || 0;
-    plainData.importe_suplidos = parseFloat(plainData.importe_suplidos) || 0;
+    // 1. Inyectar ID de Licencia desde dataset
+    const licId = document.getElementById('licencia').dataset.id;
+    plainData.licencia_ref = licId ? parseInt(licId) : 0;
 
-    console.log("📤 [SEND] Enviando albarán:", plainData);
+    // 2. Parseo de IDs de relación
+    plainData.empresa_ref = parseInt(plainData.empresa_ref) || 0;
+
+    // 3. FIX DECIMALES: Asegurar 0.0 si el campo está vacío (Evita Error 1366)
+    const numericFields = [
+        'km_ini', 'km_fin', 'km_totales', 'km_nacionales', 
+        'km_internacionales', 'importe_total', 'importe_suplidos'
+    ];
+
+    numericFields.forEach(field => {
+        const originalValue = plainData[field];
+        plainData[field] = parseFloat(originalValue) || 0;
+        if (originalValue === "") {
+            console.log(`[AUDITORÍA] [LIMPIEZA] Campo ${field} estaba vacío, normalizado a 0`);
+        }
+    });
+
+    // 4. Num plazas
+    plainData.num_plazas = parseInt(plainData.num_plazas) || 4;
+
+    console.log("📤 [AUDITORÍA] [DATA] Payload final preparado:", plainData);
 
     try {
         const response = await fetch('/api/v1/albaranes', {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}` 
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(plainData)
         });
@@ -161,17 +191,18 @@ async function handleAction(action, event) {
         const result = await response.json();
 
         if (response.ok) {
+            console.log("[AUDITORÍA] [ÉXITO] Albarán guardado en servidor.");
             statusMsg.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'border-red-200');
             statusMsg.classList.add('bg-green-100', 'text-green-700', 'border-green-200');
-            statusMsg.innerHTML = `<span>✅ ${result.message}</span>`;
+            statusMsg.innerHTML = `<span>✅ ${result.message || 'Albarán guardado'}</span>`;
+            
             form.reset();
-            // Recargar info básica
-            getLicenciaInfo();
-            setTimeout(() => window.location.href = '/titulares', 2000);
+            setTimeout(() => window.location.href = '/titulares', 1500);
         } else {
-            throw new Error(result.error || "Error desconocido al guardar");
+            throw new Error(result.error || "Error en la persistencia de datos");
         }
     } catch (err) {
+        console.error("❌ [AUDITORÍA] [ERROR] Fallo en el envío:", err.message);
         statusMsg.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'border-green-200');
         statusMsg.classList.add('bg-red-100', 'text-red-700', 'border-red-200');
         statusMsg.innerHTML = `<span>❌ ERROR: ${err.message}</span>`;

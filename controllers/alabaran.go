@@ -1,9 +1,19 @@
+/**
+ * ARCHIVO: controllers/albaran.go
+ * DESCRIPCIÓN: Gestión completa de albaranes.
+ * CORRECCIONES:
+ * - Error 1366 (Decimal vacío): Se fuerza 0.0 en campos numéricos si vienen vacíos.
+ * - Seguridad Licencia: Se obtiene del contexto JWT para evitar campos nulos.
+ * - Logs de trazabilidad GORM incluidos.
+ */
+
 package controllers
 
 import (
 	"albaranes/models"
 	"albaranes/utils"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -49,7 +59,7 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
-// 🛡️ LÓGICA DE LIMPIEZA MAESTRA [Respetando bloqueo de ID de 2025-12-17]
+// 🛡️ LÓGICA DE LIMPIEZA MAESTRA [Respetando bloqueo de ID y Fix Decimales]
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 	fechaBase := time.Now().Format(dateFormat)
@@ -70,7 +80,6 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 	}
 
 	for key, value := range input {
-		// Bloqueo campos inmutables (Regla 2025-12-17)
 		if strings.ToLower(key) == "id" || key == "created_at" || key == "updated_at" {
 			continue
 		}
@@ -98,7 +107,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		case "matricula":
 			structKey = "Matricula"
 		case "nombre_pasajero":
-			structKey = "Cliente" // Mapeo HTML -> DB
+			structKey = "Cliente"
 		case "num_factura":
 			structKey = "NumFactura"
 		case "noct_fest":
@@ -131,6 +140,15 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = strings.Join(parts, "")
 		}
 
+		// 🚨 FIX ERROR 1366: Impedir strings vacíos en decimales
+		isNumeric := strings.Contains(strings.ToLower(key), "km_") || strings.Contains(strings.ToLower(key), "importe_") || key == "num_plazas"
+		if isNumeric {
+			if str, ok := value.(string); ok && strings.TrimSpace(str) == "" {
+				clean[structKey] = 0.0
+				continue
+			}
+		}
+
 		if strings.Contains(strings.ToLower(key), "fecha") {
 			if str, ok := value.(string); ok && str != "" {
 				if t, err := parseDatePtr(str); err == nil {
@@ -149,7 +167,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 }
 
 // ---------------------------------------------------------------------
-// SECCIÓN: CONTROLADORES GENERALES Y BÚSQUEDA AVANZADA
+// SECCIÓN: CONTROLADORES GENERALES Y BÚSQUEDA
 // ---------------------------------------------------------------------
 
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
@@ -162,21 +180,16 @@ func GetAlbaranes(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
 }
 
-// SearchAlbaranes - REFACTORIZADA PARA FIX AUTOVAL Y FILTROS PRECISOS
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
 	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("estado = ?", 0)
 
-	// Filtros por IDs con búsqueda híbrida (ID + Nombre) para mayor seguridad
 	if v := c.Query("licencia_ref"); v != "" {
 		query = query.Where("licencia_ref = ?", v)
 	}
 	if v := c.Query("empresa_ref"); v != "" {
-		// Fix para casos donde se envía ID o se busca el nombre parcial
 		query = query.Where("(empresa_ref = ? OR empresa_nombre LIKE ?)", v, "%"+v+"%")
 	}
-
-	// Filtros de Estado (Conversión de string "true"/"false" a bool)
 	if v := c.Query("pagado"); v != "" {
 		query = query.Where("pagado = ?", v == "true")
 	}
@@ -186,13 +199,10 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	if v := c.Query("enviado"); v != "" {
 		query = query.Where("enviado = ?", v == "true")
 	}
-
-	// Filtro Referencia
 	if v := c.Query("referencia"); v != "" {
 		query = query.Where("referencia LIKE ?", "%"+v+"%")
 	}
 
-	// Rango de Fechas
 	if fDesde := c.Query("fecha_desde"); fDesde != "" {
 		query = query.Where("fecha >= ?", fDesde)
 	}
@@ -200,17 +210,9 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 		query = query.Where("fecha <= ?", fHasta)
 	}
 
-	// 🔍 BÚSQUEDA GLOBAL (Palabra clave) - INCLUYE empresa_nombre para AUTOVAL
 	if v := c.Query("palabra"); v != "" {
 		p := "%" + v + "%"
-		query = query.Where(
-			db.Where("numero_albaran LIKE ?", p).
-				Or("referencia LIKE ?", p).
-				Or("cliente LIKE ?", p).
-				Or("matricula LIKE ?", p).
-				Or("num_factura LIKE ?", p).
-				Or("empresa_nombre LIKE ?", p), // <--- FIX PARA BÚSQUEDA POR NOMBRE DE EMPRESA
-		)
+		query = query.Where(db.Where("numero_albaran LIKE ?", p).Or("referencia LIKE ?", p).Or("cliente LIKE ?", p).Or("matricula LIKE ?", p).Or("num_factura LIKE ?", p).Or("empresa_nombre LIKE ?", p))
 	}
 
 	query.Order("fecha DESC, id DESC").Find(&albaranes)
@@ -235,23 +237,34 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 
-	// Sincronizar nombres automáticos
+	// SEGURIDAD: Inyectar Licencia desde Contexto JWT
+	val, _ := c.Get("licencia_id")
+	licID := uint(0)
+	if v, ok := val.(float64); ok {
+		licID = uint(v)
+	} else if v, ok := val.(uint); ok {
+		licID = v
+	}
+
+	if licID > 0 {
+		cleanInput["LicenciaRef"] = licID
+		var lic models.Licencia
+		if err := db.First(&lic, licID).Error; err == nil {
+			cleanInput["Licencia"] = lic.Licencia
+		}
+	}
+
 	if ref, ok := cleanInput["EmpresaRef"].(float64); ok {
 		var emp models.Empresa
 		if err := db.First(&emp, uint(ref)).Error; err == nil {
 			cleanInput["EmpresaNombre"] = emp.Nombre
 		}
 	}
-	if ref, ok := cleanInput["LicenciaRef"].(float64); ok {
-		var lic models.Licencia
-		if err := db.First(&lic, uint(ref)).Error; err == nil {
-			cleanInput["Licencia"] = lic.Licencia
-		}
-	}
 
 	cleanInput["Estado"] = 0
 	delete(cleanInput, "ID")
 	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
+		log.Printf("[ERROR] Insert Albaran: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -265,14 +278,14 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
 	val, _ := c.Get("licencia_id")
-	userLicID := uint(0)
+	licID := uint(0)
 	if v, ok := val.(float64); ok {
-		userLicID = uint(v)
+		licID = uint(v)
 	} else if v, ok := val.(uint); ok {
-		userLicID = v
+		licID = v
 	}
 
-	preloadAlbaran(db).Where("licencia_ref = ? AND estado = ?", userLicID, 0).Order("fecha DESC, id DESC").Find(&albaranes)
+	preloadAlbaran(db).Where("licencia_ref = ? AND estado = ?", licID, 0).Order("fecha DESC, id DESC").Find(&albaranes)
 	c.JSON(http.StatusOK, gin.H{"data": albaranes})
 }
 
@@ -285,8 +298,6 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	}
 	var input map[string]interface{}
 	c.ShouldBindJSON(&input)
-
-	// Regla 2025-12-17
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
 
@@ -302,12 +313,8 @@ func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		return
 	}
-	// Bulk charge actualiza cobrado, pagado y la fecha de hoy
 	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(map[string]interface{}{
-		"cobrado":     true,
-		"pagado":      true,
-		"fecha_pago":  time.Now(),
-		"fecha_cobro": time.Now(),
+		"cobrado": true, "pagado": true, "fecha_pago": time.Now(), "fecha_cobro": time.Now(),
 	})
 	c.JSON(200, gin.H{"message": "✅ Procesado"})
 }
@@ -365,7 +372,10 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 		licID = v
 	}
 	var lic models.Licencia
-	db.First(&lic, licID)
+	if err := db.First(&lic, licID).Error; err != nil {
+		c.JSON(404, gin.H{"error": "Licencia no encontrada"})
+		return
+	}
 	c.JSON(200, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
 }
 
