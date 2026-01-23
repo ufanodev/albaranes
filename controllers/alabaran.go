@@ -1,10 +1,8 @@
 /**
  * ARCHIVO: controllers/albaran.go
- * DESCRIPCIÓN: Gestión completa de albaranes.
- * CORRECCIONES:
- * - Error 1366 (Decimal vacío): Se fuerza 0.0 en campos numéricos si vienen vacíos.
- * - Seguridad Licencia: Se obtiene del contexto JWT para evitar campos nulos.
- * - Logs de trazabilidad GORM incluidos.
+ * DESCRIPCIÓN: Gestión integral de albaranes (Titulares y Admin).
+ * FUNCIONALIDADES: CRUD, Búsqueda avanzada, Carga masiva, Exportación PDF/XLSX.
+ * AUDITORÍA: Logs detallados de entrada/salida y corrección de errores decimales (1366).
  */
 
 package controllers
@@ -167,7 +165,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 }
 
 // ---------------------------------------------------------------------
-// SECCIÓN: CONTROLADORES GENERALES Y BÚSQUEDA
+// SECCIÓN: CONTROLADORES GENERALES Y BÚSQUEDA AVANZADA (ADMIN)
 // ---------------------------------------------------------------------
 
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
@@ -202,7 +200,6 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	if v := c.Query("referencia"); v != "" {
 		query = query.Where("referencia LIKE ?", "%"+v+"%")
 	}
-
 	if fDesde := c.Query("fecha_desde"); fDesde != "" {
 		query = query.Where("fecha >= ?", fDesde)
 	}
@@ -237,7 +234,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 
-	// SEGURIDAD: Inyectar Licencia desde Contexto JWT
 	val, _ := c.Get("licencia_id")
 	licID := uint(0)
 	if v, ok := val.(float64); ok {
@@ -272,11 +268,10 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 }
 
 // ---------------------------------------------------------------------
-// SECCIÓN: MÉTODOS TITULARES Y BULK
+// SECCIÓN: MÉTODOS TITULARES (BÚSQUEDA FILTRADA POR USUARIO)
 // ---------------------------------------------------------------------
 
 func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
-	var albaranes []models.Albaran
 	val, _ := c.Get("licencia_id")
 	licID := uint(0)
 	if v, ok := val.(float64); ok {
@@ -285,8 +280,44 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 		licID = v
 	}
 
-	preloadAlbaran(db).Where("licencia_ref = ? AND estado = ?", licID, 0).Order("fecha DESC, id DESC").Find(&albaranes)
-	c.JSON(http.StatusOK, gin.H{"data": albaranes})
+	log.Printf("[AUDITORÍA] [SearchUser] Inicia búsqueda Licencia: %d | Params: %v", licID, c.Request.URL.RawQuery)
+
+	var albaranes []models.Albaran
+	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("licencia_ref = ? AND estado = ?", licID, 0)
+
+	// Aplicación de filtros específicos enviados desde busqueda.js
+	if v := c.Query("empresa_ref"); v != "" {
+		query = query.Where("empresa_ref = ?", v)
+	}
+	if v := c.Query("referencia"); v != "" {
+		query = query.Where("referencia LIKE ?", "%"+v+"%")
+	}
+	if v := c.Query("fecha_desde"); v != "" {
+		query = query.Where("fecha >= ?", v)
+	}
+	if v := c.Query("fecha_hasta"); v != "" {
+		query = query.Where("fecha <= ?", v)
+	}
+	if v := c.Query("pagado"); v != "" {
+		query = query.Where("pagado = ?", v == "true")
+	}
+	if v := c.Query("enviado"); v != "" {
+		query = query.Where("enviado = ?", v == "true")
+	}
+
+	if v := c.Query("palabra"); v != "" {
+		p := "%" + v + "%"
+		query = query.Where(db.Where("numero_albaran LIKE ?", p).Or("referencia LIKE ?", p).Or("cliente LIKE ?", p).Or("empresa_nombre LIKE ?", p))
+	}
+
+	if err := query.Order("fecha DESC, id DESC").Find(&albaranes).Error; err != nil {
+		log.Printf("[ERROR] [SearchUser] Error DB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Printf("[AUDITORÍA] [SearchUser] Fin. Albaranes retornados: %d", len(albaranes))
+	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": len(albaranes)})
 }
 
 func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {

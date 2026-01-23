@@ -1,7 +1,7 @@
 /**
- * busqueda.js - Panel de Usuario (Titular)
- * Gestión de albaranes, exportación por servidor y sumatorio de importes.
- * Actualizado: Paginación y conteo dinámico sincronizado con el selector de registros.
+ * ARCHIVO: static/js/busqueda.js
+ * DESCRIPCIÓN: Lógica completa de búsqueda, paginación, ordenación y exportación para Titulares.
+ * AUDITORÍA: Logs detallados de entrada/salida para depuración de filtros.
  */
 
 const APP = {
@@ -9,7 +9,6 @@ const APP = {
         resultsBody: document.getElementById('albaranResults'),
         tableFooter: document.getElementById('tableFooter'),
         totalImporte: document.getElementById('totalImporte'),
-        statusMessage: document.getElementById('statusMessage'),
         numLicenciaHeader: document.getElementById('num_licencia_header'),
         licenciaDisplay: document.getElementById('licencia_display'),
         licenciaInput: document.getElementById('licencia_ref'), 
@@ -18,7 +17,6 @@ const APP = {
         pageInfo: document.getElementById('pageInfo'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
-        activeFiltersCount: document.getElementById('activeFiltersCount'),
         empresaSelect: document.getElementById('empresa'),
         palabraInput: document.getElementById('palabra')
     },
@@ -42,6 +40,7 @@ const UI = {
     formatDate(isoString) { return isoString ? isoString.substring(0, 10) : '-'; },
 
     setSearchModeManual(mode) {
+        console.log(`%c[AUDITORÍA] Cambio de modo: ${mode}`, "color: #FF8C00; font-weight: bold;");
         APP.state.searchMode = mode;
         const btnCampos = document.getElementById('btn-mode-campos');
         const btnPalabra = document.getElementById('btn-mode-palabra');
@@ -62,20 +61,16 @@ const UI = {
             }
             if(searchForm) searchForm.classList.add('hidden');
         }
+        API.searchAlbaranes();
     },
 
     updatePageInfo() {
-        // Recalcular páginas totales basándose en el total que devolvió el servidor
         APP.state.totalPages = Math.ceil(APP.state.totalRecords / APP.state.pageSize) || 1;
-        
         if (APP.elements.pageInfo) {
             APP.elements.pageInfo.textContent = `${APP.state.currentPage} / ${APP.state.totalPages}`;
         }
-        
         const countDisplay = document.getElementById('resultsCount');
-        if (countDisplay) {
-            countDisplay.textContent = `${APP.state.totalRecords} REGISTROS`;
-        }
+        if (countDisplay) countDisplay.textContent = `${APP.state.totalRecords} REGISTROS`;
         this.updatePaginationButtons();
     },
 
@@ -109,15 +104,12 @@ const UI = {
 // =================================================================================
 const API = {
     getHeaders() {
-        return {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-        };
+        return { 'Content-Type': 'application/json' };
     },
 
     async fetchMyLicencia() {
         try {
-            const response = await fetch('/api/v1/user/licencia_info', { headers: this.getHeaders() });
+            const response = await fetch('/api/v1/user/licencia_info');
             const data = await response.json();
             if (data && data.licencia_id !== undefined) {
                 APP.state.userLicenciaId = data.licencia_id;
@@ -133,11 +125,11 @@ const API = {
 
     async loadEmpresas() {
         try {
-            const r = await fetch('/api/v1/empresas', { headers: this.getHeaders() });
+            const r = await fetch('/api/v1/empresas');
             const d = await r.json();
             const list = d.data || d;
             if(APP.elements.empresaSelect && Array.isArray(list)) {
-                let html = '<option value="">Todas las empresas</option>';
+                let html = '<option value="">🎯 Todas las empresas</option>';
                 list.forEach(e => { html += `<option value="${e.id}">${e.nombre}</option>`; });
                 APP.elements.empresaSelect.innerHTML = html;
             }
@@ -154,32 +146,49 @@ const API = {
         params.append('pageSize', APP.state.pageSize);
         
         if (APP.state.searchMode === 'campos') {
-            const fields = ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'];
-            fields.forEach(f => {
-                const el = document.getElementById(f === 'empresa' ? 'empresa' : f);
-                if (el && el.value) params.append(f === 'empresa' ? 'empresa_ref' : f, el.value);
-            });
+            const empresa = document.getElementById('empresa').value;
+            const estado = document.getElementById('state').value;
+            const referencia = document.getElementById('referencia').value;
+            const fDesde = document.getElementById('fecha_desde').value;
+            const fHasta = document.getElementById('fecha_hasta').value;
+
+            if (empresa) params.append('empresa_ref', empresa);
+            if (referencia) params.append('referencia', referencia);
+            if (fDesde) params.append('fecha_desde', fDesde);
+            if (fHasta) params.append('fecha_hasta', fHasta);
+
+            if (estado === 'pagado') params.append('pagado', 'true');
+            if (estado === 'enviado') params.append('enviado', 'true');
+            if (estado === 'creado') {
+                params.append('enviado', 'false');
+                params.append('pagado', 'false');
+            }
         } else {
             const palabra = document.getElementById('palabra').value;
             if (palabra) params.append('palabra', palabra);
         }
 
+        console.group("📡 AUDITORÍA BÚSQUEDA");
+        console.log("%c📤 [SOLICITUD]", "color: blue; font-weight: bold;", params.toString());
+
         try {
             const url = `/api/v1/albaranes/search-user?${params.toString()}`;
-            const response = await fetch(url, { headers: this.getHeaders() });
+            const response = await fetch(url);
             const res = await response.json();
             
-            // Actualización del estado con datos del servidor
+            console.log("%c📥 [RESPUESTA]", "color: green; font-weight: bold;", res);
+
             APP.state.filteredAlbaranes = res.data || [];
             APP.state.totalRecords = res.total || 0;
             
             this.applyLocalSort();
             DOM.renderResults();
-            
-            // Actualización dinámica de UI tras recibir datos
             UI.updatePageInfo();
         } catch (e) { 
+            console.error("%c❌ [ERROR]", "color: red;", e);
             DOM.showNoResults(); 
+        } finally {
+            console.groupEnd();
         }
     },
 
@@ -197,8 +206,8 @@ const API = {
                     valB = parseFloat(b.importe_total || 0);
                     break;
                 case 'empresa':
-                    valA = (a.EmpresaData?.nombre || a.empresa_nombre || '').toLowerCase();
-                    valB = (b.EmpresaData?.nombre || b.empresa_nombre || '').toLowerCase();
+                    valA = (a.empresa_nombre || '').toLowerCase();
+                    valB = (b.empresa_nombre || '').toLowerCase();
                     break;
                 default:
                     valA = (a[key] || '').toString().toLowerCase();
@@ -216,12 +225,10 @@ const API = {
 // =================================================================================
 const DOM = {
     showLoading() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Cargando datos...</td></tr>'; 
-        if(APP.elements.tableFooter) APP.elements.tableFooter.classList.add('hidden');
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Consultando...</td></tr>'; 
     },
     showNoResults() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No se han encontrado resultados.</td></tr>'; 
-        if(APP.elements.tableFooter) APP.elements.tableFooter.classList.add('hidden');
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No hay resultados.</td></tr>'; 
     },
     
     renderResults() {
@@ -230,51 +237,43 @@ const DOM = {
         if (APP.state.filteredAlbaranes.length === 0) { this.showNoResults(); return; }
 
         let sumatorio = 0;
-
         APP.state.filteredAlbaranes.forEach(a => {
             const importe = parseFloat(a.importe_total || 0);
             sumatorio += importe;
-
-            const nombreEmpresa = a.EmpresaData?.nombre || a.empresa_nombre || `ID: ${a.empresa_ref}`;
-            
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm';
             tr.innerHTML = `
                 <td class="px-4 py-4 font-black text-gray-900">${a.numero_albaran || 'N/A'}</td>
                 <td class="px-4 py-4 text-gray-500">${UI.formatDate(a.fecha)}</td>
-                <td class="px-4 py-4 font-medium text-gray-700">${nombreEmpresa}</td>
+                <td class="px-4 py-4 font-medium text-gray-700">${a.empresa_nombre || '-'}</td>
                 <td class="px-4 py-4 text-gray-400 italic text-xs">${a.referencia || '-'}</td>
-                <td class="px-4 py-4 text-gray-600">${a.asalariado || '-'}</td>
+                <td class="px-4 py-4 text-gray-600">${a.asalariado || 'TITULAR'}</td>
                 <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${importe.toFixed(2)}</td>
                 <td class="px-4 py-4 text-center">${this.getBadge(a)}</td>
                 <td class="px-4 py-4 text-center">
                     <div class="flex justify-center space-x-2">
-                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1.5 text-secondary-blue hover:bg-blue-50 rounded-lg transition-colors" title="Ver"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1.5 text-secondary-blue hover:bg-blue-50 rounded-lg"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                     </div>
                 </td>`;
             APP.elements.resultsBody.appendChild(tr);
         });
 
-        // Actualizar Footer con total formateado (basado en lo que se ve en la página)
-        if(APP.elements.totalImporte) {
-            APP.elements.totalImporte.textContent = `€${sumatorio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            APP.elements.tableFooter.classList.remove('hidden');
-        }
-
+        APP.elements.totalImporte.textContent = `€${sumatorio.toLocaleString('es-ES', { minimumFractionDigits: 2 })}`;
+        APP.elements.tableFooter.classList.remove('hidden');
         UI.updatePageInfo();
         UI.updateSortIcons();
     },
 
     getBadge(a) {
-        if (a.pagado) return '<span class="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-green-200">PAGADO</span>';
-        if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-blue-200">ENVIADO</span>';
-        return '<span class="bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full text-[9px] font-black uppercase border border-gray-200">CREADO</span>';
+        if (a.pagado) return '<span class="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[9px] font-black border border-green-200">PAGADO</span>';
+        if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-[9px] font-black border border-blue-200">ENVIADO</span>';
+        return '<span class="bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full text-[9px] font-black border border-gray-200">CREADO</span>';
     }
 };
 
 // =================================================================================
-// 🚀 EXPORTACIÓN Y EVENTOS
+// 🚀 EXPORTACIÓN Y EVENTOS GLOBALES
 // =================================================================================
 
 window.sortTable = (key) => {
@@ -293,25 +292,13 @@ window.handleGeneratePDF = async () => {
     const payload = {
         reportName: `ALBARANES_LICENCIA_${APP.state.userLicenciaNumero}`,
         data: APP.state.filteredAlbaranes.map(a => ({
-            "ID": a.id.toString(),
-            "Nº ALBARAN": a.numero_albaran || 'S/N',
-            "FECHA": UI.formatDate(a.fecha),
-            "EMPRESA": a.EmpresaData?.nombre || a.empresa_nombre || 'N/A',
-            "CONDUCTOR": a.asalariado || 'TITULAR',
-            "ORIGEN": a.origen || '-',
-            "DESTINO": a.destino || '-',
-            "TOTAL": parseFloat(a.importe_total || 0).toFixed(2)
+            "Nº ALBARAN": a.numero_albaran, "FECHA": UI.formatDate(a.fecha),
+            "EMPRESA": a.empresa_nombre, "TOTAL": parseFloat(a.importe_total).toFixed(2)
         }))
     };
-    try {
-        const res = await fetch('/api/v1/albaranes/export/pdf', {
-            method: 'POST',
-            headers: API.getHeaders(),
-            body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        if (result.success && result.downloadURL) window.open(result.downloadURL, '_blank');
-    } catch (e) { console.error("Error PDF:", e); }
+    const res = await fetch('/api/v1/albaranes/export/pdf', { method: 'POST', headers: API.getHeaders(), body: JSON.stringify(payload) });
+    const result = await res.json();
+    if (result.downloadURL) window.open(result.downloadURL, '_blank');
 };
 
 window.handleGenerateXLSX = async () => {
@@ -319,45 +306,49 @@ window.handleGenerateXLSX = async () => {
     const payload = {
         reportName: `EXCEL_LICENCIA_${APP.state.userLicenciaNumero}`,
         data: APP.state.filteredAlbaranes.map(a => ({
-            "ID": a.id.toString(),
-            "NUMERO_ALBARAN": a.numero_albaran || 'S/N',
-            "FECHA": UI.formatDate(a.fecha),
-            "EMPRESA": a.EmpresaData?.nombre || a.empresa_nombre || 'N/A',
-            "CONDUCTOR": a.asalariado || 'TITULAR',
-            "ORIGEN": a.origen || '-',
-            "DESTINO": a.destino || '-',
-            "TOTAL": parseFloat(a.importe_total || 0)
+            "NUMERO_ALBARAN": a.numero_albaran, "FECHA": UI.formatDate(a.fecha),
+            "EMPRESA": a.empresa_nombre, "TOTAL": parseFloat(a.importe_total)
         }))
     };
-    try {
-        const res = await fetch('/api/v1/albaranes/export/xlsx', {
-            method: 'POST',
-            headers: API.getHeaders(),
-            body: JSON.stringify(payload)
-        });
-        const result = await res.json();
-        if (result.success && result.downloadURL) {
-            const link = document.createElement('a');
-            link.href = result.downloadURL;
-            link.click();
-        }
-    } catch (e) { console.error("Error Excel:", e); }
+    const res = await fetch('/api/v1/albaranes/export/xlsx', { method: 'POST', headers: API.getHeaders(), body: JSON.stringify(payload) });
+    const result = await res.json();
+    if (result.downloadURL) window.location.href = result.downloadURL;
 };
 
+window.handleLogout = async () => { 
+    await fetch('/api/v1/logout', { method: 'POST' }); 
+    window.location.href = '/login'; 
+};
+
+window.handleSearch = (e) => { if(e) e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
+
+window.handleClearAllFilters = () => {
+    APP.elements.searchForm.reset();
+    if(APP.elements.palabraInput) APP.elements.palabraInput.value = '';
+    APP.state.currentPage = 1;
+    API.searchAlbaranes();
+};
+
+// =================================================================================
+// 🏁 INICIALIZACIÓN
+// =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
     if (await API.fetchMyLicencia()) {
         await API.loadEmpresas();
-        UI.setSearchModeManual('campos');
         
         ['empresa', 'state', 'fecha_desde', 'fecha_hasta'].forEach(id => {
             document.getElementById(id)?.addEventListener('change', () => { APP.state.currentPage = 1; API.searchAlbaranes(); });
         });
 
-        // Listener dinámico para el cambio de tamaño de página
+        document.getElementById('referencia')?.addEventListener('input', (e) => {
+            clearTimeout(this.searchTimeout);
+            this.searchTimeout = setTimeout(() => { APP.state.currentPage = 1; API.searchAlbaranes(); }, 500);
+        });
+
         APP.elements.recordsSelect.onchange = (e) => {
             const val = e.target.value;
-            APP.state.pageSize = val === 'todos' ? 999999 : parseInt(val);
-            APP.state.currentPage = 1; // Reset a primera página
+            APP.state.pageSize = val === 'todos' ? 99999 : parseInt(val);
+            APP.state.currentPage = 1;
             API.searchAlbaranes();
         };
 
@@ -367,20 +358,3 @@ document.addEventListener('DOMContentLoaded', async () => {
         API.searchAlbaranes();
     }
 });
-
-window.handleSearch = (e) => { if(e) e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
-
-window.handleClearAllFilters = () => {
-    if (APP.elements.searchForm) APP.elements.searchForm.reset();
-    if (document.getElementById('palabra')) document.getElementById('palabra').value = '';
-    APP.elements.licenciaDisplay.value = APP.state.userLicenciaNumero;
-    APP.state.currentPage = 1;
-    UI.setSearchModeManual('campos');
-    API.searchAlbaranes();
-};
-
-window.handleLogout = async () => { 
-    await fetch('/api/v1/logout', { method: 'POST', headers: API.getHeaders() }); 
-    localStorage.removeItem('token');
-    window.location.href = '/login'; 
-};
