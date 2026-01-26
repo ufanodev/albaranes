@@ -102,6 +102,8 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "EmpresaNombre"
 		case "dni_pasajero":
 			structKey = "DNIPasajero"
+		case "tlf_pasajero": // <--- NUEVO CAMPO
+			structKey = "TlfPasajero"
 		case "matricula":
 			structKey = "Matricula"
 		case "nombre_pasajero":
@@ -120,6 +122,8 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "KmNacionales"
 		case "km_internacionales":
 			structKey = "KmInternacionales"
+		case "importe_espera": // <--- NUEVO CAMPO
+			structKey = "ImporteEspera"
 		case "importe_suplidos":
 			structKey = "ImporteSuplidos"
 		case "importe_total":
@@ -285,7 +289,6 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
 	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("licencia_ref = ? AND estado = ?", licID, 0)
 
-	// Aplicación de filtros específicos enviados desde busqueda.js
 	if v := c.Query("empresa_ref"); v != "" {
 		query = query.Where("empresa_ref = ?", v)
 	}

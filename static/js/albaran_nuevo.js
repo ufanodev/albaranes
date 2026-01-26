@@ -1,13 +1,13 @@
 /**
  * ARCHIVO: static/js/albaran_nuevo.js
  * DESCRIPCIÓN: Lógica para la creación de albaranes desde el panel de Titular.
- * AUDITORÍA: Logs detallados para rastreo de carga de datos y envío de formularios.
+ * ADAPTACIÓN: Compatible con Master Plantilla Final (Importes, Teléfono, Origen/Parada y Kms).
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("🚀 [AUDITORÍA] [INIT] Iniciando Formulario de Albarán Unificado");
+    console.log("🚀 [AUDITORÍA] [INIT] Iniciando Formulario de Albarán Master Final");
 
-    // 1. Cargar datos iniciales (Licencia, Empresas, Asalariados)
+    // 1. Cargar datos iniciales desde la API (Combos y Licencia)
     await Promise.all([
         getLicenciaInfo(),
         cargarEmpresas(),
@@ -15,31 +15,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     ]);
 
     // 2. Establecer fecha por defecto (hoy)
-    document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
-    console.log(`[AUDITORÍA] [FECHA] Fecha inicializada: ${document.getElementById('fecha').value}`);
-
-    // 3. Inicializar listeners para cálculos automáticos
-    initCalculosKms();
-    initWordCounter();
+    const fechaInput = document.getElementById('fecha');
+    if (fechaInput) {
+        fechaInput.value = new Date().toISOString().split('T')[0];
+    }
     
-    lucide.createIcons();
+    // 3. Inicializar utilidades y validadores
+    initWordCounter();
+    initFormatters();
+    
+    // Renderizar iconos de Lucide
+    if (window.lucide) {
+        lucide.createIcons();
+    }
 });
 
 /**
- * Obtiene la info de la licencia del usuario autenticado
- * CORRECCIÓN: Ruta ajustada a /api/v1/user/licencia_info según routes.go
+ * Obtiene la info de la licencia del usuario autenticado y la guarda en el dataset
  */
 async function getLicenciaInfo() {
-    console.log("[AUDITORÍA] [LICENCIA] Solicitando información de licencia...");
     try {
         const res = await fetch('/api/v1/user/licencia_info');
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         
         const data = await res.json();
         if (data.licencia_numero) {
-            document.getElementById('licencia').value = data.licencia_numero;
-            document.getElementById('licencia').dataset.id = data.licencia_id;
-            console.log(`[AUDITORÍA] [LICENCIA] Cargada con éxito: ${data.licencia_numero} (ID: ${data.licencia_id})`);
+            const inputLic = document.getElementById('licencia');
+            inputLic.value = data.licencia_numero;
+            inputLic.dataset.id = data.licencia_id; // Fundamental para la relación en DB
+            console.log(`[AUDITORÍA] [LICENCIA] Cargada con éxito: ${data.licencia_numero}`);
         }
     } catch (err) {
         console.error("❌ [AUDITORÍA] [LICENCIA] Error cargando licencia:", err);
@@ -50,8 +54,8 @@ async function getLicenciaInfo() {
  * Carga el selector de empresas disponibles
  */
 async function cargarEmpresas() {
-    console.log("[AUDITORÍA] [EMPRESAS] Cargando listado de empresas...");
     const select = document.getElementById('empresa');
+    if (!select) return;
     try {
         const res = await fetch('/api/v1/empresas');
         const result = await res.json();
@@ -63,18 +67,17 @@ async function cargarEmpresas() {
             opt.textContent = emp.nombre;
             select.appendChild(opt);
         });
-        console.log(`[AUDITORÍA] [EMPRESAS] ${result.data.length} empresas cargadas.`);
     } catch (err) {
         console.error("❌ [AUDITORÍA] [EMPRESAS] Error:", err);
     }
 }
 
 /**
- * Carga el selector de conductores (Asalariados) de esa licencia
+ * Carga el selector de conductores asignados a la licencia
  */
 async function cargarAsalariados() {
-    console.log("[AUDITORÍA] [CONDUCTORES] Cargando conductores asignados...");
     const select = document.getElementById('asalariado_select');
+    if (!select) return;
     try {
         const res = await fetch('/api/v1/conductores/mis-conductores');
         const result = await res.json();
@@ -86,123 +89,116 @@ async function cargarAsalariados() {
             opt.textContent = con.nombre;
             select.appendChild(opt);
         });
-        console.log(`[AUDITORÍA] [CONDUCTORES] ${result.data.length} conductores cargados.`);
     } catch (err) {
         console.error("❌ [AUDITORÍA] [CONDUCTORES] Error:", err);
     }
 }
 
 /**
- * Lógica de cálculos de Kilometraje
- */
-function initCalculosKms() {
-    const kmIni = document.querySelector('input[name="km_ini"]');
-    const kmFin = document.querySelector('input[name="km_fin"]');
-    const kmTot = document.querySelector('input[name="km_totales"]');
-
-    const calcular = () => {
-        const valIni = parseFloat(kmIni.value) || 0;
-        const valFin = parseFloat(kmFin.value) || 0;
-        if (valFin >= valIni) {
-            kmTot.value = (valFin - valIni).toFixed(2);
-            kmFin.classList.remove('border-red-500');
-        } else if (valFin > 0) {
-            kmFin.classList.add('border-red-500');
-        }
-    };
-
-    kmIni.addEventListener('input', calcular);
-    kmFin.addEventListener('input', calcular);
-}
-
-/**
- * Contador de palabras para observaciones
+ * Contador de palabras para el campo observaciones (obligatorio para desglose)
  */
 function initWordCounter() {
     const obs = document.getElementById('observaciones');
-    const count = document.getElementById('wordCount');
-    if (!obs) return;
+    const display = document.getElementById('wordCount');
+    if (!obs || !display) return;
+
     obs.addEventListener('input', () => {
         const words = obs.value.trim().split(/\s+/).filter(w => w.length > 0).length;
-        count.textContent = `${words} palabras registradas`;
+        display.textContent = `${words} palabras registradas`;
+        
+        // Efecto visual si hay contenido
+        if (words > 0) display.classList.add('text-primary-link');
+        else display.classList.remove('text-primary-link');
     });
 }
 
 /**
- * Maneja el envío del formulario al servidor
- * CORRECCIÓN: Parseo estricto de decimales para evitar Error 1366 en MySQL
+ * Asegura que los campos numéricos no queden vacíos al perder el foco
+ */
+function initFormatters() {
+    const numFields = ['importe_espera', 'importe_suplidos', 'importe_total', 'km_totales', 'km_nacionales', 'km_internacionales'];
+    numFields.forEach(name => {
+        const input = document.querySelector(`input[name="${name}"]`);
+        if (input) {
+            input.addEventListener('blur', () => {
+                if (input.value === "") input.value = "0.00";
+                else input.value = parseFloat(input.value).toFixed(2);
+            });
+        }
+    });
+}
+
+/**
+ * Maneja el envío del formulario mediante POST
  */
 async function handleAction(action, event) {
     if (event) event.preventDefault();
     
-    console.log("[AUDITORÍA] [ENVÍO] Iniciando captura de formulario para INSERT...");
+    console.log("[AUDITORÍA] [ENVÍO] Iniciando captura de datos...");
     
     const form = document.getElementById('albaranForm');
     const statusMsg = document.getElementById('statusMessage');
     const formData = new FormData(form);
-    
     const plainData = {};
+
+    // 1. Mapeo de datos y conversión de Checkboxes a Booleano
     formData.forEach((value, key) => {
-        // Manejo de checkboxes para enviar booleanos reales
-        if (form.querySelector(`[name="${key}"]`).type === 'checkbox') {
-            plainData[key] = form.querySelector(`[name="${key}"]`).checked;
+        const inputElement = form.querySelector(`[name="${key}"]`);
+        if (inputElement && inputElement.type === 'checkbox') {
+            plainData[key] = inputElement.checked;
         } else {
             plainData[key] = value;
         }
     });
 
-    // --- BLOQUE DE AUDITORÍA Y FORMATEO DE TIPOS ---
-    
-    // 1. Inyectar ID de Licencia desde dataset
+    // 2. Inyección de metadatos (ID de licencia)
     const licId = document.getElementById('licencia').dataset.id;
     plainData.licencia_ref = licId ? parseInt(licId) : 0;
 
-    // 2. Parseo de IDs de relación
+    // 3. Conversiones de tipo (IDs y Enteros)
     plainData.empresa_ref = parseInt(plainData.empresa_ref) || 0;
+    plainData.num_plazas = parseInt(plainData.num_plazas) || 4;
 
-    // 3. FIX DECIMALES: Asegurar 0.0 si el campo está vacío (Evita Error 1366)
+    // 4. FIX DECIMALES (Normalización estricta para MySQL Decimal)
     const numericFields = [
-        'km_ini', 'km_fin', 'km_totales', 'km_nacionales', 
-        'km_internacionales', 'importe_total', 'importe_suplidos'
+        'km_totales', 'km_nacionales', 'km_internacionales', 
+        'importe_espera', 'importe_suplidos', 'importe_total'
     ];
 
     numericFields.forEach(field => {
-        const originalValue = plainData[field];
-        plainData[field] = parseFloat(originalValue) || 0;
-        if (originalValue === "") {
-            console.log(`[AUDITORÍA] [LIMPIEZA] Campo ${field} estaba vacío, normalizado a 0`);
-        }
+        // Si el campo está vacío o no es un número, se envía 0.00
+        const val = parseFloat(plainData[field]);
+        plainData[field] = isNaN(val) ? 0.0 : val;
     });
 
-    // 4. Num plazas
-    plainData.num_plazas = parseInt(plainData.num_plazas) || 4;
-
-    console.log("📤 [AUDITORÍA] [DATA] Payload final preparado:", plainData);
+    console.log("📤 [AUDITORÍA] Enviando Payload Final:", plainData);
 
     try {
         const response = await fetch('/api/v1/albaranes', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(plainData)
         });
 
         const result = await response.json();
 
         if (response.ok) {
-            console.log("[AUDITORÍA] [ÉXITO] Albarán guardado en servidor.");
             statusMsg.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'border-red-200');
             statusMsg.classList.add('bg-green-100', 'text-green-700', 'border-green-200');
-            statusMsg.innerHTML = `<span>✅ ${result.message || 'Albarán guardado'}</span>`;
+            statusMsg.innerHTML = `<div class="flex items-center justify-center gap-2">
+                <i data-lucide="check-circle"></i>
+                <span>${result.message || '✅ Albarán guardado con éxito'}</span>
+            </div>`;
+            lucide.createIcons();
             
             form.reset();
+            // Redirección al panel principal tras pausa breve
             setTimeout(() => window.location.href = '/titulares', 1500);
         } else {
-            throw new Error(result.error || "Error en la persistencia de datos");
+            throw new Error(result.error || "Error interno al guardar");
         }
     } catch (err) {
-        console.error("❌ [AUDITORÍA] [ERROR] Fallo en el envío:", err.message);
+        console.error("❌ [ERROR ENVÍO]:", err.message);
         statusMsg.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'border-green-200');
         statusMsg.classList.add('bg-red-100', 'text-red-700', 'border-red-200');
         statusMsg.innerHTML = `<span>❌ ERROR: ${err.message}</span>`;

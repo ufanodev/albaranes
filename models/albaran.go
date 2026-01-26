@@ -21,13 +21,17 @@ type Albaran struct {
 	EmpresaData  Empresa  `gorm:"foreignKey:EmpresaRef" json:"empresa_data,omitempty"`
 
 	// --- CAMPOS DE TEXTO Y REFERENCIAS ---
-	Licencia           string  `gorm:"column:licencia;size:10" json:"licencia"`
-	EmpresaNombre      string  `gorm:"column:empresa_nombre;size:100" json:"empresa_nombre"`
-	Referencia         *string `gorm:"column:referencia;size:100" json:"referencia"`
-	Asalariado         *string `gorm:"column:asalariado;size:100" json:"asalariado"`
-	DNIPasajero        *string `gorm:"column:dni_pasajero;size:15" json:"dni_pasajero"`
-	Matricula          *string `gorm:"column:matricula;size:15" json:"matricula"`
-	Cliente            *string `gorm:"column:cliente;size:150" json:"cliente"` // Mapeado a 'nombre_pasajero' en el frontend
+	Licencia      string  `gorm:"column:licencia;size:10" json:"licencia"`
+	EmpresaNombre string  `gorm:"column:empresa_nombre;size:100" json:"empresa_nombre"`
+	Referencia    *string `gorm:"column:referencia;size:100" json:"referencia"`
+	Asalariado    *string `gorm:"column:asalariado;size:100" json:"asalariado"`
+
+	// Campos 17, 18, 19 de tu DB
+	DNIPasajero *string `gorm:"column:dni_pasajero;size:15" json:"dni_pasajero"`
+	TlfPasajero string  `gorm:"column:tlf_pasajero;size:15;not null" json:"tlf_pasajero"`
+	Matricula   *string `gorm:"column:matricula;size:15" json:"matricula"`
+
+	Cliente            *string `gorm:"column:cliente;size:150" json:"cliente"` // Mapeado a 'nombre_pasajero'
 	Origen             *string `gorm:"column:origen;size:200" json:"origen"`
 	Parada             *string `gorm:"column:parada;size:200" json:"parada"`
 	Destino            *string `gorm:"column:destino;size:200" json:"destino"`
@@ -50,9 +54,13 @@ type Albaran struct {
 	KmTotales         float64 `gorm:"column:km_totales;type:decimal(10,2)" json:"km_totales"`
 	KmNacionales      float64 `gorm:"column:km_nacionales;type:decimal(10,2)" json:"km_nacionales"`
 	KmInternacionales float64 `gorm:"column:km_internacionales;type:decimal(10,2)" json:"km_internacionales"`
-	ImporteSuplidos   float64 `gorm:"column:importe_suplidos;type:decimal(10,2)" json:"importe_suplidos"`
-	ImporteTotal      float64 `gorm:"column:importe_total;type:decimal(12,2)" json:"importe_total"`
-	NumPlazas         int     `gorm:"column:num_plazas;default:4" json:"num_plazas"`
+
+	// Campos 33, 34, 35 de tu DB
+	ImporteEspera   float64 `gorm:"column:importe_espera;type:decimal(10,2);not null" json:"importe_espera"`
+	ImporteSuplidos float64 `gorm:"column:importe_suplidos;type:decimal(10,2)" json:"importe_suplidos"`
+	ImporteTotal    float64 `gorm:"column:importe_total;type:decimal(12,2)" json:"importe_total"`
+
+	NumPlazas int `gorm:"column:num_plazas;default:4" json:"num_plazas"`
 
 	// --- ESTADOS Y BOOLEANOS ---
 	Festivo    bool `gorm:"column:festivo;default:0" json:"festivo"`
@@ -65,7 +73,7 @@ type Albaran struct {
 	Enviado    bool `gorm:"column:enviado;default:0" json:"enviado"`
 	Cobrado    bool `gorm:"column:cobrado;default:0" json:"cobrado"`
 	Pagado     bool `gorm:"column:pagado;default:0" json:"pagado"`
-	Estado     bool `gorm:"column:estado;default:0" json:"estado"` // 0=Activo, 1=Borrado (Soft Delete manual)
+	Estado     bool `gorm:"column:estado;default:0" json:"estado"` // 0=Activo, 1=Borrado
 
 	// --- FECHAS DE PROCESO ---
 	FechaCobro *time.Time `gorm:"column:fecha_cobro;type:date" json:"fecha_cobro"`
