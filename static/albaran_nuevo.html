@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8" />
     <title>Nuevo Albarán - Panel Titular</title>
@@ -8,189 +9,253 @@
     <script src="/js/albaran_nuevo.js" defer></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
-        tailwind.config = { theme: { extend: { colors: { 'primary-pastel': '#FFDAB9', 'primary-link': '#FF8C00' } } } }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { 'primary-pastel': '#FFDAB9', 'primary-link': '#FF8C00' }
+                }
+            }
+        }
     </script>
-    <style>
+    <style type="text/tailwindcss">
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
-        .input-field { @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl shadow-inner outline-none transition-all duration-200 text-gray-800 text-sm; }
-        .input-field:focus { @apply bg-white border-primary-link ring-4 ring-orange-100 shadow-none; }
-        .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; }
-        .checkbox-inline { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 hover:bg-white transition cursor-pointer h-full; }
-        .input-dark { @apply bg-transparent border-none text-right font-black text-primary-link outline-none focus:ring-0 p-0; }
+        @layer components {
+            body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+            .input-field { @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl shadow-inner outline-none transition-all duration-200 text-gray-800 text-sm; }
+            .input-field:focus { @apply bg-white border-primary-link ring-4 ring-orange-100 shadow-none; }
+            .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; }
+            .checkbox-inline { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 hover:bg-white transition cursor-pointer h-full; }
+            .input-dark { @apply bg-transparent border-none text-right font-black text-primary-link outline-none focus:ring-0 p-0; }
+        }
     </style>
 </head>
+
 <body class="p-4 sm:p-8">
 
     <div class="max-w-7xl mx-auto bg-white shadow-2xl rounded-[2rem] overflow-hidden border border-slate-100">
-        
+
         <div class="bg-gradient-to-r from-primary-pastel to-orange-100 p-6 flex justify-between items-center border-b border-orange-200">
             <h1 class="text-2xl font-black text-slate-800 flex items-center">
                 <i data-lucide="file-plus-2" class="mr-3 text-primary-link"></i> REGISTRO DE ALBARÁN
             </h1>
-            <button onclick="window.location.href='/titulares'" class="bg-slate-800 text-white px-5 py-2 rounded-xl font-bold hover:bg-black transition flex items-center shadow-lg text-sm">
+            <button onclick="window.location.href='/titulares'"
+                class="bg-slate-800 text-white px-5 py-2 rounded-xl font-bold hover:bg-black transition flex items-center shadow-lg text-sm">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> VOLVER
             </button>
         </div>
 
-        <form id="albaranForm" class="p-6 md:p-10 space-y-6" onsubmit="handleAction('crear', event)">
-            
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
-                    <label class="label-style">Licencia Ref</label>
-                    <input type="text" id="licencia" name="licencia_ref" readonly class="input-field bg-slate-200 cursor-not-allowed font-bold">
-                </div>
-                <div>
-                    <label class="label-style">Nº Albarán *</label>
-                    <input type="text" name="numero_albaran" id="n_albaran" required class="input-field font-black text-primary-link uppercase">
-                </div>
-                <div>
-                    <label class="label-style">Fecha *</label>
-                    <input type="date" name="fecha" id="fecha" required class="input-field">
-                </div>
-                <div>
-                    <label class="label-style">Hora Inicio</label>
-                    <input type="time" name="hora_ini" class="input-field">
-                </div>
-                <div>
-                    <label class="label-style">Hora Fin</label>
-                    <input type="time" name="hora_fin" class="input-field">
-                </div>
-            </div>
+        <form id="albaranForm" class="p-6 md:p-10 space-y-8" onsubmit="handleAction('crear', event)">
 
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div class="md:col-span-3">
-                    <label class="label-style">Empresa Ref *</label>
-                    <select id="empresa" name="empresa_ref" required class="input-field font-semibold"></select>
-                </div>
-                <div class="md:col-span-3">
-                    <label class="label-style">Nombre Pasajero</label>
-                    <input type="text" name="nombre_pasajero" class="input-field" placeholder="Nombre completo">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="label-style text-primary-link">Teléfono *</label>
-                    <input type="text" name="tlf_pasajero" required class="input-field font-bold" placeholder="Móvil">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="label-style">DNI Pasajero</label>
-                    <input type="text" name="dni_pasajero" class="input-field uppercase" placeholder="DNI/NIE">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="label-style">Matrícula</label>
-                    <input type="text" name="matricula" maxlength="15" class="input-field font-bold uppercase" placeholder="Placa">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div class="md:col-span-8">
-                    <label class="label-style">Origen *</label>
-                    <input type="text" name="origen" required class="input-field w-full max-w-2xl" placeholder="Lugar de recogida">
-                </div>
-                <div class="md:col-span-4">
-                    <label class="label-style">Parada / Vía</label>
-                    <input type="text" name="parada" class="input-field" placeholder="Punto intermedio">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div class="md:col-span-8">
-                    <label class="label-style">Destino *</label>
-                    <input type="text" name="destino" required class="input-field w-full max-w-2xl" placeholder="Lugar de llegada">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="label-style">Espera Inicio</label>
-                    <input type="time" name="espera_ini" class="input-field">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="label-style">Espera Fin</label>
-                    <input type="time" name="espera_fin" class="input-field">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-100 p-4 rounded-2xl border border-slate-200 items-end">
-                <div class="md:col-span-3">
-                    <label class="label-style text-slate-500">Kms Nac.</label>
-                    <input type="number" step="0.01" name="km_nacionales" class="input-field" placeholder="0.00">
-                </div>
-                <div class="md:col-span-3">
-                    <label class="label-style text-slate-500">Kms Int.</label>
-                    <input type="number" step="0.01" name="km_internacionales" class="input-field" placeholder="0.00">
-                </div>
-                <div class="md:col-span-3">
-                    <label class="label-style text-primary-link font-black">Kms Totales *</label>
-                    <input type="number" step="0.01" name="km_totales" class="input-field bg-white border-primary-link font-black text-right" placeholder="0.00">
-                </div>
-                <div class="md:col-span-3 flex gap-2 h-[38px]">
-                    <label class="checkbox-inline flex-1"><input type="checkbox" name="urbano" class="w-4 h-4 text-orange-500"> <span class="text-[9px] font-bold">URBANO</span></label>
-                    <label class="checkbox-inline flex-1"><input type="checkbox" name="remolque" class="w-4 h-4 text-orange-600"> <span class="text-[9px] font-bold">REMOLQUE</span></label>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                
-                <div class="md:col-span-6 space-y-4">
-                    <div>
-                        <label class="label-style">Conductor / Asalariado</label>
-                        <select id="asalariado_select" name="asalariado" class="input-field font-semibold"></select>
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">1. Identificación del Servicio</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="label-style">Licencia Ref</label>
+                        <input type="text" id="licencia" name="licencia_ref" readonly
+                            class="input-field bg-slate-200 cursor-not-allowed font-bold text-center">
                     </div>
-                    <div class="flex gap-4">
-                        <div class="flex-1">
-                            <label class="label-style">Autorizado Por</label>
-                            <input type="text" name="autorizado_por" class="input-field" placeholder="Nombre responsable">
-                        </div>
-                        <div class="flex gap-2 items-end">
-                            <label class="checkbox-inline border-blue-200 bg-blue-50 py-2 px-4">
-                                <input type="checkbox" name="noct_fest" class="w-4 h-4"> <span class="text-[10px] font-black uppercase">Noct/Fest</span>
-                            </label>
-                            <label class="checkbox-inline border-blue-200 bg-blue-50 py-2 px-4">
-                                <input type="checkbox" name="adjuntos" class="w-4 h-4"> <span class="text-[10px] font-black uppercase">Adjuntos</span>
-                            </label>
-                        </div>
+                    <div class="md:col-span-3">
+                        <label class="label-style">Nº Albarán *</label>
+                        <input type="text" name="numero_albaran" id="n_albaran" required
+                            class="input-field font-black text-primary-link uppercase" placeholder="033-2026-01-001">
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="label-style">Fecha *</label>
+                        <input type="date" name="fecha" id="fecha" required class="input-field font-bold text-gray-700">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style text-primary-link font-black">Hora Ini *</label>
+                        <input type="time" name="hora_ini" required class="input-field font-bold">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Hora Fin</label>
+                        <input type="time" name="hora_fin" class="input-field font-bold">
                     </div>
                 </div>
+            </div>
 
-                <div class="md:col-span-6 bg-slate-900 p-5 rounded-[2rem] border-4 border-primary-pastel shadow-2xl space-y-3">
-                    <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-                        <label class="text-[10px] font-black text-primary-pastel uppercase tracking-widest">Imp. Espera (€)</label>
-                        <div class="flex items-center">
-                            <span class="text-white font-bold mr-2">€</span>
-                            <input type="number" step="0.01" name="importe_espera" class="input-dark text-xl w-32" value="0.00">
-                        </div>
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">2. Cliente y Pasajero</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-3">
+                        <label class="label-style">Empresa Ref *</label>
+                        <select id="empresa" name="empresa_ref" required class="input-field font-semibold"></select>
                     </div>
-                    <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-                        <label class="text-[10px] font-black text-primary-pastel uppercase tracking-widest">Suplidos (€)</label>
-                        <div class="flex items-center">
-                            <span class="text-white font-bold mr-2">€</span>
-                            <input type="number" step="0.01" name="importe_suplidos" class="input-dark text-xl w-32" value="0.00">
-                        </div>
+                    <div class="md:col-span-3">
+                        <label class="label-style">Nombre Pasajero</label>
+                        <input type="text" name="nombre_pasajero" class="input-field" placeholder="Nombre completo">
                     </div>
-                    <div class="flex justify-between items-center pt-1">
-                        <label class="text-[11px] font-black text-white uppercase tracking-tighter">Importe Total Albarán *</label>
-                        <div class="flex items-center">
-                            <span class="text-2xl font-black text-white mr-2">€</span>
-                            <input type="number" step="0.01" name="importe_total" id="importe_total" required class="input-dark text-4xl w-40" placeholder="0.00">
-                        </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Teléfono</label>
+                        <input type="text" name="tlf_pasajero" class="input-field" placeholder="Móvil">
                     </div>
-                    <p class="text-[9px] text-center text-slate-400 font-bold italic uppercase tracking-tighter pt-2">
-                        * Todos los importes deben ser detallados y desglosados en el campo observaciones
-                    </p>
+                    <div class="md:col-span-2">
+                        <label class="label-style">DNI Pasajero</label>
+                        <input type="text" name="dni_pasajero" class="input-field uppercase" placeholder="DNI/NIE">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Matrícula</label>
+                        <input type="text" name="matricula" maxlength="15" class="input-field font-bold uppercase" placeholder="Placa">
+                    </div>
                 </div>
             </div>
 
-            <div class="w-full">
-                <label class="label-style tracking-widest text-slate-500 mb-2 block uppercase">Observaciones del Servicio</label>
-                <textarea name="observaciones" id="observaciones" rows="3" class="input-field italic w-full resize-none p-4" placeholder="Desglose aquí los importes y detalles del servicio..."></textarea>
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">3. Ruta y Tiempos de Espera</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-4">
+                        <label class="label-style">Origen *</label>
+                        <input type="text" name="origen" required class="input-field" placeholder="Lugar de recogida">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Parada / Vía</label>
+                        <input type="text" name="parada" class="input-field" placeholder="Punto intermedio">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Destino *</label>
+                        <input type="text" name="destino" required class="input-field" placeholder="Lugar de llegada">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Espera Total (Decimal)</label>
+                        <input type="number" step="0.01" name="hora_total" class="input-field font-bold text-orange-600" placeholder="0.00">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Espera Inicio</label>
+                        <input type="time" name="espera_ini" class="input-field">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Espera Fin</label>
+                        <input type="time" name="espera_fin" class="input-field">
+                    </div>
+                </div>
             </div>
 
-            <div class="flex flex-col items-center pt-4">
-                <button type="submit" class="bg-primary-link text-white font-black py-4 px-20 rounded-2xl shadow-2xl hover:bg-slate-800 transform transition-all hover:scale-105 active:scale-95 flex items-center gap-3 text-lg uppercase tracking-widest">
-                    <i data-lucide="save" class="w-6 h-6"></i> Guardar Albarán
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">4. Control de Kilometraje</h2>
+                <div class="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <label class="checkbox-inline">
+                            <input type="checkbox" name="urbano" class="w-4 h-4 text-orange-500">
+                            <span class="text-[10px] font-black uppercase ml-2">Servicio Urbano</span>
+                        </label>
+                        <label class="checkbox-inline">
+                            <input type="checkbox" name="diurno" class="w-4 h-4 text-blue-500" checked>
+                            <span class="text-[10px] font-black uppercase ml-2">Servicio Diurno</span>
+                        </label>
+                        <label class="checkbox-inline">
+                            <input type="checkbox" name="noct_fest" class="w-4 h-4 text-purple-600">
+                            <span class="text-[10px] font-black uppercase ml-2">Nocturno / Festivo</span>
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <label class="label-style text-primary-link font-black">Kms Totales *</label>
+                            <input type="number" step="0.01" name="km_totales" required
+                                class="input-field bg-white border-primary-link font-black text-right" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="label-style text-slate-500">Kms Nacionales</label>
+                            <input type="number" step="0.01" name="km_nacionales" class="input-field" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="label-style text-slate-500">Kms Internacionales</label>
+                            <input type="number" step="0.01" name="km_internacionales" class="input-field" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">5. Liquidación e Importes</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+                    <div class="md:col-span-9 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                            <div class="md:col-span-2">
+                                <label class="label-style text-orange-600">Suplidos (€)</label>
+                                <input type="number" step="0.01" name="importe_suplidos"
+                                    class="input-field font-bold border-orange-100" value="0.00">
+                            </div>
+                            <div class="md:col-span-5">
+                                <label class="label-style">Autorizado Por y Adjuntos</label>
+                                <input type="text" name="autorizado_por" class="input-field uppercase font-bold"
+                                    placeholder="NOMBRE DE QUIEN AUTORIZA">
+                            </div>
+                            <div class="md:col-span-5">
+                                <label class="label-style text-primary-link font-black">Nombre Conductor / Asalariado</label>
+                                <input type="text" name="asalariado"
+                                    class="input-field font-bold border-orange-200 uppercase"
+                                    placeholder="NOMBRE DEL CONDUCTOR">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                            <div class="md:col-span-3">
+                                <label class="checkbox-inline w-full">
+                                    <input type="checkbox" name="remolque" class="w-4 h-4 text-orange-600">
+                                    <span class="text-[9px] font-black uppercase ml-2">Remolque</span>
+                                </label>
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="label-style">Plazas Vehículo</label>
+                                <select name="num_plazas" class="input-field font-bold">
+                                    <option value="4" selected>4 Plazas</option>
+                                    <option value="5">5 Plazas</option>
+                                    <option value="6">6 Plazas</option>
+                                    <option value="7">7 Plazas</option>
+                                    <option value="8">8 Plazas</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="checkbox-inline w-full border-blue-200 bg-blue-50">
+                                    <input type="checkbox" name="adjuntos_bool" class="w-4 h-4 text-blue-600">
+                                    <span class="text-[9px] font-black uppercase ml-2">Adjuntos</span>
+                                </label>
+                            </div>
+                            <div class="md:col-span-4">
+                                <label class="label-style">Referencia / Nº Adjuntos</label>
+                                <input type="text" name="adjuntos" id="adjuntos_ref"
+                                    class="input-field font-bold border-blue-100" placeholder="Ej: 3 tickets">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="label-style tracking-widest text-slate-500 mb-1 block uppercase">Observaciones</label>
+                            <textarea name="observaciones" id="observaciones" rows="3"
+                                class="input-field italic w-full resize-none p-4"
+                                placeholder="Desglose detallado del servicio..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-3 bg-slate-900 p-6 rounded-[2rem] border-4 border-primary-pastel shadow-2xl flex flex-col justify-center space-y-4 h-fit self-start mt-5">
+                        <div class="flex flex-col items-center">
+                            <label class="text-[11px] font-black text-white uppercase tracking-tighter text-center mb-2">Importe Total *</label>
+                            <div class="flex items-center justify-center">
+                                <span class="text-2xl font-black text-white mr-2">€</span>
+                                <input type="number" step="0.01" id="importe_total" name="importe_total" required
+                                    class="input-dark text-4xl w-full text-center" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-xl text-center">
+                            <p class="text-[8px] text-slate-400 font-bold italic uppercase leading-tight">
+                                * Debe incluir el total facturable al cliente.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center pt-8 border-t border-slate-100">
+                <button type="submit"
+                    class="bg-primary-link text-white font-black py-5 px-24 rounded-2xl shadow-2xl hover:bg-slate-800 transform transition-all hover:scale-105 active:scale-95 flex items-center gap-4 text-xl uppercase tracking-[0.2em]">
+                    <i data-lucide="save" class="w-7 h-7"></i> Guardar Albarán
                 </button>
                 <div id="statusMessage" class="hidden mt-6 p-4 rounded-xl text-center font-bold w-full max-w-md border-2"></div>
             </div>
         </form>
     </div>
-    
+
     <script>lucide.createIcons();</script>
 </body>
+
 </html>

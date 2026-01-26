@@ -1,6 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes (Titulares y Admin).
+ * ACTUALIZADO: 2026-01-26 - Sincronización total con DB, Logs y solución definitiva error 1364.
  */
 
 package controllers
@@ -109,12 +110,24 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "NumFactura"
 		case "noct_fest":
 			structKey = "NoctFest"
+		case "diurno":
+			structKey = "Diurno"
+		case "urbano":
+			structKey = "Urbano"
+		case "remolque":
+			structKey = "Remolque"
 		case "km_totales":
 			structKey = "KmTotales"
 		case "km_nacionales":
 			structKey = "KmNacionales"
 		case "km_internacionales":
 			structKey = "KmInternacionales"
+		case "km_ini":
+			structKey = "KmIni"
+		case "km_fin":
+			structKey = "KmFin"
+		case "hora_total":
+			structKey = "HoraTotal"
 		case "importe_espera":
 			structKey = "ImporteEspera"
 		case "importe_suplidos":
@@ -127,6 +140,10 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "AutorizadoPor"
 		case "num_plazas":
 			structKey = "NumPlazas"
+		case "adjuntos_bool":
+			structKey = "Adjuntos"
+		case "adjuntos":
+			structKey = "AdjuntosRef"
 		default:
 			parts := strings.Split(key, "_")
 			for i := range parts {
@@ -135,8 +152,12 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = strings.Join(parts, "")
 		}
 
-		// FIX ERROR 1366: Impedir strings vacíos en decimales
-		isNumeric := strings.Contains(strings.ToLower(key), "km_") || strings.Contains(strings.ToLower(key), "importe_") || key == "num_plazas"
+		// 🚨 NORMALIZACIÓN DE CAMPOS NUMÉRICOS (Evita Error 1366)
+		isNumeric := strings.Contains(strings.ToLower(key), "km_") ||
+			strings.Contains(strings.ToLower(key), "importe_") ||
+			key == "num_plazas" ||
+			key == "hora_total"
+
 		if isNumeric {
 			if str, ok := value.(string); ok && strings.TrimSpace(str) == "" {
 				clean[structKey] = 0.0
@@ -158,6 +179,24 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			clean[structKey] = value
 		}
 	}
+
+	// 🛡️ SOLUCIÓN ERROR 1364: Inyectar valores obligatorios no presentes en el form
+	if _, ok := clean["KmIni"]; !ok {
+		clean["KmIni"] = 0.0
+	}
+	if _, ok := clean["KmFin"]; !ok {
+		clean["KmFin"] = 0.0
+	}
+	if _, ok := clean["ImporteEspera"]; !ok {
+		clean["ImporteEspera"] = 0.0
+	}
+	if _, ok := clean["HoraTotal"]; !ok {
+		clean["HoraTotal"] = 0.0
+	}
+	if _, ok := clean["AdjuntosRef"]; !ok {
+		clean["AdjuntosRef"] = ""
+	}
+
 	return clean
 }
 
@@ -191,9 +230,6 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	if v := c.Query("empresa_ref"); v != "" {
 		query = query.Where("(empresa_ref = ? OR empresa_nombre LIKE ?)", v, "%"+v+"%")
 	}
-	if v := c.Query("referencia"); v != "" {
-		query = query.Where("referencia LIKE ?", "%"+v+"%")
-	}
 	if v := c.Query("fecha_desde"); v != "" {
 		query = query.Where("fecha >= ?", v)
 	}
@@ -211,62 +247,53 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 }
 
 func CreateAlbaran(c *gin.Context, db *gorm.DB) {
+	log.Println("[AUDITORÍA] Intentando procesar nuevo Albarán...")
 	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
+		log.Printf("[ERROR] JSON inválido: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
 		return
 	}
+
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 
+	// Seguridad: Licencia desde Contexto JWT
+	val, exists := c.Get("licencia_id")
+	if exists {
+		var licID uint
+		switch v := val.(type) {
+		case float64:
+			licID = uint(v)
+		case uint:
+			licID = v
+		}
+		cleanInput["LicenciaRef"] = licID
+		var lic models.Licencia
+		if err := db.First(&lic, licID).Error; err == nil {
+			cleanInput["Licencia"] = lic.Licencia
+		}
+	}
+
+	// Sincronizar Empresa
 	if ref, ok := cleanInput["EmpresaRef"].(float64); ok {
 		var emp models.Empresa
 		if err := db.First(&emp, uint(ref)).Error; err == nil {
 			cleanInput["EmpresaNombre"] = emp.Nombre
 		}
 	}
+
+	cleanInput["Estado"] = 0
+	delete(cleanInput, "ID")
+
+	log.Printf("[AUDITORÍA] Ejecutando INSERT para Albarán Nº: %v", cleanInput["NumeroAlbaran"])
 
 	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("[❌ ERROR DB] %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar en base de datos: " + err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Creado"})
-}
-
-// 🛡️ ACTUALIZACIÓN TITULAR [Corregida con Sincronización de Empresa]
-func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	var albaran models.Albaran
-
-	if err := db.First(&albaran, id).Error; err != nil {
-		c.JSON(404, gin.H{"error": "No encontrado"})
-		return
-	}
-
-	var input map[string]interface{}
-	c.ShouldBindJSON(&input)
-
-	// BLOQUEO DE CAMPOS REQUERIDOS
-	delete(input, "numero_albaran")
-	delete(input, "licencia_ref")
-	delete(input, "licencia")
-
-	cleanInput := cleanAlbaranMap(input, albaran)
-
-	// SINCRONIZACIÓN DE EMPRESA (Solución al error AYTO. ESTIVELLA / ALSA)
-	if ref, ok := cleanInput["EmpresaRef"].(float64); ok {
-		var emp models.Empresa
-		if err := db.First(&emp, uint(ref)).Error; err == nil {
-			cleanInput["EmpresaNombre"] = emp.Nombre
-			log.Printf("[AUDITORÍA] Sincronizando Empresa: ID %d -> %s", emp.ID, emp.Nombre)
-		}
-	}
-
-	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
-		c.JSON(500, gin.H{"error": "Error al actualizar"})
-		return
-	}
-
-	c.JSON(200, gin.H{"message": "✅ Actualizado correctamente"})
+	log.Println("[✅ ÉXITO] Albarán creado correctamente")
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado correctamente"})
 }
 
 // ---------------------------------------------------------------------
@@ -307,6 +334,27 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": len(albaranes)})
 }
 
+func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	var albaran models.Albaran
+	if err := db.First(&albaran, id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "No encontrado"})
+		return
+	}
+
+	var input map[string]interface{}
+	c.ShouldBindJSON(&input)
+	delete(input, "numero_albaran")
+	delete(input, "licencia_ref")
+
+	cleanInput := cleanAlbaranMap(input, albaran)
+	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Error al actualizar"})
+		return
+	}
+	c.JSON(200, gin.H{"message": "✅ Actualizado"})
+}
+
 func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 	val, _ := c.Get("licencia_id")
 	licID := uint(0)
@@ -331,7 +379,10 @@ func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	var input struct {
 		IDs []uint `json:"ids"`
 	}
-	c.ShouldBindJSON(&input)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "IDs requeridos"})
+		return
+	}
 	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(map[string]interface{}{
 		"cobrado": true, "pagado": true, "fecha_pago": time.Now(), "fecha_cobro": time.Now(),
 	})
@@ -340,7 +391,10 @@ func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 
 func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
-	db.Model(&models.Albaran{}).Where("id = ?", id).Update("estado", 1)
+	if err := db.Model(&models.Albaran{}).Where("id = ?", id).Update("estado", 1).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Error al borrar"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Borrado"})
 }
 
@@ -353,7 +407,10 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 		ReportName string                   `json:"reportName"`
 		Data       []map[string]interface{} `json:"data"`
 	}
-	c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "Datos inválidos"})
+		return
+	}
 	var processedData []utils.TitularData
 	for _, item := range req.Data {
 		row := make(utils.TitularData)
@@ -362,7 +419,11 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 		}
 		processedData = append(processedData, row)
 	}
-	url, _ := utils.GenerateGenericPDF(req.ReportName, processedData)
+	url, err := utils.GenerateGenericPDF(req.ReportName, processedData)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(200, gin.H{"success": true, "downloadURL": url})
 }
 
@@ -371,7 +432,10 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 		ReportName string                   `json:"reportName"`
 		Data       []map[string]interface{} `json:"data"`
 	}
-	c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "Datos inválidos"})
+		return
+	}
 	var processedData []utils.TitularData
 	for _, item := range req.Data {
 		row := make(utils.TitularData)
@@ -380,6 +444,10 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 		}
 		processedData = append(processedData, row)
 	}
-	url, _ := utils.GenerateTitularesXLSX(req.ReportName, processedData)
+	url, err := utils.GenerateTitularesXLSX(req.ReportName, processedData)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	c.JSON(200, gin.H{"success": true, "downloadURL": url})
 }
