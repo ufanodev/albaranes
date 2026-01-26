@@ -48,20 +48,25 @@
 
             <div class="space-y-4">
                 <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">1. Identificación del Servicio</h2>
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div class="md:col-span-2">
-                        <label class="label-style">Licencia Ref</label>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div class="md:col-span-1">
+                        <label class="label-style">Lic. Ref</label>
                         <input type="text" id="licencia" name="licencia_ref" readonly
-                            class="input-field bg-slate-200 cursor-not-allowed font-bold text-center">
+                            class="input-field bg-slate-200 cursor-not-allowed font-bold text-center p-1">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
                         <label class="label-style">Nº Albarán *</label>
                         <input type="text" name="numero_albaran" id="n_albaran" required
-                            class="input-field font-black text-primary-link uppercase" placeholder="033-2026-01-001">
+                            class="input-field font-black text-primary-link uppercase" placeholder="Ej: 033-001">
                     </div>
                     <div class="md:col-span-3">
+                        <label class="label-style">Referencia / Expediente *</label>
+                        <input type="text" name="referencia" required
+                            class="input-field font-bold uppercase" placeholder="Ej: REF-999888">
+                    </div>
+                    <div class="md:col-span-2">
                         <label class="label-style">Fecha *</label>
-                        <input type="date" name="fecha" id="fecha" required class="input-field font-bold text-gray-700">
+                        <input type="date" name="fecha" id="fecha" required class="input-field font-bold">
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style text-primary-link font-black">Hora Ini *</label>
