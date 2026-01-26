@@ -1,8 +1,6 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes (Titulares y Admin).
- * FUNCIONALIDADES: CRUD, Búsqueda avanzada, Carga masiva, Exportación PDF/XLSX.
- * AUDITORÍA: Logs detallados de entrada/salida y corrección de errores decimales (1366).
  */
 
 package controllers
@@ -13,7 +11,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -57,7 +54,7 @@ func preloadAlbaran(db *gorm.DB) *gorm.DB {
 	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
-// 🛡️ LÓGICA DE LIMPIEZA MAESTRA [Respetando bloqueo de ID y Fix Decimales]
+// 🛡️ LÓGICA DE LIMPIEZA MAESTRA [Mapeo de Frontend a GORM Struct]
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 	fechaBase := time.Now().Format(dateFormat)
@@ -102,7 +99,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "EmpresaNombre"
 		case "dni_pasajero":
 			structKey = "DNIPasajero"
-		case "tlf_pasajero": // <--- NUEVO CAMPO
+		case "tlf_pasajero":
 			structKey = "TlfPasajero"
 		case "matricula":
 			structKey = "Matricula"
@@ -112,17 +109,13 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "NumFactura"
 		case "noct_fest":
 			structKey = "NoctFest"
-		case "km_ini":
-			structKey = "KmIni"
-		case "km_fin":
-			structKey = "KmFin"
 		case "km_totales":
 			structKey = "KmTotales"
 		case "km_nacionales":
 			structKey = "KmNacionales"
 		case "km_internacionales":
 			structKey = "KmInternacionales"
-		case "importe_espera": // <--- NUEVO CAMPO
+		case "importe_espera":
 			structKey = "ImporteEspera"
 		case "importe_suplidos":
 			structKey = "ImporteSuplidos"
@@ -142,7 +135,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = strings.Join(parts, "")
 		}
 
-		// 🚨 FIX ERROR 1366: Impedir strings vacíos en decimales
+		// FIX ERROR 1366: Impedir strings vacíos en decimales
 		isNumeric := strings.Contains(strings.ToLower(key), "km_") || strings.Contains(strings.ToLower(key), "importe_") || key == "num_plazas"
 		if isNumeric {
 			if str, ok := value.(string); ok && strings.TrimSpace(str) == "" {
@@ -169,17 +162,23 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 }
 
 // ---------------------------------------------------------------------
-// SECCIÓN: CONTROLADORES GENERALES Y BÚSQUEDA AVANZADA (ADMIN)
+// SECCIÓN: CRUD Y ADMIN
 // ---------------------------------------------------------------------
 
+func GetAlbaran(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	var albaran models.Albaran
+	if err := preloadAlbaran(db).First(&albaran, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": albaran})
+}
+
 func GetAlbaranes(c *gin.Context, db *gorm.DB) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	var albaranes []models.Albaran
-	var total int64
-	db.Model(&models.Albaran{}).Where("estado = ?", 0).Count(&total)
-	preloadAlbaran(db).Where("estado = ?", 0).Limit(pageSize).Offset((page - 1) * pageSize).Order("id desc").Find(&albaranes)
-	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": total})
+	preloadAlbaran(db).Where("estado = ?", 0).Order("id desc").Find(&albaranes)
+	c.JSON(http.StatusOK, gin.H{"data": albaranes})
 }
 
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
@@ -192,42 +191,23 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	if v := c.Query("empresa_ref"); v != "" {
 		query = query.Where("(empresa_ref = ? OR empresa_nombre LIKE ?)", v, "%"+v+"%")
 	}
-	if v := c.Query("pagado"); v != "" {
-		query = query.Where("pagado = ?", v == "true")
-	}
-	if v := c.Query("cobrado"); v != "" {
-		query = query.Where("cobrado = ?", v == "true")
-	}
-	if v := c.Query("enviado"); v != "" {
-		query = query.Where("enviado = ?", v == "true")
-	}
 	if v := c.Query("referencia"); v != "" {
 		query = query.Where("referencia LIKE ?", "%"+v+"%")
 	}
-	if fDesde := c.Query("fecha_desde"); fDesde != "" {
-		query = query.Where("fecha >= ?", fDesde)
+	if v := c.Query("fecha_desde"); v != "" {
+		query = query.Where("fecha >= ?", v)
 	}
-	if fHasta := c.Query("fecha_hasta"); fHasta != "" {
-		query = query.Where("fecha <= ?", fHasta)
+	if v := c.Query("fecha_hasta"); v != "" {
+		query = query.Where("fecha <= ?", v)
 	}
 
 	if v := c.Query("palabra"); v != "" {
 		p := "%" + v + "%"
-		query = query.Where(db.Where("numero_albaran LIKE ?", p).Or("referencia LIKE ?", p).Or("cliente LIKE ?", p).Or("matricula LIKE ?", p).Or("num_factura LIKE ?", p).Or("empresa_nombre LIKE ?", p))
+		query = query.Where(db.Where("numero_albaran LIKE ?", p).Or("cliente LIKE ?", p).Or("empresa_nombre LIKE ?", p))
 	}
 
 	query.Order("fecha DESC, id DESC").Find(&albaranes)
 	c.JSON(http.StatusOK, gin.H{"data": albaranes})
-}
-
-func GetAlbaran(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	var albaran models.Albaran
-	if err := preloadAlbaran(db).First(&albaran, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"data": albaran})
 }
 
 func CreateAlbaran(c *gin.Context, db *gorm.DB) {
@@ -238,22 +218,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 
-	val, _ := c.Get("licencia_id")
-	licID := uint(0)
-	if v, ok := val.(float64); ok {
-		licID = uint(v)
-	} else if v, ok := val.(uint); ok {
-		licID = v
-	}
-
-	if licID > 0 {
-		cleanInput["LicenciaRef"] = licID
-		var lic models.Licencia
-		if err := db.First(&lic, licID).Error; err == nil {
-			cleanInput["Licencia"] = lic.Licencia
-		}
-	}
-
 	if ref, ok := cleanInput["EmpresaRef"].(float64); ok {
 		var emp models.Empresa
 		if err := db.First(&emp, uint(ref)).Error; err == nil {
@@ -261,18 +225,52 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		}
 	}
 
-	cleanInput["Estado"] = 0
-	delete(cleanInput, "ID")
 	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
-		log.Printf("[ERROR] Insert Albaran: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Creado"})
 }
 
+// 🛡️ ACTUALIZACIÓN TITULAR [Corregida con Sincronización de Empresa]
+func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	var albaran models.Albaran
+
+	if err := db.First(&albaran, id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "No encontrado"})
+		return
+	}
+
+	var input map[string]interface{}
+	c.ShouldBindJSON(&input)
+
+	// BLOQUEO DE CAMPOS REQUERIDOS
+	delete(input, "numero_albaran")
+	delete(input, "licencia_ref")
+	delete(input, "licencia")
+
+	cleanInput := cleanAlbaranMap(input, albaran)
+
+	// SINCRONIZACIÓN DE EMPRESA (Solución al error AYTO. ESTIVELLA / ALSA)
+	if ref, ok := cleanInput["EmpresaRef"].(float64); ok {
+		var emp models.Empresa
+		if err := db.First(&emp, uint(ref)).Error; err == nil {
+			cleanInput["EmpresaNombre"] = emp.Nombre
+			log.Printf("[AUDITORÍA] Sincronizando Empresa: ID %d -> %s", emp.ID, emp.Nombre)
+		}
+	}
+
+	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
+		c.JSON(500, gin.H{"error": "Error al actualizar"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "✅ Actualizado correctamente"})
+}
+
 // ---------------------------------------------------------------------
-// SECCIÓN: MÉTODOS TITULARES (BÚSQUEDA FILTRADA POR USUARIO)
+// SECCIÓN: TITULARES
 // ---------------------------------------------------------------------
 
 func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
@@ -283,8 +281,6 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	} else if v, ok := val.(uint); ok {
 		licID = v
 	}
-
-	log.Printf("[AUDITORÍA] [SearchUser] Inicia búsqueda Licencia: %d | Params: %v", licID, c.Request.URL.RawQuery)
 
 	var albaranes []models.Albaran
 	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("licencia_ref = ? AND estado = ?", licID, 0)
@@ -301,56 +297,51 @@ func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	if v := c.Query("fecha_hasta"); v != "" {
 		query = query.Where("fecha <= ?", v)
 	}
-	if v := c.Query("pagado"); v != "" {
-		query = query.Where("pagado = ?", v == "true")
-	}
-	if v := c.Query("enviado"); v != "" {
-		query = query.Where("enviado = ?", v == "true")
-	}
 
 	if v := c.Query("palabra"); v != "" {
 		p := "%" + v + "%"
-		query = query.Where(db.Where("numero_albaran LIKE ?", p).Or("referencia LIKE ?", p).Or("cliente LIKE ?", p).Or("empresa_nombre LIKE ?", p))
+		query = query.Where(db.Where("numero_albaran LIKE ?", p).Or("cliente LIKE ?", p).Or("empresa_nombre LIKE ?", p))
 	}
 
-	if err := query.Order("fecha DESC, id DESC").Find(&albaranes).Error; err != nil {
-		log.Printf("[ERROR] [SearchUser] Error DB: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	log.Printf("[AUDITORÍA] [SearchUser] Fin. Albaranes retornados: %d", len(albaranes))
+	query.Order("fecha DESC, id DESC").Find(&albaranes)
 	c.JSON(http.StatusOK, gin.H{"data": albaranes, "total": len(albaranes)})
 }
 
-func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	var albaran models.Albaran
-	if err := db.First(&albaran, id).Error; err != nil {
-		c.JSON(404, gin.H{"error": "No encontrado"})
-		return
+func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
+	val, _ := c.Get("licencia_id")
+	licID := uint(0)
+	if v, ok := val.(float64); ok {
+		licID = uint(v)
+	} else if v, ok := val.(uint); ok {
+		licID = v
 	}
-	var input map[string]interface{}
-	c.ShouldBindJSON(&input)
-	delete(input, "numero_albaran")
-	delete(input, "licencia_ref")
-
-	cleanInput := cleanAlbaranMap(input, albaran)
-	db.Model(&albaran).Updates(cleanInput)
-	c.JSON(200, gin.H{"message": "✅ Actualizado"})
+	var lic models.Licencia
+	if err := db.First(&lic, licID).Error; err == nil {
+		c.JSON(200, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
+	} else {
+		c.JSON(404, gin.H{"error": "No encontrada"})
+	}
 }
+
+// ---------------------------------------------------------------------
+// SECCIÓN: OTROS MÉTODOS
+// ---------------------------------------------------------------------
 
 func BulkChargeAlbaranes(c *gin.Context, db *gorm.DB) {
 	var input struct {
-		IDs []uint `json:"ids" binding:"required"`
+		IDs []uint `json:"ids"`
 	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		return
-	}
+	c.ShouldBindJSON(&input)
 	db.Model(&models.Albaran{}).Where("id IN ?", input.IDs).Updates(map[string]interface{}{
 		"cobrado": true, "pagado": true, "fecha_pago": time.Now(), "fecha_cobro": time.Now(),
 	})
 	c.JSON(200, gin.H{"message": "✅ Procesado"})
+}
+
+func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
+	id := c.Param("id")
+	db.Model(&models.Albaran{}).Where("id = ?", id).Update("estado", 1)
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Borrado"})
 }
 
 // ---------------------------------------------------------------------
@@ -362,9 +353,7 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 		ReportName string                   `json:"reportName"`
 		Data       []map[string]interface{} `json:"data"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		return
-	}
+	c.ShouldBindJSON(&req)
 	var processedData []utils.TitularData
 	for _, item := range req.Data {
 		row := make(utils.TitularData)
@@ -382,9 +371,7 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 		ReportName string                   `json:"reportName"`
 		Data       []map[string]interface{} `json:"data"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		return
-	}
+	c.ShouldBindJSON(&req)
 	var processedData []utils.TitularData
 	for _, item := range req.Data {
 		row := make(utils.TitularData)
@@ -395,62 +382,4 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 	}
 	url, _ := utils.GenerateTitularesXLSX(req.ReportName, processedData)
 	c.JSON(200, gin.H{"success": true, "downloadURL": url})
-}
-
-func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
-	val, _ := c.Get("licencia_id")
-	licID := uint(0)
-	if v, ok := val.(float64); ok {
-		licID = uint(v)
-	} else if v, ok := val.(uint); ok {
-		licID = v
-	}
-	var lic models.Licencia
-	if err := db.First(&lic, licID).Error; err != nil {
-		c.JSON(404, gin.H{"error": "Licencia no encontrada"})
-		return
-	}
-	c.JSON(200, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
-}
-
-// ---------------------------------------------------------------------
-// SECCIÓN: MÉTODOS ADMIN ADICIONALES
-// ---------------------------------------------------------------------
-
-func GetConductoresByLicencia(c *gin.Context, db *gorm.DB) {
-	var conductores []models.Conductor
-	if err := db.Order("nombre asc").Find(&conductores).Error; err != nil {
-		c.JSON(500, gin.H{"error": "Error al cargar conductores"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"data": conductores})
-}
-
-func CopyAlbaranAdmin(c *gin.Context, db *gorm.DB) {
-	var input map[string]interface{}
-	c.ShouldBindJSON(&input)
-	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
-	cleanInput["Estado"] = 0
-	delete(cleanInput, "ID")
-	db.Model(&models.Albaran{}).Create(cleanInput)
-	c.JSON(201, gin.H{"message": "✅ Copiado"})
-}
-
-func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	var albaran models.Albaran
-	if err := db.First(&albaran, id).Error; err != nil {
-		c.JSON(404, gin.H{"error": "No encontrado"})
-		return
-	}
-	var input map[string]interface{}
-	c.ShouldBindJSON(&input)
-	db.Model(&albaran).Updates(cleanAlbaranMap(input, albaran))
-	c.JSON(200, gin.H{"message": "✅ Actualizado por Admin"})
-}
-
-func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
-	id := c.Param("id")
-	db.Model(&models.Albaran{}).Where("id = ?", id).Update("estado", 1)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Borrado"})
 }

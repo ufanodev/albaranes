@@ -1,154 +1,93 @@
 /**
  * albaran_cargar.js
- * Motor unificado para el mapeo de datos entre el Backend (JSON) y el Frontend (HTML).
- * Este archivo es el "traductor" oficial para albaran_view.html y albaran_update.html.
+ * Función: Obtener datos del servidor y llenar el formulario.
  */
 
-function populateForm(data) {
-    console.log("📦 [MAPPER] Procesando datos del albarán:", data);
+async function cargarCatálogos() {
+    console.log("📦 Cargando catálogos de empresas y conductores...");
+    await Promise.all([cargarEmpresas(), cargarAsalariados()]);
+}
 
-    /**
-     * Helper para asignar contenido a elementos (Input o Div/Span)
-     */
-    const setContent = (elementId, value) => {
-        const el = document.getElementById(elementId);
-        if (!el) return;
+async function cargarEmpresas() {
+    const select = document.getElementById('empresa');
+    if (!select) return;
+    const res = await fetch('/api/v1/empresas');
+    const result = await res.json();
+    select.innerHTML = '<option value="">-- Seleccionar Empresa --</option>';
+    result.data.forEach(emp => {
+        const opt = document.createElement('option');
+        opt.value = emp.id;
+        opt.textContent = emp.nombre;
+        select.appendChild(opt);
+    });
+}
 
-        // Limpieza de valores: si es null o vacío, ponemos un guion para la vista
-        const val = (value !== null && value !== undefined && value !== '') ? value : '-';
+async function cargarAsalariados() {
+    const select = document.getElementById('asalariado_select');
+    if (!select) return;
+    const res = await fetch('/api/v1/conductores/mis-conductores');
+    const result = await res.json();
+    select.innerHTML = '<option value="">-- Conductor Titular --</option>';
+    result.data.forEach(con => {
+        const opt = document.createElement('option');
+        opt.value = con.nombre;
+        opt.textContent = con.nombre;
+        select.appendChild(opt);
+    });
+}
+
+async function loadAlbaranToEdit(id) {
+    try {
+        const res = await fetch(`/api/v1/albaranes/${id}`);
+        if (!res.ok) throw new Error("Albarán no encontrado");
+        const { data } = await res.json();
+
+        // Mapeo manual a los IDs del HTML Master
+        document.getElementById('albaran_id').value = data.id;
+        document.getElementById('licencia').value = data.licencia;
+        document.getElementById('n_albaran').value = data.numero_albaran;
+        document.getElementById('header_num').textContent = `#${data.numero_albaran}`;
+        document.getElementById('fecha').value = data.fecha.split('T')[0];
         
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
-            // En inputs, si el valor es el guion de "vacío", lo dejamos en blanco
-            el.value = (val === '-') ? '' : val;
-        } else {
-            // En visualización (div/span), ponemos el valor procesado
-            el.textContent = val;
-        }
-    };
+        // Datos Personales
+        document.getElementById('nombre_pasajero').value = data.cliente || '';
+        document.getElementById('tlf_pasajero').value = data.tlf_pasajero || '';
+        document.getElementById('dni_pasajero').value = data.dni_pasajero || '';
+        document.getElementById('matricula').value = data.matricula || '';
 
-    /**
-     * Helper para gestionar Checkboxes
-     */
-    const setCheck = (elementId, value) => {
-        const el = document.getElementById(elementId);
-        if (el) {
-            // Acepta true, 1, "Si" o "1" como valores marcados
-            el.checked = (value === true || value === 1 || value === 'Si' || value === '1');
-        }
-    };
+        // Ruta
+        document.getElementById('origen').value = data.origen || '';
+        document.getElementById('destino').value = data.destino || '';
+        document.getElementById('parada').value = data.parada || '';
 
-    /**
-     * Helper para extraer la hora (HH:mm) de un string ISO o MySQL DateTime
-     * Maneja: "2026-01-02T12:37:00Z" y "2026-01-02 12:37:00"
-     */
-    const formatTime = (timeStr) => {
-        if (!timeStr) return '';
-        let rawTime = timeStr;
-        // Si viene formato ISO o MySQL con fecha, extraemos solo la parte del tiempo
-        if (timeStr.includes('T')) {
-            rawTime = timeStr.split('T')[1];
-        } else if (timeStr.includes(' ')) {
-            rawTime = timeStr.split(' ')[1];
-        }
-        return rawTime.substring(0, 5); // Retorna "HH:mm"
-    };
+        // Tiempos (Formato HH:mm)
+        const fTime = (iso) => iso ? new Date(iso).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit', hour12:false}) : '';
+        document.getElementById('hora_ini').value = fTime(data.hora_ini);
+        document.getElementById('hora_fin').value = fTime(data.hora_fin);
+        document.getElementById('espera_ini').value = fTime(data.espera_ini);
+        document.getElementById('espera_fin').value = fTime(data.espera_fin);
 
-    // --- PARTE 1: IDENTIFICACIÓN ---
-    const nAlbaran = data.numero_albaran || data.Numero_albaran || '-';
-    setContent('view_numero_albaran_header', nAlbaran);
-    setContent('numero_albaran', nAlbaran);
-    setContent('n_albaran', nAlbaran); // Para el input del update
-    
-    if (data.fecha || data.Fecha) {
-        setContent('fecha', (data.fecha || data.Fecha).substring(0, 10));
+        // Selects (Empresa y Conductor)
+        document.getElementById('empresa').value = data.empresa_ref;
+        document.getElementById('asalariado_select').value = data.asalariado;
+
+        // Numéricos
+        document.getElementById('km_nacionales').value = data.km_nacionales;
+        document.getElementById('km_internacionales').value = data.km_internacionales;
+        document.getElementById('km_totales').value = data.km_totales;
+        document.getElementById('importe_espera').value = data.importe_espera;
+        document.getElementById('importe_suplidos').value = data.importe_suplidos;
+        document.getElementById('importe_total').value = data.importe_total;
+
+        // Checks
+        document.getElementById('urbano').checked = data.urbano;
+        document.getElementById('remolque').checked = data.remolque;
+        document.getElementById('noct_fest').checked = data.noct_fest;
+        document.getElementById('adjuntos').checked = data.adjuntos;
+        
+        document.getElementById('observaciones').value = data.observaciones || '';
+
+    } catch (err) {
+        console.error("❌ Error en cargar_albaran:", err);
     }
-
-    // Tiempos de Servicio (Mapeo a columnas hora_ini / hora_fin de la DB)
-    setContent('hora_ini', formatTime(data.hora_ini));
-    setContent('hora_fin', formatTime(data.hora_fin));
-    setContent('hora', formatTime(data.hora)); // Compatibilidad legacy
-
-    // Licencia y Empresa
-    if (data.LicenciaData) {
-        setContent('licencia_ref', data.LicenciaData.licencia);
-        setContent('licencia', data.LicenciaData.licencia);
-    } else {
-        setContent('licencia_ref', data.licencia_ref);
-        setContent('licencia', data.licencia || data.licencia_ref);
-    }
-
-    if (data.EmpresaData) {
-        setContent('empresa_nombre', data.EmpresaData.nombre);
-        const empSelect = document.getElementById('empresa');
-        if (empSelect) empSelect.value = data.empresa_ref;
-    } else {
-        setContent('empresa_nombre', data.empresa_nombre || '-');
-    }
-
-    // --- PARTE 2: CLIENTE Y VEHÍCULO (CORREGIDO) ---
-    setContent('matricula', data.matricula);
-    
-    // 👤 MAPEO CRÍTICO: La DB devuelve 'cliente', la vista espera 'nombre_pasajero'
-    setContent('nombre_pasajero', data.cliente || data.nombre_pasajero); 
-    
-    setContent('dni_pasajero', data.dni_pasajero);
-    setContent('referencia', data.referencia);
-    setContent('asalariado', data.asalariado);
-    
-    const asalariadoSelect = document.getElementById('asalariado_select');
-    if (asalariadoSelect) asalariadoSelect.value = data.asalariado;
-
-    // --- PARTE 3: TRAYECTO Y DATOS TÉCNICOS ---
-    setContent('origen', data.origen);
-    setContent('destino', data.destino);
-    setContent('parada', data.parada);
-    
-    // Tiempos de Espera
-    setContent('espera_ini', formatTime(data.espera_ini));
-    setContent('espera_fin', formatTime(data.espera_fin));
-    setContent('tiempo_espera', formatTime(data.tiempo_espera));
-
-    setCheck('urbano', data.urbano);
-    setCheck('diurno', data.diurno);
-    setCheck('noct_fest', data.noct_fest);
-    setCheck('remolque', data.remolque); 
-    setCheck('festivo', data.festivo);
-
-    // Kilómetros
-    setContent('km_ini', data.km_ini);
-    setContent('km_fin', data.km_fin);
-    setContent('km_totales', data.km_totales);
-    setContent('km_nacionales', data.km_nacionales);
-    setContent('km_internacionales', data.km_internacionales);
-
-    // --- PARTE 4: IMPORTES Y EXTRAS ---
-    setContent('num_plazas', data.num_plazas);
-    setContent('autorizado_por', data.autorizado_por);
-    setContent('observaciones', data.observaciones);
-    setCheck('adjuntos', data.adjuntos);
-
-    // Formateo de moneda
-    const fmt = (v) => (parseFloat(v) || 0).toFixed(2) + " €";
-    
-    const totalEl = document.getElementById('importe_total');
-    if (totalEl) {
-        if (totalEl.tagName === 'INPUT') {
-            totalEl.value = (parseFloat(data.importe_total) || 0).toFixed(2);
-        } else {
-            totalEl.textContent = fmt(data.importe_total);
-        }
-    }
-    
-    const suplidosEl = document.getElementById('importe_suplidos');
-    if (suplidosEl) {
-        if (suplidosEl.tagName === 'INPUT') {
-            suplidosEl.value = (parseFloat(data.importe_suplidos) || 0).toFixed(2);
-        } else {
-            suplidosEl.textContent = fmt(data.importe_suplidos);
-        }
-    }
-
-    // Ocultar cargando si existe
-    const loader = document.getElementById('loadingIndicator');
-    if (loader) loader.classList.add('hidden');
 }

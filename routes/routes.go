@@ -54,6 +54,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r.Static("/Imagenes", "./static/Imagenes")
 	r.Static("/backups", "./backups")
 	r.Static("/documentos", "./documentos")
+	r.StaticFile("/favicon.ico", "./static/Imagenes/favicon.ico") // Evita el error 404 del log
 
 	r.LoadHTMLGlob("static/*.html")
 
@@ -158,8 +159,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			empresaGroup := protectedAPI.Group("/empresas")
 			{
 				empresaGroup.GET("", func(c *gin.Context) { controllers.GetEmpresas(c, db) })
-
-				// ✅ NUEVAS RUTAS DE EXPORTACIÓN EMPRESAS
 				empresaGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportEmpresasPDF(c, db) })
 				empresaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
 
@@ -173,7 +172,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				}
 			}
 
-			// ALBARANES
+			// ALBARANES (Sincronizado con controllers/albaran.go)
 			albaranGroup := protectedAPI.Group("/albaranes")
 			{
 				albaranGroup.GET("/search-user", func(c *gin.Context) { controllers.SearchAlbaranesUser(c, db) })
