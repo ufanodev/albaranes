@@ -1,5 +1,7 @@
 /**
- * admin.js - GESTIÓN MAESTRA DE ALBARANES (ADMINISTRADOR)
+ * ARCHIVO: static/js/admin.js
+ * DESCRIPCIÓN: Gestión maestra de albaranes para el Administrador.
+ * ACTUALIZADO: 27/01/2026 - Fix de sincronía de 12 columnas y ordenación natural.
  */
 
 const APP = {
@@ -24,6 +26,7 @@ const APP = {
         currentPage: 1,
         pageSize: 25,
         totalPages: 1,
+        // ✅ REQUISITO: Ordenación descendente por fecha inicial
         currentSort: { key: 'fecha', direction: 'desc' }
     }
 };
@@ -80,9 +83,11 @@ const API = {
             const r = await fetch('/api/v1/licencias', { headers: this.getHeaders() });
             const data = await r.json();
             const list = data.data || data;
+            // ✅ ORDEN ASCENDENTE NATURAL (A-Z, 0-9)
+            const ordenadas = list.sort((a, b) => a.licencia.localeCompare(b.licencia, undefined, { numeric: true }));
             if (APP.elements.licenciaSelect) {
                 APP.elements.licenciaSelect.innerHTML = '<option value="">🆔 TODAS LAS LICENCIAS</option>' + 
-                    list.map(l => `<option value="${l.id}">${l.licencia}</option>`).join('');
+                    ordenadas.map(l => `<option value="${l.id}">${l.licencia}</option>`).join('');
             }
         } catch (e) { console.error("Error licencias", e); }
     },
@@ -92,9 +97,11 @@ const API = {
             const r = await fetch('/api/v1/empresas', { headers: this.getHeaders() });
             const data = await r.json();
             const list = data.data || data;
+            // ✅ ORDEN ASCENDENTE ALFABÉTICO
+            const ordenadas = list.sort((a, b) => a.nombre.localeCompare(b.nombre));
             if (APP.elements.empresaSelect) {
                 APP.elements.empresaSelect.innerHTML = '<option value="">📋 TODAS LAS EMPRESAS</option>' + 
-                    list.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+                    ordenadas.map(e => `<option value="${e.id}">${e.nombre.toUpperCase()}</option>`).join('');
             }
         } catch (e) { console.error("Error empresas", e); }
     },
@@ -124,6 +131,7 @@ const API = {
         const { key, direction } = APP.state.currentSort;
         APP.state.filteredAlbaranes.sort((a, b) => {
             let vA = a[key], vB = b[key];
+            if (key === 'fecha') { vA = new Date(vA || 0).getTime(); vB = new Date(vB || 0).getTime(); }
             if (key === 'importe_total') { vA = parseFloat(vA || 0); vB = parseFloat(vB || 0); }
             if (vA < vB) return direction === 'asc' ? -1 : 1;
             if (vA > vB) return direction === 'asc' ? 1 : -1;
@@ -137,11 +145,11 @@ const API = {
 // =================================================================================
 const DOM = {
     showLoading() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="12" class="text-center py-20 italic text-gray-400">Consultando...</td></tr>';
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="12" class="text-center py-20 italic text-gray-400">Consultando base de datos...</td></tr>';
         APP.elements.tableFooter?.classList.add('hidden');
     },
     showNoResults() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="12" class="text-center py-20 text-orange-500 font-bold uppercase">Sin registros coincidentes</td></tr>';
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="12" class="text-center py-20 text-orange-500 font-bold uppercase tracking-widest">Sin registros coincidentes</td></tr>';
         APP.elements.tableFooter?.classList.add('hidden');
     },
 
@@ -165,24 +173,26 @@ const DOM = {
             const txtEmpresa = a.EmpresaData?.nombre || a.empresa_nombre || 'N/A';
 
             const tr = document.createElement('tr');
-            tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-[11px]';
+            tr.className = 'hover:bg-slate-50 transition-colors text-[11px] group';
+            
+            // ✅ SINCRONÍA DE 12 COLUMNAS (Mismos anchos que el thead)
             tr.innerHTML = `
-                <td class="px-3 py-3 font-bold text-gray-900">${a.numero_albaran || 'N/A'}</td>
-                <td class="px-3 py-3 text-gray-500">${UI.formatDate(a.fecha)}</td>
-                <td class="px-3 py-3 font-bold text-blue-600">${txtLicencia}</td>
-                <td class="px-3 py-3 text-gray-700 font-medium">${txtEmpresa}</td>
-                <td class="px-3 py-3 text-gray-400 italic">${a.referencia || '-'}</td>
-                <td class="px-3 py-3 text-gray-500">${a.num_factura || '-'}</td>
-                <td class="px-3 py-3 font-black text-right text-primary-link bg-orange-50/20">€${importe.toFixed(2)}</td>
-                <td class="px-3 py-3 text-center">${a.enviado ? '✅' : '❌'}</td>
-                <td class="px-3 py-3 text-center">${a.cobrado ? '✅' : '❌'}</td>
-                <td class="px-3 py-3 text-center">${a.pagado ? '✅' : '❌'}</td>
-                <td class="px-3 py-3 text-gray-500 truncate max-w-[120px]" title="${a.observaciones || ''}">${a.observaciones || '-'}</td>
-                <td class="px-3 py-3 text-center">
-                    <div class="flex justify-center gap-1">
-                        <button onclick="window.location.href='/admin/albaranes/view/${a.id}'" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition" title="Ver"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
-                        <button onclick="window.location.href='/admin/albaranes/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition" title="Editar"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                        <button onclick="handleDeleteAction(${a.id})" class="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition" title="Borrar"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                <td class="px-4 py-4 font-bold text-slate-900">${a.numero_albaran || 'N/A'}</td>
+                <td class="px-4 py-4 font-bold text-slate-500">${UI.formatDate(a.fecha)}</td>
+                <td class="px-4 py-4 font-black text-blue-600 uppercase tracking-tighter">${txtLicencia}</td>
+                <td class="px-4 py-4 text-slate-700 font-bold uppercase truncate" title="${txtEmpresa}">${txtEmpresa}</td>
+                <td class="px-4 py-4 text-slate-400 italic uppercase text-[9px] font-black">${a.referencia || '-'}</td>
+                <td class="px-4 py-4 text-gray-500 font-medium">${a.num_factura || '-'}</td>
+                <td class="px-4 py-4 font-black text-right text-primary-link bg-orange-50/30">€${importe.toFixed(2)}</td>
+                <td class="px-4 py-4 text-center">${a.enviado ? '●' : '○'}</td>
+                <td class="px-4 py-4 text-center">${a.cobrado ? '●' : '○'}</td>
+                <td class="px-4 py-4 text-center">${a.pagado ? '●' : '○'}</td>
+                <td class="px-4 py-4 text-gray-500 truncate" title="${a.observaciones || ''}">${a.observaciones || '-'}</td>
+                <td class="px-4 py-4 text-center">
+                    <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="window.location.href='/admin/albaranes/view/${a.id}'" class="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition" title="Ver"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="window.location.href='/admin/albaranes/update/${a.id}'" class="p-2 text-orange-500 hover:bg-orange-50 rounded-xl transition" title="Editar"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="handleDeleteAction(${a.id})" class="p-2 text-red-500 hover:bg-red-50 rounded-xl transition" title="Borrar"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                     </div>
                 </td>`;
             resultsBody.appendChild(tr);
@@ -259,6 +269,8 @@ window.handleClearAllFilters = () => {
     APP.elements.searchForm?.reset();
     if (APP.elements.palabraInput) APP.elements.palabraInput.value = '';
     APP.state.currentPage = 1;
+    // ✅ RESET A ORDEN POR DEFECTO
+    APP.state.currentSort = { key: 'fecha', direction: 'desc' };
     API.searchAlbaranes();
 };
 
@@ -286,6 +298,7 @@ window.handleLogout = () => {
 // 🚀 INITIALIZATION
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
+    // Carga de combos ordenados
     await Promise.all([API.loadLicencias(), API.loadEmpresas()]);
 
     if (APP.elements.recordsSelect) {
@@ -300,5 +313,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
     APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
 
+    // Disparar búsqueda inicial con orden descendente
     API.searchAlbaranes();
 });

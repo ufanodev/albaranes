@@ -23,46 +23,48 @@
         }
     </script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
+    <style type="text/tailwindcss">
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
+        @layer components {
+            body { font-family: 'Inter', sans-serif; @apply bg-slate-50 text-slate-900; }
+            .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
+            .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
 
-        .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
-        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
+            /* DROPDOWNS */
+            .dropdown-content {
+                display: none;
+                position: absolute;
+                background-color: white;
+                min-width: 220px;
+                box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+                z-index: 1000;
+                border-radius: 0.75rem;
+                margin-top: 0.5rem;
+                border: 1px solid #fed7aa;
+            }
+            .dropdown.active .dropdown-content { display: block; }
+            .dropdown-content a {
+                color: #374151;
+                padding: 12px 16px;
+                text-decoration: none;
+                display: block;
+                border-bottom: 1px solid #fff7ed;
+                transition: all 0.2s;
+                font-size: 0.875rem;
+            }
+            .dropdown-content a:hover { background-color: #FFDAB9; color: #000; font-weight: bold; }
+            .dropdown-content a:last-child { border-bottom: none; }
 
-        /* DROPDOWNS */
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: white;
-            min-width: 220px;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
-            z-index: 1000;
-            border-radius: 0.75rem;
-            margin-top: 0.5rem;
-            border: 1px solid #fed7aa;
+            /* Tabla Estilo Admin con Fix de Desplazamiento */
+            .compact-table { @apply w-full table-fixed border-collapse; }
+            .compact-table th { @apply whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-4 bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition; }
+            .compact-table td { @apply px-3 py-3 text-[11px] border-b border-gray-100 overflow-hidden text-ellipsis whitespace-nowrap; }
+            
+            .status-message { @apply fixed bottom-5 right-5 z-[2000] p-4 rounded-xl shadow-2xl border-2; }
+            .status-success { @apply bg-green-100 text-green-700 border-green-200; }
+            .status-error { @apply bg-red-100 text-red-700 border-red-200; }
+            .status-info { @apply bg-blue-100 text-blue-700 border-blue-200; }
         }
-        .dropdown.active .dropdown-content { display: block; }
-        .dropdown-content a {
-            color: #374151;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
-            border-bottom: 1px solid #fff7ed;
-            transition: all 0.2s;
-            font-size: 0.875rem;
-        }
-        .dropdown-content a:hover { background-color: #FFDAB9; color: #000; font-weight: bold; }
-        .dropdown-content a:last-child { border-bottom: none; }
-
-        /* Tabla Estilo Admin */
-        .compact-table th { @apply whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-4 bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition; }
-        .compact-table td { @apply px-3 py-3 text-[11px] border-b border-gray-100; }
-        
-        .status-message { @apply fixed bottom-5 right-5 z-[2000] p-4 rounded-xl shadow-2xl border-2; }
-        .status-success { @apply bg-green-100 text-green-700 border-green-200; }
-        .status-error { @apply bg-red-100 text-red-700 border-red-200; }
-        .status-info { @apply bg-blue-100 text-blue-700 border-blue-200; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -125,7 +127,7 @@
                         <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-white/20 hover:bg-white/40 p-2 rounded-xl shadow-md transition active:scale-95">
                             <i data-lucide="printer" class="h-5 w-5"></i>
                         </button>
-                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
+                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500/20 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
                             <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
                         </button>
                         <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl shadow-lg transition active:scale-95" title="Cerrar Sesión">
@@ -141,11 +143,11 @@
         <div class="max-w-[1800px] mx-auto space-y-6">
 
             <div class="card bg-gradient-to-r from-white to-orange-50">
-                <h1 class="text-2xl font-black text-slate-800 flex items-center">
+                <h1 class="text-2xl font-black text-slate-800 flex items-center uppercase tracking-tighter">
                     <span class="bg-primary-link p-2 rounded-lg mr-4 shadow-lg text-white">
                         <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
                     </span>
-                    SISTEMA CENTRALIZADO DE ALBARANES
+                    Sistema Centralizado de Albaranes
                 </h1>
             </div>
 
@@ -214,28 +216,30 @@
                 </div>
 
                 <div class="overflow-x-auto shadow-2xl rounded-xl border border-slate-200">
-                    <table class="min-w-full divide-y divide-slate-200 compact-table">
+                    <table class="compact-table">
                         <thead>
                             <tr>
-                                <th onclick="handleSort('numero_albaran')">Nº Albarán</th>
-                                <th onclick="handleSort('fecha')">Fecha</th>
-                                <th onclick="handleSort('licencia_ref')">Licencia</th>
-                                <th onclick="handleSort('empresa_nombre')">Empresa</th>
-                                <th>Ref.</th>
-                                <th>Factura</th>
-                                <th onclick="handleSort('importe_total')" class="text-right">Importe</th>
-                                <th class="text-center">Env.</th>
-                                <th class="text-center">Cob.</th>
-                                <th class="text-center">Pag.</th>
-                                <th>Observaciones</th>
-                                <th class="text-center">Acciones</th>
+                                <th class="w-[10%]" onclick="handleSort('numero_albaran')">Nº Albarán</th>
+                                <th class="w-[10%]" onclick="handleSort('fecha')">Fecha</th>
+                                <th class="w-[8%]" onclick="handleSort('licencia_ref')">Licencia</th>
+                                <th class="w-[15%]" onclick="handleSort('empresa_nombre')">Empresa</th>
+                                <th class="w-[12%]">Expediente</th>
+                                <th class="w-[8%]">Factura</th>
+                                <th class="w-[10%] text-right" onclick="handleSort('importe_total')">Importe</th>
+                                <th class="w-[4%] text-center">Env.</th>
+                                <th class="w-[4%] text-center">Cob.</th>
+                                <th class="w-[4%] text-center">Pag.</th>
+                                <th class="w-[15%] text-left">Observaciones</th>
+                                <th class="w-[10%] text-center">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody id="albaranResults" class="bg-white divide-y divide-slate-100"></tbody>
-                        <tfoot id="tableFooter" class="bg-slate-50 hidden">
-                            <tr class="font-black">
-                                <td colspan="6" class="text-right text-[10px] text-slate-400 uppercase py-4 px-3">Total en esta vista:</td>
-                                <td id="totalImporte" class="text-right text-sm text-primary-link py-4 px-3 bg-orange-50 font-black">€0.00</td>
+                        <tbody id="albaranResults" class="bg-white divide-y divide-slate-100">
+                            <tr><td colspan="12" class="p-20 text-center italic text-slate-400">Consultando base de datos...</td></tr>
+                        </tbody>
+                        <tfoot id="tableFooter" class="bg-slate-900 hidden">
+                            <tr class="font-black text-white uppercase tracking-widest">
+                                <td colspan="6" class="text-right text-[9px] py-6 px-4 text-slate-400 whitespace-nowrap">Total en esta vista:</td>
+                                <td id="totalImporte" class="text-right text-sm text-primary-link py-6 px-4 font-black whitespace-nowrap">€0.00</td>
                                 <td colspan="5"></td>
                             </tr>
                         </tfoot>
@@ -251,21 +255,11 @@
     <script>
         function toggleDropdown(button) {
             const dropdown = button.parentElement;
-            document.querySelectorAll('.dropdown').forEach(d => {
-                if (d !== dropdown) d.classList.remove('active');
-            });
+            document.querySelectorAll('.dropdown').forEach(d => { if (d !== dropdown) d.classList.remove('active'); });
             dropdown.classList.toggle('active');
         }
-
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.dropdown')) {
-                document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
-            }
-        });
-
-        window.addEventListener('load', () => {
-            if (window.lucide) lucide.createIcons();
-        });
+        document.addEventListener('click', (e) => { if (!e.target.closest('.dropdown')) { document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); } });
+        window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); });
     </script>
 </body>
 </html>
