@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes (Titulares y Admin).
- * ACTUALIZADO: 2026-01-26 - Sincronización total con DB, Logs y solución definitiva error 1364.
+ * ACTUALIZADO: 2026-01-27 - Sincronización robusta de Empresa en Updates y limpieza GORM.
  */
 
 package controllers
@@ -152,7 +152,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = strings.Join(parts, "")
 		}
 
-		// 🚨 NORMALIZACIÓN DE CAMPOS NUMÉRICOS (Evita Error 1366)
+		// 🚨 NORMALIZACIÓN DE CAMPOS NUMÉRICOS
 		isNumeric := strings.Contains(strings.ToLower(key), "km_") ||
 			strings.Contains(strings.ToLower(key), "importe_") ||
 			key == "num_plazas" ||
@@ -180,7 +180,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		}
 	}
 
-	// 🛡️ SOLUCIÓN ERROR 1364: Inyectar valores obligatorios no presentes en el form
+	// 🛡️ SOLUCIÓN ERROR 1364: Inyectar valores obligatorios
 	if _, ok := clean["KmIni"]; !ok {
 		clean["KmIni"] = 0.0
 	}
@@ -247,17 +247,15 @@ func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 }
 
 func CreateAlbaran(c *gin.Context, db *gorm.DB) {
-	log.Println("[AUDITORÍA] Intentando procesar nuevo Albarán...")
 	var input map[string]interface{}
 	if err := c.ShouldBindJSON(&input); err != nil {
-		log.Printf("[ERROR] JSON inválido: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
 		return
 	}
 
 	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
 
-	// Seguridad: Licencia desde Contexto JWT
+	// Licencia desde Contexto JWT
 	val, exists := c.Get("licencia_id")
 	if exists {
 		var licID uint
@@ -275,9 +273,13 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 
 	// Sincronizar Empresa
-	if ref, ok := cleanInput["EmpresaRef"].(float64); ok {
+	if ref, ok := cleanInput["EmpresaRef"]; ok {
+		var empID uint
+		if f, ok := ref.(float64); ok {
+			empID = uint(f)
+		}
 		var emp models.Empresa
-		if err := db.First(&emp, uint(ref)).Error; err == nil {
+		if err := db.First(&emp, empID).Error; err == nil {
 			cleanInput["EmpresaNombre"] = emp.Nombre
 		}
 	}
@@ -285,14 +287,10 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	cleanInput["Estado"] = 0
 	delete(cleanInput, "ID")
 
-	log.Printf("[AUDITORÍA] Ejecutando INSERT para Albarán Nº: %v", cleanInput["NumeroAlbaran"])
-
 	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
-		log.Printf("[❌ ERROR DB] %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar en base de datos: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar: " + err.Error()})
 		return
 	}
-	log.Println("[✅ ÉXITO] Albarán creado correctamente")
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado correctamente"})
 }
 
@@ -343,11 +341,36 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	}
 
 	var input map[string]interface{}
-	c.ShouldBindJSON(&input)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(400, gin.H{"error": "JSON inválido"})
+		return
+	}
+
+	// 🛡️ PROTECCIÓN: No permitir cambiar campos de identidad
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
 
 	cleanInput := cleanAlbaranMap(input, albaran)
+
+	// 🔄 SINCRONIZACIÓN DE EMPRESA: Si se cambia empresa_ref, actualizar empresa_nombre
+	if ref, ok := cleanInput["EmpresaRef"]; ok {
+		var empID uint
+		// El valor puede venir como float64 desde JSON
+		if f, ok := ref.(float64); ok {
+			empID = uint(f)
+		} else if u, ok := ref.(uint); ok {
+			empID = u
+		}
+
+		if empID > 0 {
+			var emp models.Empresa
+			if err := db.First(&emp, empID).Error; err == nil {
+				cleanInput["EmpresaNombre"] = emp.Nombre
+				log.Printf("[AUDITORÍA] Sincronizando Empresa: %s (ID: %d)", emp.Nombre, empID)
+			}
+		}
+	}
+
 	if err := db.Model(&albaran).Updates(cleanInput).Error; err != nil {
 		c.JSON(500, gin.H{"error": "Error al actualizar"})
 		return
