@@ -34,136 +34,111 @@
         @layer components {
             .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
             .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link transition duration-150 text-sm; }
-            .status-message { @apply mt-4 p-3 rounded-md font-medium text-center border; }
         }
-        .sortable { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
     </style>
 </head>
 
-<body class="bg-gray-50 font-inter p-4 sm:p-8 lg:p-12">
-
-    <div id="actionModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex items-center justify-center p-4" onclick="window.handleActionModal && window.handleActionModal(false)">
-        <div class="bg-white rounded-xl p-6 shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-90" onclick="event.stopPropagation()">
-            <h3 id="modalTitle" class="text-xl font-bold mb-3 text-black-pure tracking-tight">Acción Realizada</h3>
-            <p id="modalBody" class="text-gray-700 mb-4 text-sm"></p>
-            <button onclick="window.handleActionModal && window.handleActionModal(false)" class="w-full bg-primary-link text-white font-bold py-2 rounded-lg hover:bg-orange-600 transition active:scale-95">Aceptar</button>
-        </div>
-    </div>
+<body class="bg-gray-50 font-sans p-4 sm:p-8">
 
     <div class="max-w-7xl mx-auto">
         <div class="card mb-6">
             <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 border-b border-gray-200 pb-4">
                 <h1 class="text-3xl font-extrabold text-black-pure flex items-center gap-3 tracking-tight">
                     <span class="text-4xl">📤</span>
-                    <span class="text-2xl uppercase tracking-tighter">Albaranes Enviados</span>
+                    <span class="text-2xl uppercase tracking-tighter">Histórico Enviados</span>
                 </h1>
 
                 <div class="flex flex-col lg:flex-row items-end lg:items-center gap-4 w-full xl:w-auto justify-end">
                     <div class="flex flex-wrap gap-2">
-                        <a href="/titulares/nuevo_albaran" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 shadow hover:from-green-600 active:scale-95 transition"><span>➕ Nuevo</span></a>
-                        <a href="/titulares" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 active:scale-95 transition"><span>📋 Ver todos</span></a>
-                        <a href="/titulares/pendientes" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-black-pure bg-primary-pastel border border-primary-pastel hover:bg-orange-200 active:scale-95 transition"><span>🏁 Pendientes</span></a>
+                        <a href="/titulares/nuevo_albaran" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-green-500 shadow hover:bg-green-600 transition uppercase"><span>➕ Nuevo</span></a>
+                        <a href="/titulares" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition uppercase"><span>📋 Ver todos</span></a>
+                        <a href="/titulares/pendientes" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-black-pure bg-primary-pastel hover:bg-orange-200 transition uppercase"><span>🏁 Pendientes</span></a>
                     </div>
-
                     <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="printer" class="h-5 w-5"></i></button>
-                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 text-white p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="file-spreadsheet" class="h-5 w-5"></i></button>
-                        <button onclick="handleLogout()" title="Cerrar sesión" class="bg-red-500 text-white p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="log-out" class="h-5 w-5"></i></button>
+                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="printer" class="h-5 w-5"></i></button>
+                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 text-white p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="file-spreadsheet" class="h-5 w-5"></i></button>
+                        <button onclick="handleLogout()" title="Cerrar sesión" class="bg-red-500 text-white p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="log-out" class="h-5 w-5"></i></button>
                     </div>
                 </div>
             </div>
 
-            <div class="mt-6">
-                <div class="flex flex-wrap gap-3 mb-4 items-center">
-                    <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg transition shadow-md bg-secondary-blue text-white font-bold text-[10px] uppercase">📝 Campos</button>
-                    <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg transition shadow-md bg-primary-pastel text-black-pure font-bold text-[10px] uppercase">💬 Palabra</button>
-                    <button type="button" onclick="UI.handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-blue-500 text-white text-[10px] font-bold uppercase hover:bg-blue-600 ml-auto transition">Limpiar</button>
+            <div class="mt-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <button id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase">📝 Por Campos</button>
+                    <button id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border">💬 Por Palabra</button>
                 </div>
-
-                <form id="searchForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-                    <div>
-                        <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Empresa</label>
-                        <select id="empresa" class="input-field py-1.5"></select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Referencia</label>
-                        <input type="text" id="referencia_input" class="input-field py-1.5" placeholder="Buscar...">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Desde</label>
-                        <input type="date" id="fecha_desde" class="input-field py-1.5">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Hasta</label>
-                        <input type="date" id="fecha_hasta" class="input-field py-1.5">
-                    </div>
-                    <div class="flex items-end">
-                        <button type="submit" class="w-full bg-primary-link text-white font-black py-2 rounded-lg text-xs uppercase tracking-widest hover:bg-orange-600 transition shadow">Filtrar</button>
-                    </div>
+                <form id="searchForm" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                    <select id="empresa" class="input-field py-2 font-bold"></select>
+                    <input type="text" id="referencia_input" class="input-field py-2" placeholder="Referencia...">
+                    <input type="date" id="fecha_desde" class="input-field py-2">
+                    <input type="date" id="fecha_hasta" class="input-field py-2">
+                    <button type="submit" class="bg-primary-link text-white font-black rounded-lg text-xs uppercase hover:bg-orange-600 transition">Filtrar</button>
                 </form>
+                <div id="palabraSection" class="mt-4 hidden"><input type="text" id="palabra" placeholder="Buscar en cualquier campo..." class="input-field py-3 font-bold border-blue-200"></div>
+            </div>
+        </div>
 
-                <div id="palabraSection" class="bg-blue-50 p-4 rounded-lg hidden border border-blue-100">
-                    <label class="block text-[10px] text-blue-500 font-black uppercase mb-2">Búsqueda rápida</label>
-                    <input type="text" id="palabra" placeholder="Ej: RACE, Madrid, Conductor..." class="input-field">
+        <div class="card overflow-hidden">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <span id="activeFiltersCount" class="text-[10px] font-black bg-blue-100 px-4 py-1.5 rounded-full text-blue-600 border border-blue-200 uppercase">0 ENVIADOS</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <select id="recordsPerPage" class="text-xs font-bold border-none bg-slate-100 rounded-lg px-3 py-1.5">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="todos">Todos</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+                <table class="min-w-full divide-y divide-slate-200">
+<thead class="bg-slate-900 text-white text-[9px] uppercase font-black tracking-[0.15em]">
+  <tr>
+    <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('numero_albaran')">
+        <div class="flex items-center justify-between">Nº albarán <i id="sort-numero_albaran" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 transition"></i></div>
+    </th>
+    <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('fecha')">
+        <div class="flex items-center justify-between">Fecha <i id="sort-fecha" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 transition"></i></div>
+    </th>
+    <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('licencia')">
+        <div class="flex items-center justify-between">Licencia <i id="sort-licencia" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 transition"></i></div>
+    </th>
+    <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('empresa')">
+        <div class="flex items-center justify-between">Empresa <i id="sort-empresa" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 transition"></i></div>
+    </th>
+    <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('referencia')">
+        <div class="flex items-center justify-between">Ref. <i id="sort-referencia" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 transition"></i></div>
+    </th>
+    <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('asalariado')">
+        <div class="flex items-center justify-between">Conductor <i id="sort-asalariado" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 transition"></i></div>
+    </th>
+    <th class="px-4 py-5 text-right cursor-pointer group" onclick="sortTable('importe_total')">
+        <div class="flex items-center justify-end">Importe <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 ml-1 transition"></i></div>
+    </th>
+    <th class="px-4 py-5 text-center">Estado</th>
+    <th class="px-4 py-5 text-center">Ver</th>
+  </tr>
+</thead>
+                    <tbody id="albaranResults" class="bg-white divide-y divide-slate-100">
+                        <tr><td colspan="9" class="text-center py-20 italic text-slate-400">Cargando datos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-6 flex justify-between items-center">
+                <p id="totalLabel" class="text-[10px] text-slate-400 font-black uppercase tracking-widest"></p>
+                <div class="flex gap-2">
+                    <button id="prevPageBtn" class="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                    <span id="pageInfo" class="px-4 py-2 text-xs font-black text-slate-600 bg-slate-50 rounded-lg border">1 / 1</span>
+                    <button id="nextPageBtn" class="p-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
                 </div>
             </div>
         </div>
-
-        <h2 class="text-xl font-bold text-black-pure mb-4 flex items-center gap-2">
-            <span>📊</span><span>Histórico de Albaranes Enviados (enviado=1)</span>
-        </h2>
-
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 flex justify-between items-center flex-wrap gap-3">
-            <div class="flex items-center space-x-2 text-sm text-gray-600">
-                <span class="font-medium">Mostrar:</span>
-                <select id="recordsPerPage" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-link outline-none transition">
-                    <option value="10">10</option>
-                    <option value="20" selected>20</option>
-                    <option value="50">50</option>
-                    <option value="todos">Todos</option>
-                </select>
-                <span id="activeFiltersCount" class="text-[10px] font-black bg-orange-100 px-3 py-1 rounded-full text-orange-600 ml-4">0 REGISTROS</span>
-            </div>
-
-            <div class="flex items-center space-x-2">
-                <button id="prevPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 rounded-lg transition disabled:opacity-30"><i data-lucide="chevron-left" class="h-4 w-4"></i></button>
-                <span id="pageInfo" class="text-sm text-gray-700 font-bold px-4 py-1.5 bg-gray-100 rounded-lg border border-gray-200">Página 1 / 1</span>
-                <button id="nextPageBtn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 rounded-lg transition disabled:opacity-30"><i data-lucide="chevron-right" class="h-4 w-4"></i></button>
-            </div>
-        </div>
-
-        <div class="overflow-x-auto shadow-2xl rounded-xl border border-gray-100 bg-white">
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-primary-link text-white text-[11px] uppercase tracking-widest font-black">
-                    <tr>
-                        <th class="px-4 py-4 text-left cursor-pointer group" onclick="sortTable('numero_albaran')">
-                            <div class="sortable">Nº Albarán <i id="sort-numero_albaran" data-lucide="chevrons-up-down" class="w-3 h-3 opacity-50 group-hover:opacity-100"></i></div>
-                        </th>
-                        <th class="px-4 py-4 text-left cursor-pointer group" onclick="sortTable('fecha')">
-                            <div class="sortable">Fecha <i id="sort-fecha" data-lucide="chevrons-up-down" class="w-3 h-3 opacity-50 group-hover:opacity-100"></i></div>
-                        </th>
-                        <th class="px-4 py-4 text-left">Licencia</th>
-                        <th class="px-4 py-4 text-left cursor-pointer group" onclick="sortTable('empresa')">
-                            <div class="sortable">Empresa <i id="sort-empresa" data-lucide="chevrons-up-down" class="w-3 h-3 opacity-50 group-hover:opacity-100"></i></div>
-                        </th>
-                        <th class="px-4 py-4 text-left">Referencia</th>
-                        <th class="px-4 py-4 text-left">Conductor</th>
-                        <th class="px-4 py-4 text-right cursor-pointer group" onclick="sortTable('importe_total')">
-                            <div class="sortable justify-end">Importe <i id="sort-importe_total" data-lucide="chevrons-up-down" class="w-3 h-3 opacity-50 group-hover:opacity-100 ml-1"></i></div>
-                        </th>
-                        <th class="px-4 py-4 text-center">Estado</th>
-                        <th class="px-4 py-4 text-left">Observaciones</th>
-                        <th class="px-4 py-4 text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="albaranResults" class="bg-white divide-y divide-gray-100">
-                    <tr><td colspan="10" class="text-center py-20 text-gray-400 italic">Cargando albaranes enviados...</td></tr>
-                </tbody>
-                <tfoot id="albaranTotal" class="bg-primary-pastel/10 font-bold text-gray-800"></tfoot>
-            </table>
-        </div>
-        <p id="totalLabel" class="mt-4 text-[10px] text-gray-400 font-black uppercase text-right tracking-[0.2em]"></p>
-        <div id="statusMessage" class="hidden status-message"></div>
     </div>
+
+    <script>document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });</script>
 </body>
 </html>
