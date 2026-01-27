@@ -2,116 +2,254 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
-    <title>Vista Albarán - Panel Titular</title>
+    <title>Vista Albarán - Panel Titular [DEBUG]</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/js/security.js"></script>
+    <!-- Comentado temporalmente para debug -->
+    <!-- <script src="/js/security.js"></script> -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
-        tailwind.config = { theme: { extend: { colors: { 'primary-pastel': '#FFDAB9', 'primary-link': '#FF8C00' } } } }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { 'primary-pastel': '#FFDAB9', 'primary-link': '#FF8C00' }
+                }
+            }
+        }
     </script>
-    <style>
+    <style type="text/tailwindcss">
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        /* Fondos sombreados para los campos de vista */
-        .view-field { @apply w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner text-gray-700 font-bold flex items-center; }
-        .section-title { @apply text-lg font-bold text-gray-800 mb-4 border-b-2 border-primary-pastel pb-2 flex items-center mt-8; }
+        @layer components {
+            body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+            .view-field { @apply w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl shadow-inner text-gray-800 text-sm font-bold flex items-center min-h-[38px]; }
+            .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; }
+            .checkbox-inline { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 opacity-70 h-full; }
+            .view-dark { @apply bg-transparent border-none text-right font-black text-primary-link p-0 text-4xl; }
+        }
     </style>
 </head>
+
 <body class="p-4 sm:p-8">
-    <div class="max-w-6xl mx-auto bg-white shadow-2xl rounded-[2rem] overflow-hidden border border-slate-100">
-        
-        <div class="bg-primary-pastel p-6 flex justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-black text-gray-900 flex items-center">
-                    <i data-lucide="eye" class="mr-3 text-primary-link"></i> DETALLE ALBARÁN: <span id="view_numero_albaran_header" class="ml-2 text-primary-link">...</span>
-                </h1>
-                <span id="loadingIndicator" class="text-[10px] font-black animate-pulse text-primary-link uppercase tracking-widest">Consultando base de datos...</span>
-            </div>
-            <button onclick="window.history.back()" class="bg-slate-800 text-white px-6 py-2 rounded-xl font-bold hover:bg-black transition shadow-lg flex items-center">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-2xl rounded-[2rem] overflow-hidden border border-slate-100">
+
+        <div class="bg-gradient-to-r from-slate-700 to-slate-900 p-6 flex justify-between items-center border-b border-slate-800">
+            <h1 class="text-2xl font-black text-white flex items-center uppercase">
+                <i data-lucide="eye" class="mr-3 text-primary-link"></i> DETALLE ALBARÁN
+            </h1>
+            <button onclick="window.history.back()"
+                class="bg-white/10 text-white px-5 py-2 rounded-xl font-bold hover:bg-white/20 transition flex items-center shadow-lg text-sm backdrop-blur-md">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> VOLVER
             </button>
         </div>
 
-        <div class="p-6 md:p-10">
+        <div id="albaranForm" class="p-6 md:p-10 space-y-8">
             
-            <div class="section-title !mt-0 text-primary-link"><i data-lucide="info" class="w-5 h-5 mr-2"></i> PARTE 1: IDENTIFICACIÓN Y TIEMPOS</div>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Nº Albarán</label><div id="numero_albaran" class="view-field border-primary-link text-primary-link"></div></div>
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Fecha</label><div id="fecha" class="view-field"></div></div>
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Hora Inicio</label><div id="hora_ini" class="view-field"></div></div>
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Hora Fin</label><div id="hora_fin" class="view-field"></div></div>
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Licencia</label><div id="licencia_ref" class="view-field"></div></div>
-            </div>
-            
-            <div class="section-title text-primary-link"><i data-lucide="user" class="w-5 h-5 mr-2"></i> PARTE 2: DATOS DEL CLIENTE Y VEHÍCULO</div>
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
-                <div class="md:col-span-4"><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Empresa</label><div id="empresa_nombre" class="view-field"></div></div>
-                <div class="md:col-span-2"><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Matrícula</label><div id="matricula" class="view-field uppercase"></div></div>
-                <div class="md:col-span-4"><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Pasajero / Teléfono</label><div id="nombre_pasajero" class="view-field"></div></div>
-                <div class="md:col-span-2"><label class="text-[10px] font-black uppercase text-gray-400 ml-1">DNI Pasajero</label><div id="dni_pasajero" class="view-field"></div></div>
-            </div>
+            <p id="loadingIndicator" class="text-center font-bold text-primary-link animate-pulse uppercase text-xs">Cargando información...</p>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Referencia / Expediente</label><div id="referencia" class="view-field"></div></div>
-                <div class="md:col-span-2"><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Conductor / Asalariado</label><div id="asalariado" class="view-field"></div></div>
-            </div>
-
-            <div class="section-title text-primary-link"><i data-lucide="map-pin" class="w-5 h-5 mr-2"></i> PARTE 3: TRAYECTO Y SERVICIO</div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Origen</label><div id="origen" class="view-field min-h-[44px]"></div></div>
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Destino</label><div id="destino" class="view-field min-h-[44px]"></div></div>
-                <div><label class="text-[10px] font-black uppercase text-gray-400 ml-1">Parada</label><div id="parada" class="view-field min-h-[44px]"></div></div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-center">
-                <div class="lg:col-span-6 flex space-x-4 bg-slate-100 p-3 rounded-xl shadow-inner border border-slate-200">
-                    <label class="flex items-center space-x-2"><input type="checkbox" id="urbano" disabled class="w-4 h-4"><span class="text-xs font-black uppercase">Urbano</span></label>
-                    <label class="flex items-center space-x-2"><input type="checkbox" id="diurno" disabled class="w-4 h-4"><span class="text-xs font-black uppercase">Diurno</span></label>
-                    <label class="flex items-center space-x-2"><input type="checkbox" id="noct_fest" disabled class="w-4 h-4"><span class="text-xs font-black uppercase">Noct/Fest</span></label>
-                    <label class="flex items-center space-x-2"><input type="checkbox" id="remolque" disabled class="w-4 h-4"><span class="text-xs font-black uppercase">Remolque</span></label>
-                </div>
-                <div class="lg:col-span-2">
-                    <label class="text-[10px] uppercase font-black text-gray-400 ml-1">Plazas</label>
-                    <div id="num_plazas" class="view-field text-center justify-center"></div>
-                </div>
-                <div class="lg:col-span-4 grid grid-cols-2 gap-2">
-                    <div><label class="text-[10px] uppercase font-black text-gray-400 ml-1">Espera Ini</label><div id="espera_ini" class="view-field text-center justify-center"></div></div>
-                    <div><label class="text-[10px] uppercase font-black text-gray-400 ml-1">Espera Fin</label><div id="espera_fin" class="view-field text-center justify-center"></div></div>
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">1. Identificación del Servicio</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div class="md:col-span-1">
+                        <label class="label-style">Lic. Ref</label>
+                        <div id="licencia" class="view-field bg-slate-200 justify-center"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Nº Albarán</label>
+                        <div id="numero_albaran" class="view-field text-slate-500"></div>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="label-style">Referencia / Expediente</label>
+                        <div id="referencia" class="view-field uppercase"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Fecha</label>
+                        <div id="fecha" class="view-field"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style text-primary-link font-black">Hora Ini</label>
+                        <div id="hora_ini" class="view-field"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Hora Fin</label>
+                        <div id="hora_fin" class="view-field"></div>
+                    </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 bg-slate-100 p-4 rounded-2xl border border-slate-200 shadow-inner">
-                <div><label class="text-[9px] uppercase font-black text-slate-500 ml-1">Km Inicio</label><div id="km_ini" class="view-field text-right"></div></div>
-                <div><label class="text-[9px] uppercase font-black text-slate-500 ml-1">Km Fin</label><div id="km_fin" class="view-field text-right"></div></div>
-                <div><label class="text-[9px] uppercase font-black text-slate-500 ml-1">Km Nac.</label><div id="km_nacionales" class="view-field text-right"></div></div>
-                <div><label class="text-[9px] uppercase font-black text-slate-500 ml-1">Km Int.</label><div id="km_internacionales" class="view-field text-right"></div></div>
-                <div class="col-span-2 md:col-span-1"><label class="text-[9px] uppercase font-black text-primary-link ml-1">Km Totales</label><div id="km_totales" class="view-field text-right font-black text-primary-link bg-white"></div></div>
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">2. Cliente y Pasajero</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-3">
+                        <label class="label-style">Empresa Ref</label>
+                        <div id="empresa_nombre" class="view-field uppercase"></div>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="label-style">Nombre Pasajero</label>
+                        <div id="nombre_pasajero" class="view-field"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Teléfono</label>
+                        <div id="tlf_pasajero" class="view-field"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">DNI Pasajero</label>
+                        <div id="dni_pasajero" class="view-field uppercase"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Matrícula</label>
+                        <div id="matricula" class="view-field uppercase font-black"></div>
+                    </div>
+                </div>
             </div>
 
-            <div class="section-title text-primary-link"><i data-lucide="euro" class="w-5 h-5 mr-2"></i> PARTE 4: IMPORTES Y AUTORIZACIÓN</div>
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                <div class="md:col-span-4"><label class="text-[10px] uppercase text-gray-400 ml-1">Autorizado Por</label><div id="autorizado_por" class="view-field"></div></div>
-                <div class="md:col-span-2"><label class="text-[10px] uppercase text-orange-600 ml-1 font-black">Suplidos (€)</label><div id="importe_suplidos" class="view-field text-right text-orange-600 bg-orange-50 border-orange-100"></div></div>
-                <div class="md:col-span-1 flex justify-center pt-4">
-                    <label class="flex flex-col items-center"><span class="text-[9px] font-black text-blue-500 uppercase">Adjuntos</span><input type="checkbox" id="adjuntos" disabled class="w-5 h-5 mt-1"></label>
-                </div>
-                <div class="md:col-span-5 bg-slate-900 p-5 rounded-2xl text-white flex justify-between items-center shadow-xl border-4 border-primary-pastel">
-                    <span class="font-black uppercase text-xs text-primary-pastel">Importe Total Facturado</span>
-                    <span id="importe_total" class="text-4xl font-black text-primary-link">0.00 €</span>
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">3. Ruta y Tiempos de Espera</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-4">
+                        <label class="label-style">Origen</label>
+                        <div id="origen" class="view-field"></div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Parada / Vía</label>
+                        <div id="parada" class="view-field italic"></div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Destino</label>
+                        <div id="destino" class="view-field"></div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Espera Total (Decimal)</label>
+                        <div id="hora_total" class="view-field font-bold text-orange-600"></div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Espera Inicio</label>
+                        <div id="espera_ini" class="view-field"></div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Espera Fin</label>
+                        <div id="espera_fin" class="view-field"></div>
+                    </div>
                 </div>
             </div>
 
-            <div class="w-full mt-8">
-                <label class="text-[10px] uppercase text-gray-400 font-black ml-1">Observaciones del Servicio</label>
-                <div id="observaciones" class="view-field italic min-h-[100px] items-start py-4 block"></div>
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">4. Control de Kilometraje</h2>
+                <div class="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="checkbox-inline">
+                            <input type="checkbox" id="urbano" disabled class="w-4 h-4 text-orange-500">
+                            <span class="text-[10px] font-black uppercase ml-2">Servicio Urbano</span>
+                        </div>
+                        <div class="checkbox-inline">
+                            <input type="checkbox" id="diurno" disabled class="w-4 h-4 text-blue-500">
+                            <span class="text-[10px] font-black uppercase ml-2">Servicio Diurno</span>
+                        </div>
+                        <div class="checkbox-inline">
+                            <input type="checkbox" id="noct_fest" disabled class="w-4 h-4 text-purple-600">
+                            <span class="text-[10px] font-black uppercase ml-2">Nocturno / Festivo</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <label class="label-style text-primary-link font-black">Kms Totales</label>
+                            <div id="km_totales" class="view-field bg-white border-primary-link font-black justify-end"></div>
+                        </div>
+                        <div>
+                            <label class="label-style text-slate-500">Kms Nacionales</label>
+                            <div id="km_nacionales" class="view-field justify-end"></div>
+                        </div>
+                        <div>
+                            <label class="label-style text-slate-500">Kms Internacionales</label>
+                            <div id="km_internacionales" class="view-field justify-end"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
-            <div id="errorMessage" class="hidden mt-6 p-6 bg-red-600 text-white rounded-2xl text-center font-black uppercase tracking-widest animate-bounce"></div>
+
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">5. Liquidación e Importes</h2>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+                    <div class="md:col-span-9 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                            <div class="md:col-span-2">
+                                <label class="label-style text-orange-600">Suplidos (€)</label>
+                                <div id="importe_suplidos" class="view-field font-bold border-orange-100"></div>
+                            </div>
+                            <div class="md:col-span-5">
+                                <label class="label-style">Autorizado Por y Adjuntos</label>
+                                <div id="autorizado_por" class="view-field uppercase font-bold"></div>
+                            </div>
+                            <div class="md:col-span-5">
+                                <label class="label-style text-primary-link font-black">Nombre Conductor / Asalariado</label>
+                                <div id="asalariado" class="view-field font-bold border-orange-200 uppercase"></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                            <div class="md:col-span-3">
+                                <div class="checkbox-inline w-full">
+                                    <input type="checkbox" id="remolque" disabled class="w-4 h-4 text-orange-600">
+                                    <span class="text-[9px] font-black uppercase ml-2">Remolque</span>
+                                </div>
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="label-style">Plazas Vehículo</label>
+                                <div id="num_plazas" class="view-field justify-center font-bold"></div>
+                            </div>
+                            <div class="md:col-span-2">
+                                <div class="checkbox-inline w-full border-blue-200 bg-blue-50">
+                                    <input type="checkbox" id="adjuntos_bool" disabled class="w-4 h-4 text-blue-600">
+                                    <span class="text-[9px] font-black uppercase ml-2">Adjuntos</span>
+                                </div>
+                            </div>
+                            <div class="md:col-span-4">
+                                <label class="label-style">Referencia / Nº Adjuntos</label>
+                                <div id="adjuntos_ref" class="view-field font-bold border-blue-100 italic"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="label-style tracking-widest text-slate-500 mb-1 block uppercase">Observaciones</label>
+                            <div id="observaciones" class="view-field italic w-full min-h-[80px] items-start py-2 overflow-y-auto block whitespace-pre-wrap"></div>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-3 bg-slate-900 p-6 rounded-[2rem] border-4 border-primary-pastel shadow-2xl flex flex-col justify-center space-y-4 h-fit self-start mt-5">
+                        <div class="flex flex-col items-center">
+                            <label class="text-[11px] font-black text-white uppercase tracking-tighter text-center mb-2">Importe Total</label>
+                            <div class="flex items-center justify-center">
+                                <span class="text-2xl font-black text-white mr-2">€</span>
+                                <div id="importe_total" class="view-dark"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="errorMessage" class="hidden p-4 rounded-xl bg-red-100 text-red-700 border border-red-200 font-bold text-center"></div>
         </div>
     </div>
 
-    <script src="/js/albaran_cargar.js"></script>
-    <script src="/js/albaran_view.js"></script>
+    <!-- Script de debugging inline para verificar la carga -->
+    <script>
+        console.log("🔧 [DEBUG] Script inline ejecutándose...");
+        console.log("🔧 [DEBUG] DOMContentLoaded ya disparado:", document.readyState);
+        
+        // Verificar que los elementos existan
+        window.addEventListener('load', () => {
+            console.log("🔧 [DEBUG] Window load event disparado");
+            const testElements = ['licencia', 'numero_albaran', 'importe_total'];
+            testElements.forEach(id => {
+                const el = document.getElementById(id);
+                console.log(`🔧 [DEBUG] Elemento '${id}':`, el ? 'ENCONTRADO' : 'NO ENCONTRADO');
+            });
+        });
+    </script>
+    
+    <!-- El script principal DEBE ir después del HTML -->
+    <script src="/js/albaran_view.js" defer></script>
+    
     <script>lucide.createIcons();</script>
 </body>
 </html>
