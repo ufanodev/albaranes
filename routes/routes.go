@@ -54,7 +54,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r.Static("/Imagenes", "./static/Imagenes")
 	r.Static("/backups", "./backups")
 	r.Static("/documentos", "./documentos")
-	r.StaticFile("/favicon.ico", "./static/Imagenes/favicon.ico") // Evita el error 404 del log
+	r.StaticFile("/favicon.ico", "./static/Imagenes/favicon.ico")
 
 	r.LoadHTMLGlob("static/*.html")
 
@@ -179,7 +179,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albaranGroup.GET("/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
 				albaranGroup.GET("/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 				albaranGroup.POST("", func(c *gin.Context) { controllers.CreateAlbaran(c, db) })
+
+				// 🛡️ FIX 404: Añadidas ambas variantes para evitar errores de ruta
 				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaranUser(c, db) })
+				albaranGroup.PUT("/user/:id", func(c *gin.Context) { controllers.UpdateAlbaranUser(c, db) })
+
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
 				albaranGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
 				albaranGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
