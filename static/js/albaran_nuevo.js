@@ -1,13 +1,13 @@
 /**
  * ARCHIVO: static/js/albaran_nuevo.js
  * DESCRIPCIÓN: Lógica maestra para la creación de albaranes desde el panel de Titular.
- * ACTUALIZADO: 26/01/2026 - Versión final con Referencia, Horas y solución Error 1364.
+ * ACTUALIZADO: 27/01/2026 - Versión definitiva con Referencia, Horas y solución Error 1364/1366.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 [AUDITORÍA] [INIT] Iniciando Formulario de Albarán Master Final");
 
-    // 1. Cargar datos iniciales desde la API
+    // 1. Cargar datos iniciales desde la API (Licencia y Empresas)
     await Promise.all([
         getLicenciaInfo(),
         cargarEmpresas()
@@ -19,17 +19,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         fechaInput.value = new Date().toISOString().split('T')[0];
     }
     
-    // 3. Inicializar formateadores para campos numéricos
+    // 3. Inicializar formateadores para campos numéricos (onBlur)
     initFormatters();
     
-    // Renderizar iconos de Lucide
+    // 4. Renderizar iconos de Lucide
     if (window.lucide) {
         lucide.createIcons();
     }
 });
 
 /**
- * Obtiene la info de la licencia del usuario autenticado y la guarda en el dataset
+ * Obtiene la información de la licencia del titular autenticado
  */
 async function getLicenciaInfo() {
     try {
@@ -40,8 +40,9 @@ async function getLicenciaInfo() {
         if (data.licencia_numero) {
             const inputLic = document.getElementById('licencia');
             inputLic.value = data.licencia_numero;
+            // Guardamos el ID real en un dataset para el envío
             inputLic.dataset.id = data.licencia_id; 
-            console.log(`[AUDITORÍA] [LICENCIA] Cargada con éxito: ${data.licencia_numero}`);
+            console.log(`[AUDITORÍA] [LICENCIA] Cargada: ${data.licencia_numero} (ID: ${data.licencia_id})`);
         }
     } catch (err) {
         console.error("❌ [AUDITORÍA] [LICENCIA] Error cargando licencia:", err);
@@ -49,7 +50,7 @@ async function getLicenciaInfo() {
 }
 
 /**
- * Carga el selector de empresas con ordenación alfabética forzada (A-Z)
+ * Carga el selector de empresas con ordenación alfabética (A-Z)
  */
 async function cargarEmpresas() {
     const select = document.getElementById('empresa');
@@ -65,14 +66,12 @@ async function cargarEmpresas() {
             return;
         }
 
-        // ORDENACIÓN FORZADA EN FRONTEND (A-Z)
+        // ORDENACIÓN ALFABÉTICA (A-Z)
         const empresasOrdenadas = result.data.sort((a, b) => {
             return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
         });
 
-        console.log("📊 [AUDITORÍA] [EMPRESAS] Lista ordenada recibida:", empresasOrdenadas);
-
-        select.innerHTML = '<option value="">-- Seleccionar Empresa (A-Z) --</option>';
+        select.innerHTML = '<option value="">-- Seleccionar Empresa --</option>';
         empresasOrdenadas.forEach(emp => {
             const opt = document.createElement('option');
             opt.value = emp.id;
@@ -86,7 +85,7 @@ async function cargarEmpresas() {
 }
 
 /**
- * Asegura que los campos numéricos no queden vacíos y tengan formato decimal
+ * Formatea automáticamente los decimales al salir del campo
  */
 function initFormatters() {
     const numFields = [
@@ -97,10 +96,11 @@ function initFormatters() {
         const input = document.querySelector(`input[name="${name}"]`);
         if (input) {
             input.addEventListener('blur', () => {
-                if (input.value === "" || isNaN(input.value)) {
+                let val = parseFloat(input.value);
+                if (input.value === "" || isNaN(val)) {
                     input.value = "0.00";
                 } else {
-                    input.value = parseFloat(input.value).toFixed(2);
+                    input.value = val.toFixed(2);
                 }
             });
         }
@@ -108,47 +108,44 @@ function initFormatters() {
 }
 
 /**
- * Maneja el envío del formulario mediante POST al controlador Go
+ * Lógica principal de envío al controlador Go
  */
 async function handleAction(action, event) {
     if (event) event.preventDefault();
     
-    console.log("[AUDITORÍA] [ENVÍO] Iniciando captura total de campos...");
+    console.log("[AUDITORÍA] [ENVÍO] Procesando formulario...");
     
     const form = document.getElementById('albaranForm');
     const statusMsg = document.getElementById('statusMessage');
     const formData = new FormData(form);
     const plainData = {};
 
-    // 1. Mapeo automático y gestión de checkboxes
+    // 1. Conversión de FormData a Objeto Plano y gestión de Checkboxes
     formData.forEach((value, key) => {
-        const inputElement = form.querySelector(`[name="${key}"]`);
-        if (inputElement && inputElement.type === 'checkbox') {
-            plainData[key] = inputElement.checked;
+        const input = form.querySelector(`[name="${key}"]`);
+        if (input && input.type === 'checkbox') {
+            plainData[key] = input.checked;
         } else {
             plainData[key] = value;
         }
     });
 
-    // 2. Metadatos obligatorios (Licencia Ref)
+    // 2. Inyección de IDs y Metadatos
     const licId = document.getElementById('licencia').dataset.id;
     plainData.licencia_ref = licId ? parseInt(licId) : 0;
-    
-    // 3. Conversiones de integridad (Enteros)
     plainData.empresa_ref = parseInt(plainData.empresa_ref) || 0;
     plainData.num_plazas = parseInt(plainData.num_plazas) || 4;
 
-    // 4. Sincronización de campos de Adjuntos
-    // adjuntos_bool -> mapea a la columna 'adjuntos' (booleano)
-    // adjuntos (el input text) -> mapea a 'adjuntos_ref' (string) en el backend
-    plainData.adjuntos_bool = plainData.adjuntos_bool || false;
+    // 3. Sincronización de Adjuntos (Backend espera 'adjuntos' para bool y 'adjuntos_ref' para texto)
+    plainData.adjuntos = plainData.adjuntos_bool || false; // mapeo al bool de DB
+    // Nota: plainData.adjuntos ya contiene el texto del input name="adjuntos"
 
-    // 5. SOLUCIÓN ERROR 1364: Forzar campos NOT NULL ausentes en el form
+    // 4. FIX ERROR 1364/1366: Asegurar que campos numéricos NOT NULL tengan valor
     plainData.km_ini = 0.0;
     plainData.km_fin = 0.0;
     plainData.importe_espera = 0.0;
 
-    // 6. NORMALIZACIÓN DECIMAL (Evita errores de tipo en GORM/MySQL)
+    // 5. Conversión explícita a Float de campos decimales
     const numericFields = [
         'km_totales', 'km_nacionales', 'km_internacionales', 
         'importe_suplidos', 'importe_total', 'hora_total'
@@ -159,7 +156,7 @@ async function handleAction(action, event) {
         plainData[field] = isNaN(val) ? 0.0 : val;
     });
 
-    console.log("📤 [AUDITORÍA] Payload Final capturado para el servidor:", plainData);
+    console.log("📤 [AUDITORÍA] Enviando Payload:", plainData);
 
     try {
         const response = await fetch('/api/v1/albaranes', {
@@ -171,24 +168,26 @@ async function handleAction(action, event) {
         const result = await response.json();
 
         if (response.ok) {
+            // Feedback de éxito
             statusMsg.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'border-red-200');
-            statusMsg.classList.add('bg-green-100', 'text-green-700', 'border-green-200');
-            statusMsg.innerHTML = `<div class="flex items-center justify-center gap-2">
+            statusMsg.classList.add('bg-green-100', 'text-green-700', 'border-green-200', 'p-4', 'rounded-xl');
+            statusMsg.innerHTML = `<div class="flex items-center justify-center gap-2 font-bold">
                 <i data-lucide="check-circle"></i>
-                <span>✅ Albarán guardado correctamente</span>
+                <span>Albarán guardado correctamente</span>
             </div>`;
+            
             if (window.lucide) lucide.createIcons();
             
             form.reset();
-            // Redirección al índice tras éxito
+            // Redirección al listado principal tras un breve retardo
             setTimeout(() => window.location.href = '/titulares', 1500);
         } else {
-            throw new Error(result.error || "Error interno del servidor al guardar");
+            throw new Error(result.error || "Error al procesar el albarán");
         }
     } catch (err) {
         console.error("❌ [ERROR ENVÍO]:", err.message);
         statusMsg.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'border-green-200');
-        statusMsg.classList.add('bg-red-100', 'text-red-700', 'border-red-200');
-        statusMsg.innerHTML = `<span>❌ ERROR: ${err.message}</span>`;
+        statusMsg.classList.add('bg-red-100', 'text-red-700', 'border-red-200', 'p-4', 'rounded-xl');
+        statusMsg.innerHTML = `<span class="font-bold">❌ ERROR: ${err.message}</span>`;
     }
 }
