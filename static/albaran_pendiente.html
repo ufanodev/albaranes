@@ -57,23 +57,21 @@
           <span class="text-2xl uppercase tracking-tighter">Albaranes pendientes</span>
         </h1>
 
-        <div class="flex flex-col lg:flex-row items-end lg:items-center gap-4 w-full xl:w-auto justify-end">
-            <div class="flex flex-wrap gap-2">
-                <a href="/titulares/nuevo" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black text-white bg-green-500 shadow-lg hover:bg-green-600 active:scale-95 transition uppercase">
-                  <i data-lucide="plus-circle" class="w-4 h-4"></i> Nuevo
-                </a>
-                <a href="/titulares" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 active:scale-95 transition uppercase">
-                  <i data-lucide="list" class="w-4 h-4"></i> Ver todos
-                </a>
-            </div>
 
-            <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-              <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="printer" class="h-5 w-5"></i></button>
-              <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 text-white p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="file-spreadsheet" class="h-5 w-5"></i></button>
-              <button onclick="handleLogout()" title="Cerrar sesión" class="bg-red-500 text-white p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="log-out" class="h-5 w-5"></i></button>
+                <div class="flex flex-col lg:flex-row items-end lg:items-center gap-4 w-full xl:w-auto justify-end">
+                    <div class="flex flex-wrap gap-2">
+                        <a href="/titulares/nuevo_albaran" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 shadow hover:from-green-600 active:scale-95 transition"><span>➕ NUEVO</span></a>
+                        <a href="/titulares/enviados" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-primary-link shadow hover:bg-orange-600 active:scale-95 transition"><span>📧 ENVIADOS</span></a>
+                        <a href="/titulares/pendientes" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-black-pure bg-primary-pastel border border-primary-pastel hover:bg-orange-200 active:scale-95 transition"><span>🏁 PENDIENTES</span></a>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="printer" class="h-5 w-5"></i></button>
+                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 text-white p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="file-spreadsheet" class="h-5 w-5"></i></button>
+                        <button onclick="handleLogout()" title="Cerrar sesión" class="bg-red-500 text-white p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="log-out" class="h-5 w-5"></i></button>
+                    </div>
+                </div>
             </div>
-        </div>
-      </div>
 
       <div class="mt-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
         <div class="flex flex-wrap gap-3 mb-6 items-center">

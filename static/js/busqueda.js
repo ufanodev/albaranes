@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/busqueda.js
- * DESCRIPCIÓN: Lógica completa de búsqueda, paginación, ordenación y exportación para Titulares.
- * AUDITORÍA: Logs detallados de entrada/salida para depuración de filtros.
+ * DESCRIPCIÓN: Lógica completa de búsqueda, paginación y exportación.
+ * FIX: Carga inicial forzada en orden DESCENDENTE por fecha.
  */
 
 const APP = {
@@ -28,6 +28,7 @@ const APP = {
         totalPages: 1,        
         userLicenciaId: null,
         userLicenciaNumero: null,
+        // ✅ FIX: Forzamos el estado inicial a fecha DESC
         currentSort: { key: 'fecha', direction: 'desc' },
         searchMode: 'campos' 
     }
@@ -48,13 +49,13 @@ const UI = {
         const searchForm = document.getElementById('searchForm');
 
         if (mode === 'campos') {
-            btnCampos.className = "px-4 py-2 rounded-lg transition shadow-md bg-secondary-blue text-white font-bold text-[10px] uppercase";
-            btnPalabra.className = "px-4 py-2 rounded-lg transition shadow-md bg-gray-200 text-gray-700 text-[10px] uppercase";
+            if(btnCampos) btnCampos.className = "px-4 py-2 rounded-lg transition shadow-md bg-secondary-blue text-white font-bold text-[10px] uppercase";
+            if(btnPalabra) btnPalabra.className = "px-4 py-2 rounded-lg transition shadow-md bg-gray-200 text-gray-700 text-[10px] uppercase";
             if(palabraSection) palabraSection.classList.add('hidden');
             if(searchForm) searchForm.classList.remove('hidden');
         } else {
-            btnPalabra.className = "px-4 py-2 rounded-lg transition shadow-md bg-primary-pastel text-black-pure font-bold text-[10px] uppercase";
-            btnCampos.className = "px-4 py-2 rounded-lg transition shadow-md bg-gray-200 text-gray-700 text-[10px] uppercase";
+            if(btnPalabra) btnPalabra.className = "px-4 py-2 rounded-lg transition shadow-md bg-primary-pastel text-black-pure font-bold text-[10px] uppercase";
+            if(btnCampos) btnCampos.className = "px-4 py-2 rounded-lg transition shadow-md bg-gray-200 text-gray-700 text-[10px] uppercase";
             if(palabraSection) {
                 palabraSection.classList.remove('hidden');
                 if(APP.elements.palabraInput) APP.elements.palabraInput.focus();
@@ -88,10 +89,10 @@ const UI = {
             if (icon) {
                 if (k === key) {
                     icon.setAttribute('data-lucide', direction === 'asc' ? 'chevron-up' : 'chevron-down');
-                    icon.classList.replace('opacity-50', 'opacity-100');
+                    icon.className = "w-3 h-3 ml-1 text-primary-link opacity-100 transition-all";
                 } else {
                     icon.setAttribute('data-lucide', 'chevrons-up-down');
-                    icon.classList.replace('opacity-100', 'opacity-50');
+                    icon.className = "w-3 h-3 ml-1 text-gray-400 opacity-30 group-hover:opacity-100 transition-all";
                 }
             }
         });
@@ -103,10 +104,6 @@ const UI = {
 // 📡 API SERVICES
 // =================================================================================
 const API = {
-    getHeaders() {
-        return { 'Content-Type': 'application/json' };
-    },
-
     async fetchMyLicencia() {
         try {
             const response = await fetch('/api/v1/user/licencia_info');
@@ -130,7 +127,9 @@ const API = {
             const list = d.data || d;
             if(APP.elements.empresaSelect && Array.isArray(list)) {
                 let html = '<option value="">🎯 Todas las empresas</option>';
-                list.forEach(e => { html += `<option value="${e.id}">${e.nombre}</option>`; });
+                list.sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(e => { 
+                    html += `<option value="${e.id}">${e.nombre.toUpperCase()}</option>`; 
+                });
                 APP.elements.empresaSelect.innerHTML = html;
             }
         } catch (e) { console.error("Error empresas:", e); }
@@ -168,32 +167,28 @@ const API = {
             if (palabra) params.append('palabra', palabra);
         }
 
-        console.group("📡 AUDITORÍA BÚSQUEDA");
-        console.log("%c📤 [SOLICITUD]", "color: blue; font-weight: bold;", params.toString());
-
         try {
             const url = `/api/v1/albaranes/search-user?${params.toString()}`;
             const response = await fetch(url);
             const res = await response.json();
             
-            console.log("%c📥 [RESPUESTA]", "color: green; font-weight: bold;", res);
-
             APP.state.filteredAlbaranes = res.data || [];
             APP.state.totalRecords = res.total || 0;
             
+            // ✅ APLICAR ORDENACIÓN INMEDIATAMENTE
             this.applyLocalSort();
             DOM.renderResults();
             UI.updatePageInfo();
         } catch (e) { 
-            console.error("%c❌ [ERROR]", "color: red;", e);
+            console.error("❌ Error en búsqueda:", e);
             DOM.showNoResults(); 
-        } finally {
-            console.groupEnd();
         }
     },
 
     applyLocalSort() {
         const { key, direction } = APP.state.currentSort;
+        console.log(`📊 [ORDENACIÓN] Aplicando: ${key} | ${direction}`);
+        
         APP.state.filteredAlbaranes.sort((a, b) => {
             let valA, valB;
             switch(key) {
@@ -228,7 +223,7 @@ const DOM = {
         APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Consultando...</td></tr>'; 
     },
     showNoResults() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No hay resultados.</td></tr>'; 
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No hay resultados que coincidan.</td></tr>'; 
     },
     
     renderResults() {
@@ -241,39 +236,39 @@ const DOM = {
             const importe = parseFloat(a.importe_total || 0);
             sumatorio += importe;
             const tr = document.createElement('tr');
-            tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm';
+            tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm group';
             tr.innerHTML = `
                 <td class="px-4 py-4 font-black text-gray-900">${a.numero_albaran || 'N/A'}</td>
-                <td class="px-4 py-4 text-gray-500">${UI.formatDate(a.fecha)}</td>
-                <td class="px-4 py-4 font-medium text-gray-700">${a.empresa_nombre || '-'}</td>
-                <td class="px-4 py-4 text-gray-400 italic text-xs">${a.referencia || '-'}</td>
-                <td class="px-4 py-4 text-gray-600">${a.asalariado || 'TITULAR'}</td>
+                <td class="px-4 py-4 text-gray-500 font-bold">${UI.formatDate(a.fecha)}</td>
+                <td class="px-4 py-4 font-medium text-gray-700 uppercase">${a.empresa_nombre || '-'}</td>
+                <td class="px-4 py-4 text-gray-400 italic text-xs uppercase">${a.referencia || '-'}</td>
+                <td class="px-4 py-4 text-gray-600 font-medium uppercase">${a.asalariado || 'TITULAR'}</td>
                 <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${importe.toFixed(2)}</td>
                 <td class="px-4 py-4 text-center">${this.getBadge(a)}</td>
                 <td class="px-4 py-4 text-center">
-                    <div class="flex justify-center space-x-2">
-                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-1.5 text-secondary-blue hover:bg-blue-50 rounded-lg"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    <div class="flex justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-2 text-secondary-blue hover:bg-blue-100 rounded-xl transition-all" title="Ver detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-2 text-orange-600 hover:bg-orange-100 rounded-xl transition-all" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                     </div>
                 </td>`;
             APP.elements.resultsBody.appendChild(tr);
         });
 
         APP.elements.totalImporte.textContent = `€${sumatorio.toLocaleString('es-ES', { minimumFractionDigits: 2 })}`;
-        APP.elements.tableFooter.classList.remove('hidden');
+        if(APP.elements.tableFooter) APP.elements.tableFooter.classList.remove('hidden');
         UI.updatePageInfo();
         UI.updateSortIcons();
     },
 
     getBadge(a) {
-        if (a.pagado) return '<span class="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[9px] font-black border border-green-200">PAGADO</span>';
-        if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full text-[9px] font-black border border-blue-200">ENVIADO</span>';
-        return '<span class="bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full text-[9px] font-black border border-gray-200">CREADO</span>';
+        if (a.pagado) return '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black border border-green-200">PAGADO</span>';
+        if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black border border-blue-200">ENVIADO</span>';
+        return '<span class="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[9px] font-black border border-gray-200">CREADO</span>';
     }
 };
 
 // =================================================================================
-// 🚀 EXPORTACIÓN Y EVENTOS GLOBALES
+// 🚀 EVENTOS GLOBALES
 // =================================================================================
 
 window.sortTable = (key) => {
@@ -287,45 +282,18 @@ window.sortTable = (key) => {
     DOM.renderResults();
 };
 
-window.handleGeneratePDF = async () => {
-    if (APP.state.filteredAlbaranes.length === 0) return;
-    const payload = {
-        reportName: `ALBARANES_LICENCIA_${APP.state.userLicenciaNumero}`,
-        data: APP.state.filteredAlbaranes.map(a => ({
-            "Nº ALBARAN": a.numero_albaran, "FECHA": UI.formatDate(a.fecha),
-            "EMPRESA": a.empresa_nombre, "TOTAL": parseFloat(a.importe_total).toFixed(2)
-        }))
-    };
-    const res = await fetch('/api/v1/albaranes/export/pdf', { method: 'POST', headers: API.getHeaders(), body: JSON.stringify(payload) });
-    const result = await res.json();
-    if (result.downloadURL) window.open(result.downloadURL, '_blank');
+window.handleSearch = (e) => { 
+    if(e) e.preventDefault(); 
+    APP.state.currentPage = 1; 
+    API.searchAlbaranes(); 
 };
-
-window.handleGenerateXLSX = async () => {
-    if (APP.state.filteredAlbaranes.length === 0) return;
-    const payload = {
-        reportName: `EXCEL_LICENCIA_${APP.state.userLicenciaNumero}`,
-        data: APP.state.filteredAlbaranes.map(a => ({
-            "NUMERO_ALBARAN": a.numero_albaran, "FECHA": UI.formatDate(a.fecha),
-            "EMPRESA": a.empresa_nombre, "TOTAL": parseFloat(a.importe_total)
-        }))
-    };
-    const res = await fetch('/api/v1/albaranes/export/xlsx', { method: 'POST', headers: API.getHeaders(), body: JSON.stringify(payload) });
-    const result = await res.json();
-    if (result.downloadURL) window.location.href = result.downloadURL;
-};
-
-window.handleLogout = async () => { 
-    await fetch('/api/v1/logout', { method: 'POST' }); 
-    window.location.href = '/login'; 
-};
-
-window.handleSearch = (e) => { if(e) e.preventDefault(); APP.state.currentPage = 1; API.searchAlbaranes(); };
 
 window.handleClearAllFilters = () => {
-    APP.elements.searchForm.reset();
+    if(APP.elements.searchForm) APP.elements.searchForm.reset();
     if(APP.elements.palabraInput) APP.elements.palabraInput.value = '';
     APP.state.currentPage = 1;
+    // Forzamos el orden por fecha al limpiar
+    APP.state.currentSort = { key: 'fecha', direction: 'desc' };
     API.searchAlbaranes();
 };
 
@@ -337,24 +305,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         await API.loadEmpresas();
         
         ['empresa', 'state', 'fecha_desde', 'fecha_hasta'].forEach(id => {
-            document.getElementById(id)?.addEventListener('change', () => { APP.state.currentPage = 1; API.searchAlbaranes(); });
+            document.getElementById(id)?.addEventListener('change', () => { 
+                APP.state.currentPage = 1; 
+                API.searchAlbaranes(); 
+            });
         });
 
-        document.getElementById('referencia')?.addEventListener('input', (e) => {
-            clearTimeout(this.searchTimeout);
-            this.searchTimeout = setTimeout(() => { APP.state.currentPage = 1; API.searchAlbaranes(); }, 500);
-        });
+        const recordsSelect = document.getElementById('recordsPerPage');
+        if(recordsSelect) {
+            recordsSelect.onchange = (e) => {
+                const val = e.target.value;
+                APP.state.pageSize = val === 'todos' ? 99999 : parseInt(val);
+                APP.state.currentPage = 1;
+                API.searchAlbaranes();
+            };
+        }
 
-        APP.elements.recordsSelect.onchange = (e) => {
-            const val = e.target.value;
-            APP.state.pageSize = val === 'todos' ? 99999 : parseInt(val);
-            APP.state.currentPage = 1;
-            API.searchAlbaranes();
-        };
-
-        APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
-        APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+        if(prevBtn) prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
+        if(nextBtn) nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
         
+        // Carga inicial
         API.searchAlbaranes();
     }
 });
