@@ -1,11 +1,10 @@
 package routes
 
 import (
-	"net/http"
-	"strings"
-
 	"albaranes/controllers"
 	"albaranes/utils"
+	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -26,6 +25,8 @@ func AuthRedirectMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 
+		// Si la ruta comienza con /api/v1, no redirigimos a HTML,
+		// dejamos que el middleware JWT maneje el 401.
 		if strings.HasPrefix(path, "/api/v1") {
 			c.Next()
 			return
@@ -45,6 +46,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
+	// Importante para evitar que POST /api/v1/empresas se convierta en GET por redirección de slash
 	r.RedirectTrailingSlash = false
 	r.RedirectFixedPath = false
 
@@ -68,7 +70,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		publicViews.GET("/resetpwd", func(c *gin.Context) { c.HTML(http.StatusOK, "resetpwd.html", nil) })
 	}
 
-	// 3. VISTAS PROTEGIDAS
+	// 3. VISTAS PROTEGIDAS (HTML)
 	protectedViews := r.Group("/")
 	protectedViews.Use(NoCacheMiddleware(), AuthRedirectMiddleware())
 	{
@@ -91,27 +93,38 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminViews.GET("/albaranes/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_update.html", nil) })
 			adminViews.GET("/albaranes/borrar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_borrar.html", nil) })
 			adminViews.GET("/albaranes/copiar/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_albaran_copiar.html", nil) })
+
+			// Titulares
 			adminViews.GET("/titulares", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular.html", nil) })
 			adminViews.GET("/titulares/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
 			adminViews.GET("/titulares/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
 			adminViews.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_titular_crud.html", nil) })
+
+			// Empresas
 			adminViews.GET("/empresas", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas.html", nil) })
 			adminViews.GET("/empresas/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
 			adminViews.GET("/empresas/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
+			adminViews.GET("/empresas/view/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_empresas_crud.html", nil) })
+
+			// Usuarios
 			adminViews.GET("/usuarios", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios.html", nil) })
 			adminViews.GET("/usuarios/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
 			adminViews.GET("/usuarios/update/:id", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_usuarios_crud.html", nil) })
+
+			// Conductor
 			adminViews.GET("/conductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor.html", nil) })
 			adminViews.GET("/conductor/crear", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 			adminViews.GET("/conductor/update/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
 			adminViews.GET("/conductor/view/:licencia/:nconductor", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_conductor_crud.html", nil) })
+
+			// Otros
 			adminViews.GET("/backup", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_backup.html", nil) })
 			adminViews.GET("/pago_emp", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_emp.html", nil) })
 			adminViews.GET("/pago_tit", func(c *gin.Context) { c.HTML(http.StatusOK, "admin_pago_tit.html", nil) })
 		}
 	}
 
-	// 4. API REST
+	// 4. API REST (api/v1)
 	api := r.Group("/api/v1")
 	{
 		api.POST("/login", func(c *gin.Context) { controllers.Login(c, db) })
@@ -155,35 +168,31 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				licenciaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportTitularesXLSX(c, db) })
 			}
 
-			// CRUD EMPRESAS
+			// CRUD EMPRESAS - 🛡️ SOLUCIÓN PARA 404
 			empresaGroup := protectedAPI.Group("/empresas")
 			{
+				// Definición explícita de rutas de escritura para Admin
+				// Usamos "" para que capture /api/v1/empresas exactamente
+				empresaGroup.POST("", controllers.RequireRole("admin"), func(c *gin.Context) { controllers.CreateEmpresa(c, db) })
+				empresaGroup.PUT("/:id", controllers.RequireRole("admin"), func(c *gin.Context) { controllers.UpdateEmpresa(c, db) })
+				empresaGroup.DELETE("/:id", controllers.RequireRole("admin"), func(c *gin.Context) { controllers.DeleteEmpresa(c, db) })
+
+				// Rutas de lectura y exportación
 				empresaGroup.GET("", func(c *gin.Context) { controllers.GetEmpresas(c, db) })
+				empresaGroup.GET("/:id", func(c *gin.Context) { controllers.GetEmpresa(c, db) })
 				empresaGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportEmpresasPDF(c, db) })
 				empresaGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
-
-				adminEmpresa := empresaGroup.Group("/")
-				adminEmpresa.Use(controllers.RequireRole("admin"))
-				{
-					adminEmpresa.POST("", func(c *gin.Context) { controllers.CreateEmpresa(c, db) })
-					adminEmpresa.GET("/:id", func(c *gin.Context) { controllers.GetEmpresa(c, db) })
-					adminEmpresa.PUT("/:id", func(c *gin.Context) { controllers.UpdateEmpresa(c, db) })
-					adminEmpresa.DELETE("/:id", func(c *gin.Context) { controllers.DeleteEmpresa(c, db) })
-				}
 			}
 
-			// ALBARANES (Sincronizado con controllers/albaran.go)
+			// ALBARANES
 			albaranGroup := protectedAPI.Group("/albaranes")
 			{
 				albaranGroup.GET("/search-user", func(c *gin.Context) { controllers.SearchAlbaranesUser(c, db) })
 				albaranGroup.GET("/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
 				albaranGroup.GET("/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 				albaranGroup.POST("", func(c *gin.Context) { controllers.CreateAlbaran(c, db) })
-
-				// 🛡️ FIX 404: Añadidas ambas variantes para evitar errores de ruta
 				albaranGroup.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaranUser(c, db) })
 				albaranGroup.PUT("/user/:id", func(c *gin.Context) { controllers.UpdateAlbaranUser(c, db) })
-
 				albaranGroup.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
 				albaranGroup.POST("/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
 				albaranGroup.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
