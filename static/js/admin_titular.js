@@ -1,663 +1,232 @@
-// Archivo: static/js/admin_titular.js
-// ✅ Versión para Administrador: Gestión de Titulares/Licencias, tabla principal.
+/**
+ * ARCHIVO: static/js/admin_titular.js
+ * DESCRIPCIÓN: Gestión completa de Titulares para el Administrador.
+ * ACTUALIZADO: 28/01/2026 - Fix permanencia inactivos, orden natural 001 y remoción de borrado físico.
+ */
 
 const APP = {
     elements: {
-        // Elementos de Resultados y Paginación
         resultsBody: document.getElementById('titularResults'),
         recordsSelect: document.getElementById('recordsPerPage'),
         statusMessage: document.getElementById('statusMessage'),
         pageInfo: document.getElementById('pageInfo'),
         totalLabel: document.getElementById('totalLabel'),
-        resultsCount: document.getElementById('resultsCount'),
+        dynamicTitle: document.getElementById('dynamicTitle'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
-        
-        // Elementos de Filtros
         searchForm: document.getElementById('searchForm'),
-        licenciaInput: document.getElementById('licencia'),
-        dniInput: document.getElementById('dni'),
-        nombreInput: document.getElementById('nombre'),
-        socioSelect: document.getElementById('socio'),
-        choferSelect: document.getElementById('chofer'),
-        activeFiltersCount: document.getElementById('activeFiltersCount'),
-
-        // Campos específicos de búsqueda de Titulares
-        specificFields: [
-            document.getElementById('licencia'), 
-            document.getElementById('dni'),
-            document.getElementById('nombre'),
-            document.getElementById('socio'),
-            document.getElementById('chofer'),
-        ],
     },
     state: {
-        allTitulares: [],       // Lista completa (data de la API)
-        filteredTitulares: [], // Lista actual mostrada
+        allTitulares: [],      
+        filteredTitulares: [], 
         currentPage: 1,
-        pageSize: 10,
-        totalRecords: 0,
+        pageSize: 20,          
         totalPages: 1,
-        currentSort: { key: 'licencia', direction: 'asc' }, // Ordenación por defecto
+        currentSort: { key: 'licencia', direction: 'asc' } // ✅ Orden inicial 001
     }
 };
 
 // =================================================================================
-// 🎨 UI HELPERS & UTILITIES
+// 🎨 UI HELPERS
 // =================================================================================
-
 const UI = {
-    /** Muestra un mensaje de estado en la interfaz. */
     alertMessage(message, type = 'info') {
         const { statusMessage } = APP.elements;
         if (!statusMessage) return;
-        
         statusMessage.textContent = message;
-        statusMessage.className = `status-message ${type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info'}`;
+        statusMessage.className = `status-message fixed bottom-5 right-5 z-[2000] p-4 rounded-xl shadow-2xl border-2 bg-white font-black text-xs uppercase tracking-widest transition-all duration-300 ${type === 'success' ? 'border-green-500 text-green-600' : type === 'error' ? 'border-red-500 text-red-600' : 'border-blue-500 text-blue-600'}`;
         statusMessage.classList.remove('hidden');
         setTimeout(() => statusMessage.classList.add('hidden'), 4000);
     },
 
-    /** Actualiza la información de paginación (ej: Página 1 de 5). */
-    updatePageInfo() {
-        const { pageInfo, totalLabel, resultsCount } = APP.elements;
+    updatePageControls() {
+        const totalFiltered = APP.state.filteredTitulares.length;
+        APP.state.totalPages = Math.ceil(totalFiltered / APP.state.pageSize) || 1;
         
-        APP.state.totalPages = Math.ceil(APP.state.filteredTitulares.length / APP.state.pageSize);
-        
-        if (pageInfo) {
-            APP.state.currentPage = Math.min(APP.state.currentPage, APP.state.totalPages || 1); 
-            pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
-        }
-        
-        if (totalLabel) {
-            const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
-            const endIndex = Math.min(startIndex + APP.state.pageSize, APP.state.filteredTitulares.length);
-            const showing = endIndex - startIndex;
+        const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
+        const endIndex = Math.min(startIndex + APP.state.pageSize, totalFiltered);
+        const showingCount = totalFiltered === 0 ? 0 : (endIndex - startIndex);
 
-            totalLabel.textContent = `(${showing} de ${APP.state.filteredTitulares.length} registros)`;
+        // ✅ Título dinámico: (10 de 22 registros)
+        if (APP.elements.dynamicTitle) {
+            const countText = APP.state.pageSize >= 99999 ? totalFiltered : showingCount;
+            APP.elements.dynamicTitle.textContent = `(${countText} de ${totalFiltered} registros)`;
         }
-        
-        if (resultsCount) {
-            resultsCount.textContent = APP.state.filteredTitulares.length;
+
+        if (APP.elements.pageInfo) {
+            APP.elements.pageInfo.textContent = `Página ${APP.state.currentPage} / ${APP.state.totalPages}`;
         }
+
+        APP.elements.prevBtn.disabled = APP.state.currentPage <= 1;
+        APP.elements.nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
     },
 
-    /** Habilita/Deshabilita los botones de paginación. */
-    updatePaginationButtons() {
-        const { prevBtn, nextBtn } = APP.elements;
-        const totalPages = APP.state.totalPages || 1;
-        
-        if (prevBtn) {
-            prevBtn.disabled = APP.state.currentPage <= 1;
-            prevBtn.classList.toggle('opacity-50', APP.state.currentPage <= 1);
-            prevBtn.classList.toggle('cursor-not-allowed', APP.state.currentPage <= 1);
-        }
-        
-        if (nextBtn) {
-            nextBtn.disabled = APP.state.currentPage >= totalPages;
-            nextBtn.classList.toggle('opacity-50', APP.state.currentPage >= totalPages);
-            nextBtn.classList.toggle('cursor-not-allowed', APP.state.currentPage >= totalPages);
-        }
-    },
-    
-    /** Actualiza el contador de filtros activos en la UI. */
-    updateActiveFiltersCount() {
-        const { searchForm, activeFiltersCount } = APP.elements;
-        if (!searchForm || !activeFiltersCount) return;
-        
-        const formData = new FormData(searchForm);
-        let finalCount = 0;
-        
-        for (let [key, value] of formData.entries()) {
-            const val = value.toString().trim();
-            if (val !== '' && key !== 'recordsPerPage') { 
-                finalCount++;
+    updateSortIcons() {
+        const { key, direction } = APP.state.currentSort;
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            const field = icon.id.replace('sort-', '');
+            if (field === key) {
+                icon.innerHTML = `<i data-lucide="chevron-${direction === 'asc' ? 'up' : 'down'}" class="w-4 h-4 text-primary-link opacity-100"></i>`;
+            } else {
+                icon.innerHTML = `<i data-lucide="chevrons-up-down" class="w-4 h-4 text-slate-300 opacity-30"></i>`;
             }
-        }
-        
-        activeFiltersCount.textContent = finalCount;
-        activeFiltersCount.className = finalCount > 0 ? 
-            'ml-3 text-sm font-normal bg-yellow-500 text-white px-3 py-1 rounded-full' :
-            'ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full';
-    },
-
-    /** Devuelve el HTML para los campos booleanos (Sí/No). */
-    getBooleanHtml(value) {
-        if (value === 1 || value === true) {
-            return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-green-100 text-green-800">Sí</span>`;
-        } else {
-            return `<span class="px-1.5 py-0.5 inline-flex text-xs leading-4 font-semibold rounded-full bg-red-100 text-red-800">No</span>`;
-        }
-    },
-};
-
-// =================================================================================
-// 🔍 FILTER & SORT LOGIC
-// =================================================================================
-const Filters = {
-    /** Obtiene los valores de los filtros del formulario. */
-    getFiltersFromForm() {
-        const form = APP.elements.searchForm;
-        const formData = new FormData(form);
-        
-        const filters = {
-            licencia: formData.get('licencia') || '', 
-            dni: formData.get('dni') || '',
-            nombre: formData.get('nombre') || '',
-            socio: formData.get('socio') || '', 
-            chofer: formData.get('chofer') || '', 
-        };
-
-        if (filters.socio !== '') filters.socio = parseInt(filters.socio);
-        if (filters.chofer !== '') filters.chofer = parseInt(filters.chofer);
-
-        return filters;
-    },
-    
-    /** Ordena la tabla por la columna especificada. */
-    sortTable(key, dataType = 'string') {
-        const { currentSort } = APP.state;
-        let direction = 'asc';
-        
-        if (currentSort.key === key && currentSort.direction === 'asc') {
-            direction = 'desc';
-        }
-        
-        APP.state.filteredTitulares.sort((a, b) => {
-            let valA = a[key] || '';
-            let valB = b[key] || '';
-            
-            if (dataType === 'number') {
-                valA = parseFloat(valA) || 0;
-                valB = parseFloat(valB) || 0;
-            }
-            
-            let comparison = 0;
-            if (valA > valB) { comparison = 1; } 
-            else if (valA < valB) { comparison = -1; }
-            else if (dataType === 'string') {
-                comparison = valA.toString().localeCompare(valB.toString());
-            }
-            
-            return direction === 'asc' ? comparison : comparison * -1;
         });
-        
-        APP.state.currentSort = { key, direction };
-        APP.state.currentPage = 1;
-        DOM.renderResults();
-        Events.updateSortIcons();
+        if (window.lucide) lucide.createIcons();
     }
 };
 
 // =================================================================================
-// 🌐 API SERVICES (Conexión a endpoints de Go)
+// 🔍 FILTERS & SORT
 // =================================================================================
-const API = {
-    /** Carga todos los titulares de la API. */
-    async loadAllTitulares() {
-        DOM.showLoading();
-        
-        try {
-            // Endpoint GetLicencias: /api/v1/licencias. Esto traerá solo activos (Estado=true) por defecto.
-            const response = await fetch('/api/v1/licencias'); 
-            
-            if (response.status === 401) {
-                window.location.href = '/login';
-                return;
-            }
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Error ${response.status} en la API: ${errorText}`);
-            }
-            
-            const data = await response.json();
-            const titulares = Array.isArray(data.data) ? data.data : data; 
-            
-            APP.state.allTitulares = titulares;
-            APP.state.filteredTitulares = titulares;
-            APP.state.totalRecords = titulares.length;
-            APP.state.currentPage = 1;
-            
-            DOM.renderResults();
-            UI.alertMessage(`Cargados ${titulares.length} titulares disponibles`, 'success');
-            
-        } catch (error) {
-            console.error('Error en carga inicial de titulares:', error);
-            UI.alertMessage(`Error de red al cargar titulares. ¿API iniciada?`, 'error');
-            DOM.showNoResults();
-        }
-    },
+const Filters = {
+    sortTable(key) {
+        const dir = (APP.state.currentSort.key === key && APP.state.currentSort.direction === 'asc') ? 'desc' : 'asc';
+        APP.state.currentSort = { key, direction: dir };
+
+        APP.state.filteredTitulares.sort((a, b) => {
+            let vA = a[key] || "";
+            let vB = b[key] || "";
+            const comparison = vA.toString().localeCompare(vB.toString(), undefined, { numeric: true, sensitivity: 'base' });
+            return dir === 'asc' ? comparison : -comparison;
+        });
+
+        APP.state.currentPage = 1;
+        DOM.renderResults();
+        UI.updateSortIcons();
+    }
 };
 
 // =================================================================================
-// 🖼️ DOM RENDER
+// 📡 API & RENDER
 // =================================================================================
+const API = {
+    async loadAllTitulares() {
+        DOM.showLoading();
+        try {
+            const response = await fetch('/api/v1/licencias');
+            const json = await response.json();
+            const data = Array.isArray(json.data) ? json.data : json;
+            
+            APP.state.allTitulares = data;
+            APP.state.filteredTitulares = [...data];
+            
+            Filters.sortTable('licencia');
+        } catch (error) {
+            console.error('Error:', error);
+            DOM.showNoResults();
+        }
+    }
+};
+
 const DOM = {
-    /** Muestra el spinner de carga. */
     showLoading() {
-        const { resultsBody, resultsCount } = APP.elements;
-        if (resultsBody) {
-            resultsBody.innerHTML = `
-                <tr>
-                    <td colspan="10" class="text-center py-12">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-link mx-auto mb-4"></div>
-                        Cargando titulares...
-                    </td>
-                </tr>`;
-        }
-        if (resultsCount) { resultsCount.textContent = '...'; }
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="10" class="p-20 text-center italic text-slate-400 font-bold uppercase animate-pulse">Sincronizando base de datos...</td></tr>';
     },
 
-    /** Muestra un mensaje cuando no hay resultados. */
     showNoResults() {
-        const { resultsBody, resultsCount } = APP.elements;
-        if (resultsBody) {
-            resultsBody.innerHTML = `
-                <tr>
-                    <td colspan="10" class="text-center py-12 text-orange-500 font-semibold">
-                        📭 No se encontraron titulares que coincidan con los filtros aplicados
-                    </td>
-                </tr>`;
-        }
-        if (resultsCount) { resultsCount.textContent = '0'; }
-        UI.updatePageInfo();
-        UI.updatePaginationButtons();
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="10" class="p-20 text-center text-orange-500 font-bold uppercase">No se han encontrado registros</td></tr>';
+        UI.updatePageControls();
     },
 
-    /** Renderiza los resultados en la tabla. */
     renderResults() {
         const { resultsBody } = APP.elements;
         if (!resultsBody) return;
         resultsBody.innerHTML = '';
-        
-        APP.state.totalPages = Math.ceil(APP.state.filteredTitulares.length / APP.state.pageSize);
 
-        if (APP.state.currentPage > APP.state.totalPages && APP.state.totalPages > 0) {
-            APP.state.currentPage = APP.state.totalPages;
-        } else if (APP.state.filteredTitulares.length > 0 && APP.state.currentPage === 0) {
-            APP.state.currentPage = 1;
-        }
-        
-        const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
-        const endIndex = startIndex + APP.state.pageSize;
-        const pageData = APP.state.filteredTitulares.slice(startIndex, endIndex);
-        
-        if (!pageData.length && APP.state.filteredTitulares.length === 0) {
-            DOM.showNoResults();
-            return;
-        }
+        const start = (APP.state.currentPage - 1) * APP.state.pageSize;
+        const pageData = APP.state.filteredTitulares.slice(start, start + APP.state.pageSize);
 
-        pageData.forEach(titular => {
-            const id = titular.id || titular.ID; 
-            const row = `
-                <tr class="hover:bg-primary-pastel/30 ${id % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-b transition-colors">
-                    <td class="px-3 py-2 whitespace-nowrap text-xs font-medium text-primary-link">${titular.licencia || 'N/A'}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700">${titular.dni || '-'}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900 font-medium text-truncate" title="${titular.nombre || '-'}">${titular.nombre || '-'}</td>
-                    <td class="px-3 py-2 text-xs text-gray-600 text-truncate max-w-[150px]" title="${titular.direccion || '-'}">${titular.direccion || '-'}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${titular.cp || '-'}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${titular.telefono || '-'}</td>
-                    <td class="px-3 py-2 text-xs text-blue-500 text-truncate max-w-[100px]" title="${titular.email || '-'}">
-                         ${titular.email ? `<a href="mailto:${titular.email}" class="hover:underline">${titular.email}</a>` : '-'}
-                    </td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${UI.getBooleanHtml(titular.socio)}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-center">${UI.getBooleanHtml(titular.chofer)}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-center text-xs font-medium">
-                        <div class="flex justify-center space-x-1">
-                            <button onclick="handleViewActionTitular('${id}')" title="Ver detalle" class="text-blue-500 hover:text-blue-700 p-0.5 rounded-full hover:bg-blue-100 transition active:scale-90">
-                                <i data-lucide="eye" class="h-3 w-3"></i>
-                            </button>
-                            <button onclick="handleEditActionTitular('${id}')" title="Editar titular" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
-                                <i data-lucide="pencil" class="h-3 w-3"></i>
-                            </button>
-                            <button onclick="handleDeleteActionTitular('${id}', '${titular.licencia}')" title="Eliminar titular" class="text-red-500 hover:text-red-700 p-0.5 rounded-full hover:bg-red-100 transition active:scale-90">
-                                <i data-lucide="trash-2" class="h-3 w-3"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>`;
+        pageData.forEach(t => {
+            const tr = document.createElement('tr');
+            // ✅ Estilo visual para inactivos (Rojo suave)
+            const rowClass = t.estado ? 'hover:bg-orange-50/30' : 'bg-red-50/20 grayscale-[0.5] opacity-80 hover:bg-red-50/40';
+            tr.className = `${rowClass} transition-colors border-b border-slate-50 text-[11px] group`;
             
-            resultsBody.insertAdjacentHTML('beforeend', row);
+            const choferColor = t.chofer ? 'text-green-500' : 'text-red-500';
+            const estadoColor = t.estado ? 'text-green-500' : 'text-red-500';
+
+            tr.innerHTML = `
+                <td class="p-4 font-black text-primary-link uppercase">${t.licencia || 'S/N'}</td>
+                <td class="p-4 text-slate-500 font-bold">${t.dni || '-'}</td>
+                <td class="p-4 text-slate-800 font-bold uppercase truncate" title="${t.nombre}">${t.nombre || '-'}</td>
+                <td class="p-4 text-slate-500 italic truncate text-[10px]" title="${t.direccion}">${t.direccion || '-'}</td>
+                <td class="p-4 text-slate-400 font-mono">${t.cp || '-'}</td>
+                <td class="p-4 text-slate-600 font-bold">${t.telefono || '-'}</td>
+                <td class="p-4 text-blue-500 truncate italic" title="${t.email}">${t.email || '-'}</td>
+                <td class="p-4 text-center">
+                    <span class="${choferColor} font-black text-lg" title="${t.chofer ? 'Con chofer' : 'Sin chofer'}">●</span>
+                </td>
+                <td class="p-4 text-center">
+                    <span class="${estadoColor} font-black text-lg" title="${t.estado ? 'Activo' : 'Inactivo'}">●</span>
+                </td>
+                <td class="p-4 text-center">
+                    <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="handleViewActionTitular('${t.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition" title="Ver"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="handleEditActionTitular('${t.id}')" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition" title="Editar"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                    </div>
+                </td>`;
+            resultsBody.appendChild(tr);
         });
 
-        UI.updatePageInfo();
-        UI.updatePaginationButtons();
-
-        if (window.lucide) { window.lucide.createIcons(); }
-    },
-
-    /** Inicializa el selector de registros por página. */
-    initRecordsSelect() {
-        const { recordsSelect } = APP.elements;
-        if (!recordsSelect) return;
-        
-        recordsSelect.innerHTML = `
-            <option value="10" selected>10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-        `;
-        
-        recordsSelect.addEventListener('change', (e) => {
-            APP.state.pageSize = parseInt(e.target.value);
-            APP.state.currentPage = 1;
-            DOM.renderResults();
-        });
+        UI.updatePageControls();
+        if (window.lucide) lucide.createIcons();
     }
 };
 
 // =================================================================================
-// 📄 EXPORTATION LOGIC (PDF and XLSX)
-// =================================================================================
-const PDF = { // Renombrado a Exportation o mantener PDF/Excel para simplificar
-    
-    /** * Prepara los datos actuales (filtrados y ordenados) y llama a la API de Go 
-     * para generar el PDF.
-     */
-    async generateTitularesPDF() {
-        UI.alertMessage('Generando PDF. Por favor, espere...', 'info');
-
-        // 1. Obtener y Formatear la data filtrada y ordenada actualmente.
-        const dataToExport = APP.state.filteredTitulares.map(t => ({
-            "Licencia": t.licencia || 'N/A', 
-            "DNI": t.dni || '-',
-            "Nombre": t.nombre || '-',
-            "Dirección": t.direccion || '-', 
-            "CP": t.cp || '-',
-            "Teléfono": t.telefono || '-',
-            "Email": t.email || '-',
-            "Socio": t.socio ? 'Sí' : 'No',
-            "Chófer": t.chofer ? 'Sí' : 'No',
-        }));
-
-        if (dataToExport.length === 0) {
-            UI.alertMessage('No hay titulares para exportar en el listado actual.', 'error');
-            return;
-        }
-
-        // 2. Obtener el nombre del reporte del título de la página
-        const titleElement = document.querySelector('title');
-        const reportName = titleElement ? titleElement.textContent.trim().split(' / ')[0].replace('🏢 ', '') : 'Titulares/Licencias';
-        
-        try {
-            // 3. Llamada al endpoint de Go para PDF: POST /api/v1/licencias/export/pdf
-            const response = await fetch('/api/v1/licencias/export/pdf', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    reportName: reportName, 
-                    data: dataToExport
-                }),
-            });
-
-            const result = await response.json();
-
-            if (!response.ok || !result.success) {
-                const message = result.message || 'Error desconocido al generar el PDF.';
-                throw new Error(`[${response.status}] ${message}`);
-            }
-
-            // 4. Iniciar la descarga del archivo generado
-            UI.alertMessage('✅ PDF generado con éxito. Iniciando descarga...', 'success');
-            console.log('PDF generado en:', result.downloadURL);
-            
-            window.open(result.downloadURL, '_blank');
-            
-        } catch (error) {
-            console.error('Error al generar el PDF:', error);
-            UI.alertMessage(`❌ Error al generar el PDF: ${error.message}`, 'error');
-        }
-    },
-
-    /** * Prepara los datos y llama a la API de Go para generar el archivo XLSX (Excel).
-     */
-    async generateTitularesXLSX() {
-        UI.alertMessage('Generando Excel. Por favor, espere...', 'info');
-
-        // 1. Obtener y Formatear la data filtrada y ordenada actualmente.
-        const dataToExport = APP.state.filteredTitulares.map(t => ({
-            "Licencia": t.licencia || 'N/A', 
-            "DNI": t.dni || '-',
-            "Nombre": t.nombre || '-',
-            "Dirección": t.direccion || '-', 
-            "CP": t.cp || '-',
-            "Teléfono": t.telefono || '-',
-            "Email": t.email || '-',
-            "Socio": t.socio ? 'Sí' : 'No',
-            "Chófer": t.chofer ? 'Sí' : 'No',
-        }));
-
-        if (dataToExport.length === 0) {
-            UI.alertMessage('No hay titulares para exportar en el listado actual.', 'error');
-            return;
-        }
-
-        // 2. Obtener el nombre del reporte del título de la página
-        const titleElement = document.querySelector('title');
-        const reportName = titleElement ? titleElement.textContent.trim().split(' / ')[0].replace('🏢 ', '') : 'Titulares/Licencias';
-        
-        try {
-            // 3. Llamada al endpoint de Go para XLSX: POST /api/v1/licencias/export/xlsx
-            const response = await fetch('/api/v1/licencias/export/xlsx', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    reportName: reportName, 
-                    data: dataToExport
-                }),
-            });
-
-            const result = await response.json();
-
-            if (!response.ok || !result.success) {
-                const message = result.message || 'Error desconocido al generar el Excel.';
-                throw new Error(`[${response.status}] ${message}`);
-            }
-
-            // 4. Iniciar la descarga del archivo generado
-            UI.alertMessage('✅ Excel generado con éxito. Iniciando descarga...', 'success');
-            console.log('XLSX generado en:', result.downloadURL);
-            
-            window.open(result.downloadURL, '_blank');
-            
-        } catch (error) {
-            console.error('Error al generar el Excel:', error);
-            UI.alertMessage(`❌ Error al generar el Excel: ${error.message}`, 'error');
-        }
-    }
-};
-
-// =================================================================================
-// 🎯 EVENT HANDLERS
+// 🎯 EVENTS & ACTIONS
 // =================================================================================
 const Events = {
-    /** Maneja el envío del formulario de búsqueda (filtrado local). */
-    async handleSearch(e) {
+    handleSearch(e) {
         if (e) e.preventDefault();
-        
-        const filters = Filters.getFiltersFromForm();
-        
-        let filteredResults = APP.state.allTitulares.filter(titular => {
-            const matchesLicencia = !filters.licencia || (titular.licencia && titular.licencia.toLowerCase().includes(filters.licencia.toLowerCase()));
-            const matchesDni = !filters.dni || (titular.dni && titular.dni.toLowerCase().includes(filters.dni.toLowerCase()));
-            const matchesNombre = !filters.nombre || (titular.nombre && titular.nombre.toLowerCase().includes(filters.nombre.toLowerCase()));
-            const matchesSocio = filters.socio === '' || titular.socio === filters.socio;
-            const matchesChofer = filters.chofer === '' || titular.chofer === filters.chofer;
+        const formData = new FormData(APP.elements.searchForm);
+        const fLicencia = formData.get('licencia').toLowerCase();
+        const fDni = formData.get('dni').toLowerCase();
+        const fNombre = formData.get('nombre').toLowerCase();
+        const fSocio = formData.get('socio');
 
-            return matchesLicencia && matchesDni && matchesNombre && matchesSocio && matchesChofer;
+        APP.state.filteredTitulares = APP.state.allTitulares.filter(t => {
+            const mLicencia = !fLicencia || (t.licencia && t.licencia.toLowerCase().includes(fLicencia));
+            const mDni = !fDni || (t.dni && t.dni.toLowerCase().includes(fDni));
+            const mNombre = !fNombre || (t.nombre && t.nombre.toLowerCase().includes(fNombre));
+            const mSocio = fSocio === "" || String(t.socio) === (fSocio === "1" ? "true" : "false");
+            return mLicencia && mDni && mNombre && mSocio;
         });
 
-        APP.state.filteredTitulares = filteredResults;
-        APP.state.totalRecords = filteredResults.length;
         APP.state.currentPage = 1;
-        
         DOM.renderResults();
-        UI.alertMessage(`Encontrados ${filteredResults.length} titulares`, 'success');
     },
-    
-    /** Limpia todos los campos de filtro y reinicia la vista. */
-    handleClearAllFilters() {
-        const { searchForm, recordsSelect } = APP.elements; 
-        if (searchForm) {
-            searchForm.reset();
-            APP.state.currentPage = 1;
-            APP.state.pageSize = 10;
-            APP.state.filteredTitulares = [...APP.state.allTitulares]; 
-            APP.state.currentSort = { key: 'licencia', direction: 'asc' };
-            
-            if (recordsSelect) recordsSelect.value = '10';
-            
-            DOM.renderResults();
-            UI.alertMessage('✅ Todos los filtros han sido limpiados', 'info');
-            UI.updateActiveFiltersCount();
-        }
-    },
-    
-    /** Maneja los cambios en los filtros para actualizar el contador. */
-    handleFilterChange() {
-        UI.updateActiveFiltersCount();
-    },
-    
-    /** Actualiza los iconos de ordenación en la cabecera de la tabla. */
-    updateSortIcons() {
-        const sortIcons = document.querySelectorAll('.sort-icon');
-        sortIcons.forEach(icon => {
-            icon.innerHTML = `<svg data-lucide="chevrons-up-down" class="h-3 w-3 text-gray-400"></svg>`;
-        });
 
-        const { key, direction } = APP.state.currentSort;
-        const activeIcon = document.getElementById(`sort-${key}`);
-        if (activeIcon) {
-            activeIcon.innerHTML = `<svg data-lucide="chevron-${direction === 'asc' ? 'up' : 'down'}" class="h-3 w-3 text-primary-link"></svg>`;
-        }
-        if (window.lucide) { window.lucide.createIcons(); }
-    },
-    
-    /** Inicializa todos los event listeners. */
     init() {
-        const { searchForm, prevBtn, nextBtn } = APP.elements;
-        DOM.initRecordsSelect();
+        APP.elements.recordsSelect.onchange = (e) => {
+            const val = e.target.value;
+            APP.state.pageSize = val === 'todos' ? 99999 : parseInt(val);
+            APP.state.currentPage = 1;
+            DOM.renderResults();
+        };
 
-        if (searchForm) {
-            searchForm.addEventListener('submit', this.handleSearch.bind(this));
-            searchForm.addEventListener('change', this.handleFilterChange.bind(this));
-            searchForm.addEventListener('input', this.handleFilterChange.bind(this));
-        }
-        
-        window.handleClearAllFilters = this.handleClearAllFilters.bind(this);
-        
-        if (prevBtn) { prevBtn.addEventListener('click', () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } }); }
-        if (nextBtn) { nextBtn.addEventListener('click', () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } }); }
-        
-        window.sortTable = (key) => Filters.sortTable(key, key === 'socio' || key === 'chofer' ? 'number' : 'string');
+        APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
+        APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
+
+        window.handleClearAllFilters = () => {
+            APP.elements.searchForm.reset();
+            APP.state.filteredTitulares = [...APP.state.allTitulares];
+            APP.state.currentPage = 1;
+            Filters.sortTable('licencia');
+            UI.alertMessage('Filtros reiniciados', 'info');
+        };
     }
 };
 
-// =================================================================================
-// 🌍 FUNCIONES GLOBALES (Redirecciones y Modales y Exportación)
-// =================================================================================
+// GLOBAL ACTIONS
+window.handleViewActionTitular = (id) => window.location.href = `/admin/titulares/view/${id}`;
+window.handleEditActionTitular = (id) => window.location.href = `/admin/titulares/update/${id}`;
+window.handleCreateActionTitular = () => window.location.href = `/admin/titulares/crear`;
+window.handleLogout = () => { localStorage.removeItem('token'); window.location.href = '/login'; };
+window.sortTable = (key) => Filters.sortTable(key);
+window.Events = Events;
 
-/** Permite que el botón HTML llame a la función de generación de PDF */
-window.handleGeneratePDF = () => {
-    PDF.generateTitularesPDF();
-};
-
-/** Permite que el botón HTML llame a la función de generación de XLSX */
-window.handleGenerateXLSX = () => {
-    PDF.generateTitularesXLSX();
-};
-
-
-/** Redirige a la vista del titular (Acción 'Ver Detalle') */
-window.handleViewActionTitular = (titularId) => {
-    console.log(`➡️ 3. Botón 'Ver Detalle' pulsado para ID: ${titularId}.`);
-    const url = `/admin/titulares/view/${titularId}`; 
-    console.log(`➡️ 4. Redirigiendo a CRUD (VIEW): ${url}`);
-    window.location.href = url;
-};
-
-/** Redirige a la edición del titular (Acción 'Editar') */
-window.handleEditActionTitular = (titularId) => {
-    console.log(`➡️ 3. Botón 'Editar' pulsado para ID: ${titularId}.`);
-    const url = `/admin/titulares/update/${titularId}`;
-    console.log(`➡️ 4. Redirigiendo a CRUD (EDIT): ${url}`);
-    window.location.href = url;
-};
-
-/** Redirige a la confirmación de borrado lógico (Acción 'Eliminar') */
-window.handleDeleteActionTitular = (titularId, licencia) => {
-    console.log(`➡️ 3. Botón 'Eliminar' pulsado para ID: ${titularId}.`);
-    const url = `/admin/titulares/delete/${titularId}`; 
-    console.log(`➡️ 4. Redirigiendo a CRUD (DELETE): ${url}`);
-    window.location.href = url;
-};
-
-/** Redirige a la creación de un nuevo titular (Acción 'Nuevo Titular') */
-window.handleCreateActionTitular = () => {
-    console.log("➡️ Botón 'Nuevo Titular' pulsado. Redirigiendo a modo CREATE.");
-    const url = `/admin/titulares/crear`; 
-    window.location.href = url;
-};
-
-
-// Funciones de utilidad de la UI (Para el header/modal)
-window.showModal = (show) => {
-    const modal = document.getElementById('actionModal');
-    if (modal) modal.classList.toggle('hidden', !show);
-};
-
-window.handleAction = (title, description) => {
-    const modal = document.getElementById('actionModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalBody = document.getElementById('modalBody');
-    
-    if (modal && modalTitle && modalBody) {
-        modalTitle.textContent = title;
-        modalBody.textContent = description;
-        modal.classList.remove('hidden');
-    }
-};
-
-window.handleLogout = () => {
-    window.handleAction('Cerrar Sesión', 'Se ha simulado el cierre de sesión. Redireccionando...');
-    setTimeout(() => {
-        window.location.href = '/login'; 
-    }, 1500);
-};
-
-window.toggleDropdown = (button) => {
-    document.querySelectorAll('.dropdown').forEach(dropdown => {
-        if (dropdown !== button.parentElement) {
-            dropdown.classList.remove('active');
-        }
-    });
-    button.parentElement.classList.toggle('active');
-};
-
-window.toggleMobileMenu = () => {
-    const mobileMenu = document.getElementById('mobileMenu');
-    mobileMenu.classList.toggle('hidden');
-};
-
-// =================================================================================
-// 🚀 INICIALIZACIÓN
-// =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('---[ admin_titular.js ]---------------------------------');
-    console.log('✅ 1. Inicio de carga de la página principal de Titulares.');
-    
     Events.init();
-    
     await API.loadAllTitulares();
-    
-    Events.updateSortIcons();
-    Filters.sortTable('licencia');
-    
-    UI.updateActiveFiltersCount();
-    console.log('✅ 2. Carga de datos inicial y UI completada.');
 });

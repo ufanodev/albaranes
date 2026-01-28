@@ -3,296 +3,163 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gestión de Titulares</title>
+    <title>Gestión de Titular - Panel Maestro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
-    <script src="/js/utils.js"></script>
-        <script src="/js/licencias_cargar.js" defer></script>
     <script src="/js/admin_titular_crud.js" defer></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <style>
-        /* Definición de la Paleta de Colores Estandarizada */
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-pastel': '#FFDAB9', 
+                        'primary-link': '#FF8C00',  
+                        'black-pure': '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        
-        /* 🌐 BASE DEL DOCUMENTO */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9; /* Fondo suave */
-            color: #1f2937; /* Texto oscuro (gray-800) */
-            line-height: 1.6;
+        @layer components {
+            body { font-family: 'Inter', sans-serif; @apply bg-slate-50 p-4 sm:p-8; }
+            .card { @apply bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 max-w-5xl mx-auto; }
+            .input-field { @apply w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner outline-none transition-all duration-200 text-slate-800 text-sm font-semibold; }
+            .input-field:focus { @apply bg-white border-primary-link ring-4 ring-orange-100 shadow-none; }
+            .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest; }
+            .section-title { @apply text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-2 mb-6 mt-8 flex items-center gap-2; }
+            
+            .switch { @apply relative inline-block w-14 h-7; }
+            .switch input { @apply opacity-0 w-0 h-0; }
+            .slider { @apply absolute cursor-pointer inset-0 bg-slate-200 transition-all duration-300 rounded-full; }
+            .slider:before { @apply absolute content-[''] h-5 w-5 left-1 bottom-1 bg-white transition-all duration-300 rounded-full shadow-md; }
+            input:checked + .slider { @apply bg-green-500; }
+            input:checked + .slider:before { @apply translate-x-7; }
         }
-
-        /* 🧩 INPUTS Y FORMULARIOS (Clase reutilizable: .input-field) */
-        .input-field {
-            /* Estilo base */
-            @apply w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-800
-                   transition duration-200 ease-in-out text-base shadow-sm; 
-        }
-
-        .input-field:focus {
-            /* Foco estandarizado: Color Primario (Indigo) */
-            @apply outline-none border-indigo-600 ring-2 ring-indigo-300;
-        }
-
-        /* 🏷️ TÍTULOS DE SECCIÓN (Estandarizado con color primario) */
-        .section-title {
-            @apply text-xl font-bold text-indigo-700 mb-4 border-b-2 border-indigo-200 pb-2 mt-8;
-        }
-
-        /* 🎛️ BOTONES GENERALES */
-        .action-button {
-            /* Estilo base mejorado */
-            @apply inline-flex items-center justify-center font-semibold py-2.5 px-6 rounded-lg 
-                   shadow-md cursor-pointer transition duration-300 transform text-white focus:outline-none 
-                   hover:scale-[1.02] focus:ring-4 text-sm;
-        }
-        
-        /* Botones específicos (Usando la paleta estandarizada) */
-        .btn-crear {
-            @apply bg-green-600 hover:bg-green-700 focus:ring-green-300 shadow-green-400/50;
-        }
-
-        .btn-modificar {
-            /* Color Primario: Indigo */
-            @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-300 shadow-indigo-400/50;
-        }
-
-        .btn-borrar {
-            /* Color Peligro: Red */
-            @apply bg-red-600 hover:bg-red-700 focus:ring-red-300 shadow-red-400/50;
-        }
-
-        .btn-volver {
-            /* Color Gris Neutral */
-            @apply bg-gray-500 hover:bg-gray-600 focus:ring-gray-300 shadow-gray-400/50;
-        }
-        
-        /* Estado deshabilitado para botones */
-        .action-button:disabled {
-            @apply opacity-50 cursor-not-allowed transform-none shadow-none hover:scale-100;
-        }
-
-        /* 💬 MENSAJES DE ESTADO */
-        .status-message {
-            @apply mt-6 p-4 text-center font-medium rounded-lg;
-        }
-
-        .status-success { @apply bg-green-100 text-green-800 border border-green-300; }
-        .status-error { @apply bg-red-100 text-red-800 border border-red-300; }
-        .status-info { @apply bg-indigo-100 text-indigo-800 border border-indigo-300; }
-        .status-neutral { @apply bg-gray-200 text-gray-700 border border-gray-300; }
-
     </style>
 </head>
-<body class="p-4 sm:p-8 lg:p-12">
+<body>
 
-    <div class="max-w-4xl mx-auto bg-white shadow-2xl rounded-xl p-6 md:p-10">
-        <h1 id="mainTitle" class="text-4xl font-extrabold text-indigo-800 text-center mb-10 border-b pb-3">
-            Gestión Datos de Titulares 👤
-        </h1>
+    <div class="card">
+        <div class="bg-slate-900 -m-6 mb-10 p-8 rounded-t-[2rem] flex justify-between items-center border-b border-slate-800">
+            <div class="flex items-center gap-4">
+                <div class="bg-primary-link p-3 rounded-2xl shadow-lg text-white">
+                    <i data-lucide="user-cog" class="w-8 h-8"></i>
+                </div>
+                <div>
+                    <h1 id="mainTitle" class="text-2xl font-black text-white uppercase tracking-tighter leading-none">Editor de Titular</h1>
+                    <span class="text-[9px] font-bold text-orange-400 uppercase tracking-widest opacity-80">Modificando ficha de licencia</span>
+                </div>
+            </div>
+            <button onclick="window.location.href='/admin/titulares'" 
+                    class="bg-white/10 text-white px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white/20 transition flex items-center gap-2 backdrop-blur-md">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver
+            </button>
+        </div>
 
-        <form id="titularForm" onsubmit="handleFormSubmit(event)">
-
+        <form id="titularForm" onsubmit="handleFormSubmit(event)" class="space-y-8">
             <input type="hidden" id="titularId" name="titularId" value="">
             <input type="hidden" id="currentMode" name="currentMode" value="create">
 
-            <div class="section-title">🔑 Datos de Identificación</div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
+            <div class="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex items-center justify-between">
                 <div>
-                    <label for="licencia" class="block text-sm font-medium text-gray-700 mb-1">
-                        LICENCIA <span class="text-red-600 text-lg">*</span>
-                    </label>
-                    <input type="number" id="licencia" name="licencia" required
-                            placeholder="Ej: 804"
-                            class="input-field border-indigo-400 focus:border-indigo-600 focus:ring-indigo-300 font-bold">
+                    <h3 class="text-sm font-black text-slate-800 uppercase tracking-tight">Estado de la Licencia</h3>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Habilitar o deshabilitar acceso</p>
                 </div>
-
-                <div>
-                    <label for="dni" class="block text-sm font-medium text-gray-700 mb-1">
-                        DNI / CIF
+                <div class="flex items-center gap-3">
+                    <label class="switch">
+                        <input type="checkbox" id="estado" name="estado" checked>
+                        <span class="slider"></span>
                     </label>
-                    <input type="text" id="dni" name="dni"
-                            placeholder="12345678Z"
-                            class="input-field uppercase">
-                </div>
-
-                <div class="md:col-span-1">
-                    <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">
-                        Nombre / Razón Social
-                    </label>
-                    <input type="text" id="nombre" name="nombre"
-                            placeholder="Nombre completo o empresa"
-                            class="input-field">
+                    <span class="text-[10px] font-black text-green-600 uppercase tracking-widest">Activo</span>
                 </div>
             </div>
 
-            <div class="section-title">📞 Contacto y Acceso</div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-                        Email
-                    </label>
-                    <input type="email" id="email" name="email"
-                            placeholder="usuario@ejemplo.com"
-                            class="input-field">
+            <div class="section-title"><i data-lucide="id-card" class="w-4 h-4 text-primary-link"></i> Identificación</div>
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <div class="md:col-span-2">
+                    <label class="label-style">Nº Licencia *</label>
+                    <input type="number" id="licencia" name="licencia" required placeholder="000" class="input-field border-orange-100 font-black text-lg">
                 </div>
-
-                <div>
-                    <label for="telefono" class="block text-sm font-medium text-gray-700 mb-1">
-                        Teléfono Fijo
-                    </label>
-                    <input type="tel" id="telefono" name="telefono"
-                            placeholder="9XX XXX XXX"
-                            class="input-field">
+                <div class="md:col-span-3">
+                    <label class="label-style">DNI / CIF</label>
+                    <input type="text" id="dni" name="dni" placeholder="12345678Z" class="input-field uppercase">
                 </div>
-
-                <div>
-                    <label for="movil" class="block text-sm font-medium text-gray-700 mb-1">
-                        Móvil
-                    </label>
-                    <input type="tel" id="movil" name="movil"
-                            placeholder="6XX XXX XXX"
-                            class="input-field">
+                <div class="md:col-span-7">
+                    <label class="label-style">Nombre Completo / Razón Social</label>
+                    <input type="text" id="nombre" name="nombre" placeholder="Nombre del titular" class="input-field">
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div class="section-title"><i data-lucide="map-pin" class="w-4 h-4 text-primary-link"></i> Datos de Domicilio</div>
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <div class="md:col-span-6">
+                    <label class="label-style">Dirección</label>
+                    <input type="text" id="direccion" name="direccion" placeholder="Calle, nº, piso" class="input-field">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="label-style">C.P.</label>
+                    <input type="text" id="cp" name="cp" placeholder="46001" class="input-field">
+                </div>
+                <div class="md:col-span-4">
+                    <label class="label-style">Población</label>
+                    <input type="text" id="poblacion" name="poblacion" placeholder="Población" class="input-field uppercase">
+                </div>
+            </div>
+
+            <div class="section-title"><i data-lucide="lock" class="w-4 h-4 text-primary-link"></i> Contacto y Acceso al Sistema</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div>
-                    <label for="userlevel" class="block text-sm font-medium text-gray-700 mb-1">
-                        Nivel de Usuario (Userlevel)
-                    </label>
-                    <select id="userlevel" name="userlevel"
-                            class="input-field appearance-none">
-                        <option value="" disabled selected>Seleccione un nivel</option>
+                    <label class="label-style">Email Principal</label>
+                    <input type="email" id="email" name="email" placeholder="correo@ejemplo.com" class="input-field">
+                </div>
+                <div>
+                    <label class="label-style">Teléfono Fijo</label>
+                    <input type="tel" id="telefono" name="telefono" placeholder="96..." class="input-field">
+                </div>
+                <div>
+                    <label class="label-style">Móvil</label>
+                    <input type="tel" id="movil" name="movil" placeholder="6..." class="input-field">
+                </div>
+                <div>
+                    <label class="label-style">Nivel Acceso</label>
+                    <select id="userlevel" name="userlevel" class="input-field cursor-pointer">
                         <option value="1">Administrador</option>
-                        <option value="2">Operador</option>
+                        <option value="2" selected>Operador (Titular)</option>
                         <option value="3">Solo Lectura</option>
                     </select>
                 </div>
-
                 <div>
-                    <label for="pwd" class="block text-sm font-medium text-gray-700 mb-1">
-                        Contraseña (PWD)
-                    </label>
-                    <input type="password" id="pwd" name="pwd"
-                            placeholder="**********"
-                            class="input-field">
+                    <label class="label-style">Nueva Contraseña</label>
+                    <input type="password" id="pwd" name="pwd" placeholder="••••••••" class="input-field">
                 </div>
-                <div class="hidden md:block"></div> 
-            </div>
-
-            <div class="section-title">📍 Datos de Domicilio</div>
-            
-            <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-              <label for="direccion" class="block text-sm font-medium text-gray-700 mb-1">
-                Dirección (Calle y Número)
-              </label>
-              <input type="text" id="direccion" name="direccion"
-                      placeholder="Calle Mayor, 123"
-                      class="input-field w-full">
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-                
                 <div>
-                    <label for="cp" class="block text-sm font-medium text-gray-700 mb-1">
-                        Código Postal (CP)
-                    </label>
-                    <input type="text" id="cp" name="cp"
-                            placeholder="46001"
-                            class="input-field">
-                </div>
-
-                <div class="md:col-span-1">
-                    <label for="poblacion" class="block text-sm font-medium text-gray-700 mb-1">
-                        Población
-                    </label>
-                    <input type="text" id="poblacion" name="poblacion"
-                            placeholder="Valencia"
-                            class="input-field">
-                </div>
-
-                <div class="md:col-span-2">
-                    <label for="provincia" class="block text-sm font-medium text-gray-700 mb-1">
-                        Provincia
-                    </label>
-                    <input type="text" id="provincia" name="provincia"
-                            placeholder="Valencia / València"
-                            class="input-field">
+                    <label class="label-style text-primary-link font-black">Matrícula Taxi</label>
+                    <input type="text" id="matricula_taxi" name="matricula_taxi" placeholder="0000XXX" class="input-field uppercase border-orange-100">
                 </div>
             </div>
 
-            <div class="section-title">🧾 Facturación y Vehículo</div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                    <label for="serie_factura" class="block text-sm font-medium text-gray-700 mb-1">
-                        Serie Factura
-                    </label>
-                    <input type="text" id="serie_factura" name="serie_factura"
-                            placeholder="Ej: SFTX"
-                            class="input-field uppercase">
-                </div>
-
-                <div>
-                    <label for="n_proxima_factura" class="block text-sm font-medium text-gray-700 mb-1">
-                        Nº Próxima Factura
-                    </label>
-                    <input type="number" id="n_proxima_factura" name="n_proxima_factura"
-                            placeholder="1"
-                            class="input-field text-right">
-                </div>
-
-                <div>
-                    <label for="matricula_taxi" class="block text-sm font-medium text-gray-700 mb-1">
-                        Matrícula Taxi
-                    </label>
-                    <input type="text" id="matricula_taxi" name="matricula_taxi"
-                            placeholder="1234ABC"
-                            class="input-field uppercase">
-                </div>
+            <div class="mt-8">
+                <label class="label-style">Observaciones adicionales</label>
+                <textarea id="observaciones" name="observaciones" rows="3" class="input-field italic resize-none" placeholder="Notas internas sobre este titular..."></textarea>
             </div>
 
-            <div class="mt-8 p-4 bg-gray-100 rounded-lg border border-gray-300 shadow-inner">
-              <label for="observaciones" class="block text-sm font-medium text-gray-700 mb-1">
-                Observaciones
-              </label>
-              <textarea id="observaciones" name="observaciones" rows="4"
-                        placeholder="Escriba aquí cualquier nota relevante sobre este usuario/cliente..."
-                        class="input-field w-full"></textarea>
-              <p id="wordCount" class="text-right text-xs text-gray-500 mt-1">0 palabras</p>
-            </div>
-
-            <div class="mt-10 pt-6 border-t border-gray-200 flex flex-wrap justify-center gap-4">
-                
-                <button type="submit" id="btn-crear"
-                        class="action-button btn-crear">
-                    <span class="mr-2">➕</span> Crear
+            <div class="pt-10 flex flex-col items-center border-t border-slate-100 gap-6">
+                <button type="submit" id="submitBtn"
+                    class="bg-slate-900 text-white font-black py-5 px-24 rounded-3xl shadow-2xl hover:bg-primary-link transform transition-all hover:scale-105 active:scale-95 flex items-center gap-4 text-lg uppercase tracking-[0.2em]">
+                    <i data-lucide="save" class="w-6 h-6"></i> Guardar Titular
                 </button>
-
-                <button type="button" id="btn-modificar" onclick="handleAction('modificar')"
-                        class="action-button btn-modificar">
-                    <span class="mr-2">✏️</span> Modificar
-                </button>
-
-                <button type="button" id="btn-borrar" onclick="handleAction('borrar')"
-                        class="action-button btn-borrar">
-                    <span class="mr-2">🗑️</span> Borrar
-                </button>
-                
-                <button type="button" onclick="handleAction('volver')"
-                        class="action-button btn-volver">
-                    <span class="mr-2">🔙</span> Volver
-                </button>
+                <div id="statusMessage" class="hidden w-full p-4 rounded-2xl text-center font-bold text-xs uppercase tracking-widest border-2"></div>
             </div>
-            
-            <div id="statusMessage" class="hidden status-message" role="alert"></div>
 
         </form>
     </div>
+
+    <script>
+        window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); });
+    </script>
 </body>
 </html>
