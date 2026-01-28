@@ -1,654 +1,228 @@
-// Archivo: static/js/admin_empresas.js
-// ✅ Versión para Administrador: Gestión de Empresas, tabla principal con búsqueda y paginación.
+/**
+ * ARCHIVO: static/js/admin_empresas.js
+ * DESCRIPCIÓN: Gestión completa de Empresas para el Administrador.
+ * ACTUALIZADO: 28/01/2026 - Paginación, ordenación A-Z y acciones Ver/Editar.
+ */
 
 const APP = {
     elements: {
-        // Elementos de Resultados y Paginación
-        resultsBody: document.getElementById('empresaResults'), // ID de la tabla en el HTML
+        resultsBody: document.getElementById('empresaResults'),
         recordsSelect: document.getElementById('recordsPerPage'),
         statusMessage: document.getElementById('statusMessage'),
         pageInfo: document.getElementById('pageInfo'),
         totalLabel: document.getElementById('totalLabel'),
-        resultsCount: document.getElementById('resultsCount'),
+        dynamicTitle: document.getElementById('dynamicTitle'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
-        
-        // Elementos de Filtros (Adaptados para Empresa)
         searchForm: document.getElementById('searchForm'),
-        nifInput: document.getElementById('nif'), // NIF
-        nombreInput: document.getElementById('nombre'), // Razón Social
-        telefonoInput: document.getElementById('telefono'), // Teléfono
-        emailInput: document.getElementById('email'), // Email
-        activeFiltersCount: document.getElementById('activeFiltersCount'),
-
-        // Campos específicos de búsqueda
-        specificFields: [
-            document.getElementById('nif'), 
-            document.getElementById('nombre'),
-            document.getElementById('telefono'),
-            document.getElementById('email'),
-        ].filter(el => el !== null),
     },
     state: {
-        allEmpresas: [],      // Lista completa (data de la API)
-        filteredEmpresas: [], // Lista actual mostrada
+        allEmpresas: [],      
+        filteredEmpresas: [], 
         currentPage: 1,
-        pageSize: 10,
-        totalRecords: 0,
+        pageSize: 20,          
         totalPages: 1,
-        currentSort: { key: 'nombre', direction: 'asc' }, // Ordenación por defecto: Razón Social
+        currentSort: { key: 'nombre', direction: 'asc' } // ✅ Orden inicial A-Z
     }
 };
 
 // =================================================================================
-// 🎨 UI HELPERS & UTILITIES
+// 🎨 UI HELPERS
 // =================================================================================
-
 const UI = {
-    /** Muestra un mensaje de estado en la interfaz. */
     alertMessage(message, type = 'info') {
         const { statusMessage } = APP.elements;
         if (!statusMessage) return;
-        
         statusMessage.textContent = message;
-        statusMessage.className = `status-message ${type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info'}`;
+        statusMessage.className = `status-message fixed bottom-5 right-5 z-[2000] p-4 rounded-xl shadow-2xl border-2 bg-white font-black text-xs uppercase tracking-widest transition-all duration-300 ${type === 'success' ? 'border-green-500 text-green-600' : type === 'error' ? 'border-red-500 text-red-600' : 'border-blue-500 text-blue-600'}`;
         statusMessage.classList.remove('hidden');
         setTimeout(() => statusMessage.classList.add('hidden'), 4000);
     },
 
-    /** Actualiza la información de paginación (ej: Página 1 de 5). */
-    updatePageInfo() {
-        const { pageInfo, totalLabel, resultsCount } = APP.elements;
+    updatePageControls() {
         const totalFiltered = APP.state.filteredEmpresas.length;
+        APP.state.totalPages = Math.ceil(totalFiltered / APP.state.pageSize) || 1;
         
-        APP.state.totalPages = Math.ceil(totalFiltered / APP.state.pageSize);
-        APP.state.currentPage = Math.min(APP.state.currentPage, APP.state.totalPages || 1); 
-        APP.state.currentPage = Math.max(1, APP.state.currentPage);
-
         const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
         const endIndex = Math.min(startIndex + APP.state.pageSize, totalFiltered);
-        const showing = endIndex - startIndex;
+        const showingCount = totalFiltered === 0 ? 0 : (endIndex - startIndex);
 
-        if (pageInfo) pageInfo.textContent = `Página ${APP.state.currentPage} de ${APP.state.totalPages || 1}`;
-        if (totalLabel) totalLabel.textContent = `(${showing} de ${totalFiltered} registros)`;
-        
-        if (resultsCount) {
-            resultsCount.textContent = totalFiltered;
+        if (APP.elements.dynamicTitle) {
+            const countText = APP.state.pageSize >= 99999 ? totalFiltered : showingCount;
+            APP.elements.dynamicTitle.textContent = `(${countText} de ${totalFiltered} registros)`;
         }
-    },
 
-    /** Habilita/Deshabilita los botones de paginación. */
-    updatePaginationButtons() {
-        const { prevBtn, nextBtn } = APP.elements;
-        const totalPages = APP.state.totalPages || 1;
-        
-        if (prevBtn) prevBtn.disabled = APP.state.currentPage <= 1;
-        if (nextBtn) nextBtn.disabled = APP.state.currentPage >= totalPages;
-    },
-    
-    /** Actualiza el contador de filtros activos en la UI. */
-    updateActiveFiltersCount() {
-        const { searchForm, activeFiltersCount } = APP.elements;
-        if (!searchForm || !activeFiltersCount) return;
-        
-        const formData = new FormData(searchForm);
-        let finalCount = 0;
-        
-        for (let [key, value] of formData.entries()) {
-            const val = value.toString().trim();
-            if (val !== '' && key !== 'recordsPerPage') { 
-                finalCount++;
-            }
+        if (APP.elements.pageInfo) {
+            APP.elements.pageInfo.textContent = `Página ${APP.state.currentPage} / ${APP.state.totalPages}`;
         }
-        
-        activeFiltersCount.textContent = finalCount;
-        activeFiltersCount.className = finalCount > 0 ? 
-            'ml-3 text-sm font-normal bg-yellow-500 text-white px-3 py-1 rounded-full' :
-            'ml-3 text-sm font-normal bg-primary-link text-white px-3 py-1 rounded-full';
-    },
-};
 
-// =================================================================================
-// 🔍 FILTER & SORT LOGIC
-// =================================================================================
-const Filters = {
-    /** Obtiene los valores de los filtros del formulario. */
-    getFiltersFromForm() {
-        const form = APP.elements.searchForm;
-        const formData = new FormData(form);
-        
-        const filters = {
-            nif: formData.get('nif') || '', 
-            nombre: formData.get('nombre') || '',
-            telefono: formData.get('telefono') || '',
-            email: formData.get('email') || '',
-        };
-
-        return filters;
+        APP.elements.prevBtn.disabled = APP.state.currentPage <= 1;
+        APP.elements.nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
     },
-    
-    /** Ordena la tabla por la columna especificada. */
-    sortTable(key, dataType = 'string') {
-        const { currentSort } = APP.state;
-        let direction = 'asc';
-        
-        if (currentSort.key === key && currentSort.direction === 'asc') {
-            direction = 'desc';
-        }
-        
-        APP.state.filteredEmpresas.sort((a, b) => {
-            let valA = a[key] || '';
-            let valB = b[key] || '';
-            
-            if (dataType === 'number') {
-                valA = parseFloat(valA) || 0;
-                valB = parseFloat(valB) || 0;
+
+    updateSortIcons() {
+        const { key, direction } = APP.state.currentSort;
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            const field = icon.id.replace('sort-', '');
+            if (field === key) {
+                icon.innerHTML = `<i data-lucide="chevron-${direction === 'asc' ? 'up' : 'down'}" class="w-4 h-4 text-primary-link opacity-100"></i>`;
+            } else {
+                icon.innerHTML = `<i data-lucide="chevrons-up-down" class="w-4 h-4 text-slate-300 opacity-30"></i>`;
             }
-            
-            let comparison = 0;
-            if (valA > valB) { comparison = 1; } 
-            else if (valA < valB) { comparison = -1; }
-            else if (dataType === 'string') {
-                comparison = valA.toString().localeCompare(valB.toString());
-            }
-            
-            return direction === 'asc' ? comparison : comparison * -1;
         });
-        
-        APP.state.currentSort = { key, direction };
-        APP.state.currentPage = 1;
-        DOM.renderResults();
-        Events.updateSortIcons();
+        if (window.lucide) lucide.createIcons();
     }
 };
 
 // =================================================================================
-// 🌐 API SERVICES (Conexión a endpoints de Go)
+// 🔍 FILTERS & SORT
 // =================================================================================
-const API = {
-    /** Carga todas las empresas de la API. */
-    async loadAllEmpresas() {
-        DOM.showLoading();
-        
-        try {
-            // 🔑 Endpoint GET /api/v1/empresas
-            const response = await fetch('/api/v1/empresas'); 
-            
-            if (response.status === 401) {
-                console.log("⚠️ Sesión expirada o no autorizada. Redirigiendo a /login.");
-                window.location.href = '/login';
-                return;
-            }
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`🔴 Error HTTP ${response.status} en la API: ${errorText}`);
-                throw new Error(`Error ${response.status} en la API: ${errorText}`);
-            }
-            
-            const data = await response.json();
-            const empresas = Array.isArray(data.data) ? data.data : data; 
-            
-            APP.state.allEmpresas = empresas;
-            APP.state.filteredEmpresas = empresas;
-            APP.state.totalRecords = empresas.length;
-            APP.state.currentPage = 1;
-            
-            DOM.renderResults();
-            UI.alertMessage(`Cargadas ${empresas.length} empresas disponibles`, 'success');
-            
-        } catch (error) {
-            console.error('❌ Error en carga inicial de empresas:', error);
-            UI.alertMessage(`Error de red al cargar empresas. ¿API iniciada?`, 'error');
-            DOM.showNoResults();
-        }
-    },
+const Filters = {
+    sortTable(key) {
+        const dir = (APP.state.currentSort.key === key && APP.state.currentSort.direction === 'asc') ? 'desc' : 'asc';
+        APP.state.currentSort = { key, direction: dir };
+
+        APP.state.filteredEmpresas.sort((a, b) => {
+            let vA = a[key] || "";
+            let vB = b[key] || "";
+            // Ordenación alfabética/numérica natural
+            const comparison = vA.toString().localeCompare(vB.toString(), undefined, { numeric: true, sensitivity: 'base' });
+            return dir === 'asc' ? comparison : -comparison;
+        });
+
+        APP.state.currentPage = 1;
+        DOM.renderResults();
+    }
 };
 
 // =================================================================================
-// 📄 EXPORTATION LOGIC (PDF and XLSX)
+// 📡 API & RENDER
 // =================================================================================
-(function() {
-    const Exportation = {
-        /** Formatea los datos de Empresas para el backend de exportación genérica. */
-        formatDataForExport() {
-             return APP.state.filteredEmpresas.map(e => ({
-                // CLAVES LIMPIAS y ID forzado a String para compatibilidad con Go map[string]string
-                "ID": String(e.id || e.ID || 'N/A'), 
-                "NIF": e.nif || '-',
-                "Nombre": e.nombre || '-',
-                "Direccion": e.direccion || '-',
-                "CP": e.cp || '-',
-                "Telefono": e.telefono || '-',
-                "Email": e.email || '-',
-                "Observaciones": e.observaciones || '-',
-            }));
-        },
-
-        /**
-         * Prepara los datos y llama a la API de Go para generar el archivo.
-         * @param {string} format 'pdf' o 'xlsx'
-         */
-        async exportEmpresas(format) {
-            if (!APP.state.filteredEmpresas.length) {
-                UI.alertMessage(`No hay empresas filtradas para exportar a ${format.toUpperCase()}.`, 'info');
-                return;
-            }
-
-            // Endpoint: /api/v1/empresas/export/pdf o /xlsx
-            const endpoint = `/api/v1/empresas/export/${format}`; 
-            UI.alertMessage(`Generando ${format.toUpperCase()}. Por favor, espere...`, 'info');
-
-            const dataToExport = this.formatDataForExport();
+const API = {
+    async loadAllEmpresas() {
+        DOM.showLoading();
+        try {
+            const response = await fetch('/api/v1/empresas', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            const json = await response.json();
+            const data = json.data || json;
             
-            const titleElement = document.querySelector('h1');
-            const reportName = (titleElement ? titleElement.textContent.trim() : 'Empresas').replace('🏢 ', '').trim() + ` (${format.toUpperCase()})`;
-
-            const payload = { 
-                reportName: reportName, 
-                data: dataToExport
-            };
-
-            try {
-                // 🔑 LOG de ENVÍO (para depuración)
-                console.log("➡️ JSON Enviando al Backend (Empresas):", JSON.stringify(payload));
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-
-                // 🔑 LOG y Manejo de Errores de API
-                if (!response.ok) {
-                    const errorJson = await response.json();
-                    console.error(`🔴 Error HTTP ${response.status} en la API de exportación.`, errorJson);
-                    
-                    const message = errorJson.message || `Error desconocido (Código: ${response.status}).`;
-                    throw new Error(`[${response.status}] ${message}`);
-                }
-
-                const result = await response.json();
-
-                if (!result.success) {
-                    throw new Error(`[200 OK] ${result.message || 'Error de procesamiento en el servidor.'}`);
-                }
-
-                UI.alertMessage(`✅ Archivo ${format.toUpperCase()} generado con éxito. Iniciando descarga...`, 'success');
-                window.open(result.downloadURL, '_blank');
-                
-            } catch (error) {
-                console.error(`❌ Error final al generar ${format.toUpperCase()}:`, error);
-                UI.alertMessage(`❌ Error al generar el ${format.toUpperCase()}: ${error.message}`, 'error');
-            }
+            APP.state.allEmpresas = data;
+            APP.state.filteredEmpresas = [...data];
+            
+            Filters.sortTable('nombre'); // Forzar orden A-Z al inicio
+        } catch (error) {
+            console.error('Error:', error);
+            DOM.showNoResults();
         }
-    };
+    }
+};
 
-    // Exposición global inmediata de los handlers (Resuelve ReferenceError)
-    window.handleGeneratePDF = () => { Exportation.exportEmpresas('pdf'); };
-    window.handleGenerateXLSX = () => { Exportation.exportEmpresas('xlsx'); }; 
-})();
-
-// =================================================================================
-// 🖼️ DOM RENDER
-// =================================================================================
 const DOM = {
-    /** Muestra el spinner de carga. */
     showLoading() {
-        const { resultsBody, resultsCount } = APP.elements;
-        if (resultsBody) {
-            resultsBody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center py-12">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-link mx-auto mb-4"></div>
-                        Cargando empresas...
-                    </td>
-                </tr>`;
-        }
-        if (resultsCount) { resultsCount.textContent = '...'; }
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="p-20 text-center italic text-slate-400 font-bold uppercase animate-pulse">Sincronizando con el servidor maestro...</td></tr>';
     },
 
-    /** Muestra un mensaje cuando no hay resultados. */
     showNoResults() {
-        const { resultsBody, resultsCount } = APP.elements;
-        if (resultsBody) {
-            resultsBody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center py-12 text-orange-500 font-semibold">
-                        📭 No se encontraron empresas que coincidan con los filtros aplicados
-                    </td>
-                </tr>`;
-        }
-        if (resultsCount) { resultsCount.textContent = '0'; }
-        UI.updatePageInfo();
-        UI.updatePaginationButtons();
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="p-20 text-center text-orange-500 font-bold uppercase tracking-widest">Sin empresas encontradas</td></tr>';
+        UI.updatePageControls();
     },
 
-    /** Renderiza los resultados en la tabla. */
     renderResults() {
         const { resultsBody } = APP.elements;
         if (!resultsBody) return;
         resultsBody.innerHTML = '';
-        
-        APP.state.totalPages = Math.ceil(APP.state.filteredEmpresas.length / APP.state.pageSize);
 
-        if (APP.state.currentPage > APP.state.totalPages && APP.state.totalPages > 0) {
-            APP.state.currentPage = APP.state.totalPages;
-        } else if (APP.state.filteredEmpresas.length > 0 && APP.state.currentPage === 0) {
-            APP.state.currentPage = 1;
-        }
-        
-        const startIndex = (APP.state.currentPage - 1) * APP.state.pageSize;
-        const endIndex = startIndex + APP.state.pageSize;
-        const pageData = APP.state.filteredEmpresas.slice(startIndex, endIndex);
-        
-        if (!pageData.length && APP.state.filteredEmpresas.length === 0) {
-            DOM.showNoResults();
-            return;
-        }
+        const start = (APP.state.currentPage - 1) * APP.state.pageSize;
+        const pageData = APP.state.filteredEmpresas.slice(start, start + APP.state.pageSize);
 
-        pageData.forEach(empresa => {
-            const id = empresa.id || empresa.ID; 
-            const row = `
-                <tr class="hover:bg-primary-pastel/30 ${id % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-b transition-colors">
-                    <td class="px-3 py-2 whitespace-nowrap text-xs font-medium text-primary-link">${id || '-'}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-700">${empresa.nif || '-'}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900 font-medium text-truncate" title="${empresa.nombre || '-'}">${empresa.nombre || '-'}</td>
-                    <td class="px-3 py-2 text-xs text-gray-600 text-truncate" title="${empresa.direccion || '-'}">${empresa.direccion || '-'}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">${empresa.telefono || '-'}</td>
-                    <td class="px-3 py-2 text-xs text-blue-500 text-truncate" title="${empresa.email || '-'}">
-                        ${empresa.email ? `<a href="mailto:${empresa.email}" class="hover:underline">${empresa.email}</a>` : '-'}
-                    </td>
-                    <td class="px-3 py-2 whitespace-nowrap text-center text-xs font-medium">
-                        <div class="flex justify-center space-x-1">
-                            <button onclick="handleEditActionEmpresa('${id}')" title="Editar empresa" class="text-primary-link hover:text-orange-700 p-0.5 rounded-full hover:bg-orange-100 transition active:scale-90">
-                                <i data-lucide="pencil" class="h-3 w-3"></i>
-                            </button>
-                            <button onclick="handleDeleteActionEmpresa('${id}', '${empresa.nombre}')" title="Eliminar empresa" class="text-red-500 hover:text-red-700 p-0.5 rounded-full hover:bg-red-100 transition active:scale-90">
-                                <i data-lucide="trash-2" class="h-3 w-3"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>`;
+        pageData.forEach(e => {
+            const tr = document.createElement('tr');
+            // Estilo visual: Rojo si está inactiva (suponiendo campo 'estado')
+            const rowClass = e.estado !== false ? 'hover:bg-orange-50/30' : 'bg-red-50/20 grayscale-[0.5] opacity-80 hover:bg-red-50/40';
+            tr.className = `${rowClass} transition-colors border-b border-slate-50 text-[11px] group`;
             
-            resultsBody.insertAdjacentHTML('beforeend', row);
+            const estadoColor = e.estado !== false ? 'text-green-500' : 'text-red-500';
+
+            tr.innerHTML = `
+                <td class="p-4 font-mono text-slate-400">#${e.id}</td>
+                <td class="p-4 font-bold text-slate-600 uppercase">${e.nif || '-'}</td>
+                <td class="p-4 font-black text-primary-link uppercase truncate" title="${e.nombre}">${e.nombre || 'SIN NOMBRE'}</td>
+                <td class="p-4 text-slate-500 truncate italic text-[10px]">${e.direccion || '-'}</td>
+                <td class="p-4 text-slate-600 font-bold">${e.telefono || '-'}</td>
+                <td class="p-4 text-blue-500 truncate italic">${e.email || '-'}</td>
+                <td class="p-4 text-center">
+                    <span class="${estadoColor} font-black text-lg">●</span>
+                </td>
+                <td class="p-4 text-center">
+                    <div class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="handleViewActionEmpresa('${e.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition" title="Ver"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="handleEditActionEmpresa('${e.id}')" class="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                    </div>
+                </td>`;
+            resultsBody.appendChild(tr);
         });
 
-        UI.updatePageInfo();
-        UI.updatePaginationButtons();
-
-        if (window.lucide) { window.lucide.createIcons(); }
-    },
-
-    /** Inicializa el selector de registros por página. */
-    initRecordsSelect() {
-        const { recordsSelect } = APP.elements;
-        if (!recordsSelect) return;
-        
-        recordsSelect.innerHTML = `
-            <option value="10" selected>10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-        `;
-        
-        recordsSelect.addEventListener('change', (e) => {
-            APP.state.pageSize = parseInt(e.target.value);
-            APP.state.currentPage = 1;
-            DOM.renderResults();
-        });
+        UI.updatePageControls();
+        UI.updateSortIcons();
     }
 };
 
 // =================================================================================
-// 🎯 EVENT HANDLERS
+// 🎯 EVENTS & ACTIONS
 // =================================================================================
 const Events = {
-    /** Maneja el envío del formulario de búsqueda (filtrado local). */
-    async handleSearch(e) {
+    handleSearch(e) {
         if (e) e.preventDefault();
-        
-        const filters = Filters.getFiltersFromForm();
-        const lowerNif = filters.nif.toLowerCase();
-        const lowerNombre = filters.nombre.toLowerCase();
-        const lowerTelefono = filters.telefono.toLowerCase();
-        const lowerEmail = filters.email.toLowerCase();
-        
-        let filteredResults = APP.state.allEmpresas.filter(empresa => {
-            // Lógica de búsqueda local
-            const matchesNif = !lowerNif || (empresa.nif && empresa.nif.toLowerCase().includes(lowerNif));
-            const matchesNombre = !lowerNombre || (empresa.nombre && empresa.nombre.toLowerCase().includes(lowerNombre));
-            const matchesTelefono = !lowerTelefono || (empresa.telefono && empresa.telefono.toLowerCase().includes(lowerTelefono));
-            const matchesEmail = !lowerEmail || (empresa.email && empresa.email.toLowerCase().includes(lowerEmail));
+        const formData = new FormData(APP.elements.searchForm);
+        const fNif = formData.get('nif').toLowerCase();
+        const fNombre = formData.get('nombre').toLowerCase();
+        const fTel = formData.get('telefono').toLowerCase();
+        const fEstado = formData.get('estado');
 
-            return matchesNif && matchesNombre && matchesTelefono && matchesEmail;
+        APP.state.filteredEmpresas = APP.state.allEmpresas.filter(emp => {
+            const mNif = !fNif || (emp.nif && emp.nif.toLowerCase().includes(fNif));
+            const mNom = !fNombre || (emp.nombre && emp.nombre.toLowerCase().includes(fNombre));
+            const mTel = !fTel || (emp.telefono && emp.telefono.toLowerCase().includes(fTel));
+            const mEst = fEstado === "" || String(emp.estado === true ? "1" : "0") === fEstado;
+            return mNif && mNom && mTel && mEst;
         });
 
-        APP.state.filteredEmpresas = filteredResults;
-        APP.state.totalRecords = filteredResults.length;
         APP.state.currentPage = 1;
-        
         DOM.renderResults();
-        UI.alertMessage(`Encontradas ${filteredResults.length} empresas`, 'success');
-        UI.updateActiveFiltersCount();
     },
-    
-    /** Limpia todos los campos de filtro y reinicia la vista. */
-    handleClearAllFilters() {
-        const { searchForm, recordsSelect } = APP.elements; 
-        if (searchForm) {
-            searchForm.reset();
-            APP.state.currentPage = 1;
-            APP.state.pageSize = 10;
-            APP.state.filteredEmpresas = [...APP.state.allEmpresas]; 
-            APP.state.currentSort = { key: 'nombre', direction: 'asc' };
-            
-            if (recordsSelect) recordsSelect.value = '10';
-            
-            DOM.renderResults();
-            UI.alertMessage('✅ Todos los filtros han sido limpiados', 'info');
-            UI.updateActiveFiltersCount();
-        }
-    },
-    
-    /** Maneja los cambios en los filtros para actualizar el contador. */
-    handleFilterChange() {
-        UI.updateActiveFiltersCount();
-    },
-    
-    /** Actualiza los iconos de ordenación en la cabecera de la tabla. */
-    updateSortIcons() {
-        const sortIcons = document.querySelectorAll('.sort-icon');
-        sortIcons.forEach(icon => {
-            icon.innerHTML = `<svg data-lucide="chevrons-up-down" class="h-3 w-3 text-gray-400"></svg>`;
-        });
 
-        const { key, direction } = APP.state.currentSort;
-        const activeIcon = document.getElementById(`sort-${key}`);
-        if (activeIcon) {
-            activeIcon.innerHTML = `<svg data-lucide="chevron-${direction === 'asc' ? 'up' : 'down'}" class="h-3 w-3 text-primary-link"></svg>`;
-        }
-        if (window.lucide) { window.lucide.createIcons(); }
-    },
-    
-    /** Inicializa todos los event listeners. */
     init() {
-        const { searchForm, prevBtn, nextBtn } = APP.elements;
-        DOM.initRecordsSelect();
+        APP.elements.recordsSelect.onchange = (e) => {
+            const val = e.target.value;
+            APP.state.pageSize = val === 'todos' ? 99999 : parseInt(val);
+            APP.state.currentPage = 1;
+            DOM.renderResults();
+        };
 
-        if (searchForm) {
-            searchForm.addEventListener('submit', this.handleSearch.bind(this));
-            // Aseguramos que los listeners de cambio están asociados
-            searchForm.addEventListener('change', this.handleFilterChange.bind(this));
-            searchForm.addEventListener('input', this.handleFilterChange.bind(this));
-        }
-        
-        window.handleClearAllFilters = this.handleClearAllFilters.bind(this);
-        
-        // Handlers de paginación
-        if (prevBtn) { prevBtn.addEventListener('click', () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } }); }
-        if (nextBtn) { nextBtn.addEventListener('click', () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } }); }
-        
-        window.sortTable = (key, dataType = 'string') => Filters.sortTable(key, dataType);
+        APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; DOM.renderResults(); } };
+        APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; DOM.renderResults(); } };
+
+        window.handleClearAllFilters = () => {
+            APP.elements.searchForm.reset();
+            APP.state.filteredEmpresas = [...APP.state.allEmpresas];
+            APP.state.currentPage = 1;
+            Filters.sortTable('nombre');
+            UI.alertMessage('Filtros reiniciados', 'info');
+        };
     }
 };
 
-// =================================================================================
-// 🌍 FUNCIONES GLOBALES (Redirecciones a CRUD y Navegación)
-// Definidas en el ámbito global del script, fuera de DOMContentLoaded, para resolver ReferenceError.
-// =================================================================================
+// GLOBAL ACTIONS
+window.handleCreateActionEmpresa = () => window.location.href = `/admin/empresas/crear`;
+window.handleViewActionEmpresa = (id) => window.location.href = `/admin/empresas/view/${id}`;
+window.handleEditActionEmpresa = (id) => window.location.href = `/admin/empresas/update/${id}`;
+window.handleLogout = () => { localStorage.removeItem('token'); window.location.href = '/login'; };
+window.sortTable = (key) => Filters.sortTable(key);
+window.Events = Events;
 
-/** Redirige a la creación de una nueva empresa (CRUD) */
-window.handleCreateActionEmpresa = () => {
-    window.location.href = `/admin/empresas/crear`; 
-};
-
-/** Redirige a la edición de la empresa (CRUD) */
-window.handleEditActionEmpresa = (empresaId) => {
-    window.location.href = `/admin/empresas/update/${empresaId}`;
-};
-
-/** Llama a la función de borrado de la empresa (Redirige a la vista de confirmación) */
-window.handleDeleteActionEmpresa = (empresaId, nombre) => {
-     if (confirm(`¿Estás seguro de que quieres eliminar la empresa "${nombre}" (ID: ${empresaId})?`)) {
-         window.location.href = `/admin/empresas/delete/${empresaId}`;
-     }
-};
-
-// Las funciones handleAction, handleLogout, toggleDropdown, toggleMobileMenu se definen aquí para
-// ser accesibles desde el HTML, incluso si el script se carga con 'defer'.
-
-/** Maneja el modal de acción (simulado) */
-window.handleAction = (title, description) => { 
-    if (typeof UI !== 'undefined' && UI.alertMessage) {
-        UI.alertMessage(`Acción: ${title}`, 'info'); 
-    }
-}; 
-
-/** Lógica de Cierre de Sesión (simulada) */
-window.handleLogout = () => { 
-    if (typeof UI !== 'undefined' && UI.alertMessage) {
-        UI.alertMessage('Cerrar Sesión simulado...', 'info'); 
-    }
-    setTimeout(() => window.location.href = '/login', 1500); 
-};
-
-/** Alterna el menú desplegable (Asumida global) */
-window.toggleDropdown = (button) => { 
-    const parentDropdown = button.closest('.dropdown'); 
-    document.querySelectorAll('.dropdown').forEach(dropdown => {
-        if (dropdown !== parentDropdown) { dropdown.classList.remove('active'); }
-    });
-    if (parentDropdown) { parentDropdown.classList.toggle('active'); }
-};
-
-/** Alterna el menú móvil (Asumida global) */
-window.toggleMobileMenu = () => { 
-    const mobileMenu = document.getElementById('mobileMenu'); 
-    if (mobileMenu) mobileMenu.classList.toggle('hidden'); 
-};
-
-
-// =================================================================================
-// LÓGICA DE EXPORTACIÓN (Definición Global de handleGeneratePDF/XLSX)
-// =================================================================================
-(function() {
-    const Exportation = {
-        /** Formatea los datos de Empresas para el backend de exportación genérica. */
-        formatDataForExport() {
-             return APP.state.filteredEmpresas.map(e => ({
-                // CLAVES LIMPIAS y ID forzado a String para compatibilidad con Go map[string]string
-                "ID": String(e.id || e.ID || 'N/A'), 
-                "NIF": e.nif || '-',
-                "Nombre": e.nombre || '-',
-                "Direccion": e.direccion || '-',
-                "CP": e.cp || '-',
-                "Telefono": e.telefono || '-',
-                "Email": e.email || '-',
-                "Observaciones": e.observaciones || '-',
-            }));
-        },
-
-        /**
-         * Prepara los datos y llama a la API de Go para generar el archivo.
-         * @param {string} format 'pdf' o 'xlsx'
-         */
-        async exportEmpresas(format) {
-            if (!APP.state.filteredEmpresas.length) {
-                UI.alertMessage(`No hay empresas filtradas para exportar a ${format.toUpperCase()}.`, 'info');
-                return;
-            }
-
-            // Endpoint: /api/v1/empresas/export/pdf o /xlsx
-            const endpoint = `/api/v1/empresas/export/${format}`; 
-            UI.alertMessage(`Generando ${format.toUpperCase()}. Por favor, espere...`, 'info');
-
-            const dataToExport = this.formatDataForExport();
-            
-            const titleElement = document.querySelector('h1');
-            const reportName = (titleElement ? titleElement.textContent.trim() : 'Empresas').replace('🏢 ', '').trim() + ` (${format.toUpperCase()})`;
-
-            const payload = { 
-                reportName: reportName, 
-                data: dataToExport
-            };
-
-            try {
-                // 🔑 LOG de ENVÍO
-                console.log("➡️ JSON Enviando al Backend (Empresas):", JSON.stringify(payload));
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-
-                // 🔑 LOG y Manejo de Errores de API
-                if (!response.ok) {
-                    const errorJson = await response.json();
-                    console.error(`🔴 Error HTTP ${response.status} en la API de exportación.`, errorJson);
-                    
-                    const message = errorJson.message || `Error desconocido (Código: ${response.status}).`;
-                    throw new Error(`[${response.status}] ${message}`);
-                }
-
-                const result = await response.json();
-
-                if (!result.success) {
-                    throw new Error(`[200 OK] ${result.message || 'Error de procesamiento en el servidor.'}`);
-                }
-
-                UI.alertMessage(`✅ Archivo ${format.toUpperCase()} generado con éxito. Iniciando descarga...`, 'success');
-                window.open(result.downloadURL, '_blank');
-                
-            } catch (error) {
-                console.error(`❌ Error final al generar ${format.toUpperCase()}:`, error);
-                UI.alertMessage(`❌ Error al generar el ${format.toUpperCase()}: ${error.message}`, 'error');
-            }
-        }
-    };
-
-    // Exposición global inmediata de los handlers (Resuelve ReferenceError)
-    window.handleGeneratePDF = () => { Exportation.exportEmpresas('pdf'); };
-    window.handleGenerateXLSX = () => { Exportation.exportEmpresas('xlsx'); }; 
-})();
-
-
-// =================================================================================
-// 🚀 INICIALIZACIÓN (Carga el contenido principal)
-// =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('---[ admin_empresas.js ]---------------------------------');
-    console.log('✅ 1. Inicio de carga de la página principal de Empresas.');
-    
     Events.init();
-    
-    // Cargar datos iniciales
     await API.loadAllEmpresas();
-    
-    Events.updateSortIcons();
-    Filters.sortTable('nombre'); // Ordenar por nombre al cargar
-    
-    UI.updateActiveFiltersCount();
-    console.log('✅ 2. Carga de datos inicial y UI completada.');
 });
