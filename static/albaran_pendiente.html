@@ -50,44 +50,44 @@
       </div>
     </div>
 
-    <div class="bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50 mb-6">
+    <div class="card mb-6">
       <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 border-b border-gray-200 pb-4">
         <h1 class="text-3xl font-extrabold text-black-pure flex items-center gap-3 tracking-tight">
           <span class="text-4xl">🚕</span>
-          <span class="text-2xl uppercase tracking-tighter">Albaranes pendientes</span>
+          <span class="text-2xl uppercase tracking-tighter">Albaranes Pendientes</span>
         </h1>
 
-
-                <div class="flex flex-col lg:flex-row items-end lg:items-center gap-4 w-full xl:w-auto justify-end">
-                    <div class="flex flex-wrap gap-2">
-                        <a href="/titulares/nuevo_albaran" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 shadow hover:from-green-600 active:scale-95 transition"><span>➕ NUEVO</span></a>
-                        <a href="/titulares/enviados" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-white bg-primary-link shadow hover:bg-orange-600 active:scale-95 transition"><span>📧 ENVIADOS</span></a>
-                        <a href="/titulares/pendientes" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-black-pure bg-primary-pastel border border-primary-pastel hover:bg-orange-200 active:scale-95 transition"><span>🏁 PENDIENTES</span></a>
-                    </div>
-                    
-                    <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
-                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="printer" class="h-5 w-5"></i></button>
-                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 text-white p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="file-spreadsheet" class="h-5 w-5"></i></button>
-                        <button onclick="handleLogout()" title="Cerrar sesión" class="bg-red-500 text-white p-2 rounded-full shadow-md transition active:scale-95"><i data-lucide="log-out" class="h-5 w-5"></i></button>
-                    </div>
-                </div>
-            </div>
+        <div class="flex flex-col lg:flex-row items-end lg:items-center gap-4 w-full xl:w-auto justify-end">
+          <div class="flex flex-wrap gap-2">
+            <a href="/titulares/nuevo_albaran" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-green-500 shadow hover:bg-green-600 transition uppercase active:scale-95"><span>➕ Nuevo</span></a>
+            <a href="/titulares" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition uppercase active:scale-95"><span>📋 Ver todos</span></a>
+            <a href="/titulares/pendientes" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-black-pure bg-primary-pastel hover:bg-orange-200 transition uppercase active:scale-95"><span>🏁 Pendientes</span></a>
+            <a href="/titulares/enviados" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-secondary-blue shadow hover:bg-blue-600 transition uppercase active:scale-95"><span>📤 Enviados</span></a>
+          </div>
+          
+          <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+            <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-gray-200 text-gray-700 hover:bg-gray-300 p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="printer" class="h-5 w-5"></i></button>
+            <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 text-white p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="file-spreadsheet" class="h-5 w-5"></i></button>
+            <button onclick="handleLogout()" title="Cerrar sesión" class="bg-red-500 text-white p-2.5 rounded-xl shadow transition active:scale-95"><i data-lucide="log-out" class="h-5 w-5"></i></button>
+          </div>
+        </div>
+      </div>
 
       <div class="mt-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
         <div class="flex flex-wrap gap-3 mb-6 items-center">
-            <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg transition shadow-md bg-secondary-blue text-white font-black text-[10px] uppercase tracking-widest">📝 Búsqueda por Campos</button>
-            <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg transition shadow-md bg-white text-slate-400 font-black text-[10px] uppercase tracking-widest border border-slate-200">💬 Búsqueda por Palabra</button>
-            <button type="button" onclick="UI.handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-slate-200 text-slate-600 text-[10px] font-black uppercase hover:bg-slate-300 ml-auto transition">Limpiar</button>
+            <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg transition shadow-md bg-secondary-blue text-white font-black text-[10px] uppercase tracking-widest">📝 Por Campos</button>
+            <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg transition shadow-md bg-white text-slate-400 font-black text-[10px] uppercase border border-slate-200">💬 Por Palabra</button>
+            <button type="button" onclick="UI.handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-slate-200 text-slate-600 text-[10px] font-black uppercase hover:bg-slate-300 ml-auto transition">Limpiar Filtros</button>
         </div>
 
         <form id="searchForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
                 <label class="block text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1">Empresa</label>
-                <select id="empresa" class="input-field py-2 font-semibold text-slate-700"></select>
+                <select id="empresa" class="input-field py-2 font-bold text-slate-700"></select>
             </div>
             <div>
                 <label class="block text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1">Referencia</label>
-                <input type="text" id="referencia_input" class="input-field py-2 font-semibold" placeholder="EXP-XXXX">
+                <input type="text" id="referencia_input" class="input-field py-2 font-bold" placeholder="EXP-XXXX">
             </div>
             <div>
                 <label class="block text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1">Desde</label>
@@ -98,15 +98,15 @@
                 <input type="date" id="fecha_hasta" class="input-field py-2">
             </div>
             <div class="flex items-end">
-                <button type="submit" class="w-full bg-primary-link text-white font-black py-2.5 rounded-lg text-[10px] uppercase tracking-[0.2em] hover:bg-orange-600 transition shadow-lg active:scale-95">Filtrar Albaranes</button>
+                <button type="submit" class="w-full bg-primary-link text-white font-black py-2.5 rounded-lg text-[10px] uppercase tracking-widest hover:bg-orange-600 transition shadow-lg active:scale-95">Filtrar</button>
             </div>
         </form>
 
-        <div id="palabraSection" class="bg-blue-100/50 p-5 rounded-xl hidden border border-blue-200">
-            <label class="block text-[10px] text-blue-600 font-black uppercase mb-2 ml-1">Búsqueda rápida (Cualquier campo)</label>
+        <div id="palabraSection" class="bg-blue-100/50 p-5 rounded-xl hidden border border-blue-200 mt-4">
+            <label class="block text-[10px] text-blue-600 font-black uppercase mb-2 ml-1">Búsqueda rápida</label>
             <div class="relative">
                 <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 w-4 h-4"></i>
-                <input type="text" id="palabra" placeholder="Ej: RACE, Madrid, Cliente 123..." class="input-field pl-10 py-3 font-bold border-blue-200 focus:ring-blue-400">
+                <input type="text" id="palabra" placeholder="Buscar en cualquier campo..." class="input-field pl-10 py-3 font-bold border-blue-200 focus:ring-blue-400">
             </div>
         </div>
       </div>
@@ -117,7 +117,7 @@
           <i data-lucide="send" class="w-4 h-4"></i> Enviar seleccionados
         </button>
         <div class="flex items-center gap-2">
-            <span id="activeFiltersCount" class="text-[10px] font-black bg-orange-100 px-4 py-1.5 rounded-full text-orange-600 border border-orange-200">0 REGISTROS FILTRADOS</span>
+            <span id="activeFiltersCount" class="text-[10px] font-black bg-orange-100 px-4 py-1.5 rounded-full text-orange-600 border border-orange-200 uppercase tracking-widest">0 Registros Filtrados</span>
         </div>
       </div>
     </div>
@@ -144,9 +144,9 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto rounded-[1rem] border border-slate-100 shadow-inner bg-slate-50/30">
+        <div class="overflow-x-auto rounded-2xl border border-slate-100 shadow-inner bg-slate-50/30">
           <table class="min-w-full divide-y divide-slate-200 text-sm">
-            <thead class="bg-slate-900 text-white text-[9px] uppercase font-black tracking-[0.15em]">
+            <thead class="bg-slate-900 text-white text-[9px] uppercase font-black tracking-widest">
               <tr>
                 <th class="px-4 py-5 text-center w-10"><input type="checkbox" id="selectAll" class="w-4 h-4 rounded cursor-pointer accent-primary-link"></th>
                 <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('numero_albaran')">
@@ -162,7 +162,7 @@
                 <th class="px-4 py-5 text-left cursor-pointer group" onclick="sortTable('referencia')">
                     <div class="flex items-center justify-between">Ref. <i id="sort-referencia" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 transition"></i></div>
                 </th>
-                <th class="px-4 py-5 text-left">Asalariado</th>
+                <th class="px-4 py-5 text-left">Conductor</th>
                 <th class="px-4 py-5 text-right cursor-pointer group" onclick="sortTable('importe_total')">
                     <div class="flex items-center justify-end">Importe <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30 group-hover:opacity-100 ml-1 transition"></i></div>
                 </th>
@@ -179,7 +179,7 @@
         </div>
         
         <div class="mt-4 flex justify-between items-center px-2">
-            <p id="totalLabel" class="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] italic"></p>
+            <p id="totalLabel" class="text-[10px] text-slate-400 font-black uppercase tracking-widest italic"></p>
             <div class="flex gap-4">
                 <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-[9px] font-bold text-slate-500 uppercase">Creado</span></div>
                 <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-orange-500"></span><span class="text-[9px] font-bold text-slate-500 uppercase">Enviado</span></div>
@@ -187,12 +187,11 @@
         </div>
     </div>
 
-    <div id="statusMessage" class="hidden mt-6 px-6 py-4 rounded-2xl text-sm font-black text-center border shadow-xl transition-all duration-300 transform scale-95"></div>
+    <div id="statusMessage" class="hidden fixed bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl text-sm font-black text-center border shadow-2xl transition-all duration-300 transform scale-100 z-[60]"></div>
 
   </div>
 
   <script>
-    // Inicialización de Iconos global
     document.addEventListener('DOMContentLoaded', () => { 
         if (window.lucide) lucide.createIcons(); 
     });
