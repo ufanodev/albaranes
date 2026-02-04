@@ -1,7 +1,7 @@
 /**
  * albaran_pendiente.js - Panel de Usuario (Titular)
  * Gestión completa: Búsqueda avanzada, Ordenación, Selección múltiple y Envío Masivo.
- * ACTUALIZADO: 27/01/2026
+ * ACTUALIZADO: 04/02/2026 - FIX: Generación de rutas limpias para evitar 404 en edición.
  */
 
 (function() {
@@ -81,7 +81,6 @@
         body.innerHTML = '<tr><td colspan="11" class="text-center py-20 italic font-medium text-slate-400">Consultando registros pendientes...</td></tr>';
         
         try {
-            // Se solicita un pageSize alto para poder gestionar el filtrado/ordenación en el cliente sin re-consultar
             const response = await fetch(`/api/v1/albaranes/search-user?licencia_ref=${licId}&pageSize=5000`);
             const json = await response.json();
             const items = json.data || [];
@@ -100,10 +99,10 @@
      */
     function applyFilters() {
         const empresa = document.getElementById('empresa')?.value;
-        const ref = document.getElementById('referencia_input')?.value.toLowerCase();
+        const ref = document.getElementById('referencia_input')?.value?.toLowerCase();
         const desde = document.getElementById('fecha_desde')?.value;
         const hasta = document.getElementById('fecha_hasta')?.value;
-        const palabra = document.getElementById('palabra')?.value.toLowerCase();
+        const palabra = document.getElementById('palabra')?.value?.toLowerCase();
 
         filteredData = localData.filter(i => {
             if (searchMode === 'campos') {
@@ -113,7 +112,6 @@
                 const matchHasta = !hasta || i.fecha <= hasta;
                 return matchEmpresa && matchRef && matchDesde && matchHasta;
             } else {
-                // Búsqueda global por palabra
                 return !palabra || 
                        i.numero_albaran.toLowerCase().includes(palabra) || 
                        (i.referencia && i.referencia.toLowerCase().includes(palabra)) ||
@@ -153,9 +151,14 @@
         pageItems.forEach(i => {
             const imp = parseFloat(i.importe_total || 0);
             sumaTotal += imp;
+            
+            // ✅ CORRECCIÓN CLAVE: Se construye la URL como /titulares/update/ID
+            // Esto evita el 404 porque coincide exactamente con la ruta ":id" de Go
             body.insertAdjacentHTML('beforeend', `
-                <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs transition-colors">
-                    <td class="px-4 py-3 text-center"><input type="checkbox" value="${i.id}" class="select-albaran w-4 h-4 rounded text-primary-link focus:ring-primary-link cursor-pointer accent-orange-500"></td>
+                <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs transition-colors group">
+                    <td class="px-4 py-3 text-center">
+                        <input type="checkbox" value="${i.id}" class="select-albaran w-4 h-4 rounded text-primary-link focus:ring-primary-link cursor-pointer accent-orange-500">
+                    </td>
                     <td class="px-4 py-3 font-black text-slate-900">${i.numero_albaran}</td>
                     <td class="px-4 py-3 text-slate-500 font-medium">${i.fecha.substring(0,10)}</td>
                     <td class="px-4 py-3 text-secondary-blue font-black">${i.licencia}</td>
@@ -168,9 +171,15 @@
                     </td>
                     <td class="px-4 py-3 text-[10px] text-slate-400 truncate max-w-[100px]" title="${i.observaciones||''}">${i.observaciones||'-'}</td>
                     <td class="px-4 py-3 text-center">
-                        <div class="flex justify-center gap-3">
-                            <a href="/titulares/view/${i.id}" class="text-slate-400 hover:text-secondary-blue transition-transform hover:scale-110" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></a>
-                            <a href="/titulares/update?id=${i.id}" class="text-slate-400 hover:text-primary-link transition-transform hover:scale-110" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></a>
+                        <div class="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="window.location.href='/titulares/view/${i.id}'" 
+                                    class="text-slate-400 hover:text-secondary-blue transition-transform hover:scale-110" title="Ver Detalle">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="window.location.href='/titulares/update/${i.id}'" 
+                                    class="text-slate-400 hover:text-primary-link transition-transform hover:scale-110" title="Editar">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>`);
@@ -184,8 +193,12 @@
             </tr>`;
         }
 
-        document.getElementById('totalLabel').textContent = `${filteredData.length} registros totales encontrados`;
-        document.getElementById('pageInfo').textContent = `${page} / ${Math.ceil(filteredData.length / size) || 1}`;
+        const totalLabel = document.getElementById('totalLabel');
+        if(totalLabel) totalLabel.textContent = `${filteredData.length} registros totales encontrados`;
+        
+        const pageInfo = document.getElementById('pageInfo');
+        if(pageInfo) pageInfo.textContent = `${page} / ${Math.ceil(filteredData.length / size) || 1}`;
+        
         if (window.lucide) lucide.createIcons();
     }
 
@@ -222,7 +235,7 @@
     }
 
     /**
-     * LÓGICA DE ENVÍO MASIVO (Acción de Creado -> Enviado)
+     * LÓGICA DE ENVÍO MASIVO
      */
     window.handleEnviarSeleccionados = async () => {
         const checkboxes = document.querySelectorAll('.select-albaran:checked');
@@ -242,7 +255,6 @@
         let exitos = 0;
         for (const id of ids) {
             try {
-                // Se usa el controlador de actualización parcial para usuarios
                 const res = await fetch(`/api/v1/albaranes/user/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -253,17 +265,12 @@
         }
 
         UI.showModal("Proceso completado", `Se han procesado ${exitos} albaranes correctamente.`);
-        
-        // Reset y recarga
         await fetchData();
         btn.disabled = false;
         btn.innerHTML = '<i data-lucide="send" class="w-4 h-4 mr-2"></i> Enviar seleccionados';
         if (window.lucide) lucide.createIcons();
     };
 
-    /**
-     * UI y Exportación
-     */
     window.UI = {
         setSearchModeManual(mode) {
             searchMode = mode;
@@ -287,14 +294,22 @@
             applyFilters();
         },
         showModal(title, body) {
-            document.getElementById('modalTitle').textContent = title;
-            document.getElementById('modalBody').textContent = body;
-            document.getElementById('actionModal').classList.remove('hidden');
-            document.getElementById('actionModal').classList.add('flex');
+            const mTitle = document.getElementById('modalTitle');
+            const mBody = document.getElementById('modalBody');
+            const modal = document.getElementById('actionModal');
+            if(mTitle) mTitle.textContent = title;
+            if(mBody) mBody.textContent = body;
+            if(modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
         },
         closeModal() {
-            document.getElementById('actionModal').classList.add('hidden');
-            document.getElementById('actionModal').classList.remove('flex');
+            const modal = document.getElementById('actionModal');
+            if(modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
         }
     };
 
@@ -331,11 +346,6 @@
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Pendientes");
         XLSX.writeFile(wb, "Albaranes_Pendientes.xlsx");
-    };
-
-    window.handleLogout = () => {
-        localStorage.removeItem('token');
-        window.location.href = '/login';
     };
 
     document.addEventListener('DOMContentLoaded', startApp);
