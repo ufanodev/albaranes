@@ -1,11 +1,11 @@
 /**
  * admin_albaran_update.js - PANEL ADMINISTRADOR
- * Gestión de edición con carga total de diccionarios y control de facturación.
+ * Edición total de albaranes con trazabilidad completa en consola.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Obtener ID desde la URL (/admin/albaranes/update/123)
-    const urlParts = window.location.pathname.split('/');
+    // 1. Obtener ID desde la URL
+    const urlParts = window.location.pathname.split('/').filter(p => p !== "");
     const albaranId = urlParts[urlParts.length - 1];
 
     if (!albaranId || isNaN(albaranId)) {
@@ -13,51 +13,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    console.log(`🚀 [ADMIN-UPDATE] Cargando Albarán ID: ${albaranId}`);
-
+    console.group(`🚀 [ADMIN-UPDATE] Inicializando Edición - ID: ${albaranId}`);
+    
     try {
-        // 2. CARGA DE DICCIONARIOS MAESTROS (Simultáneo)
-        await Promise.allSettled([
+        // 2. CARGA DE DICCIONARIOS MAESTROS
+        console.log("⏳ 1. Cargando diccionarios maestros (Licencias, Empresas, Conductores)...");
+        await Promise.all([
             loadSelectData('/api/v1/licencias', 'licencia_ref', 'licencia'),
             loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre'),
             loadSelectData('/api/v1/conductores/licencia/all', 'asalariado_select', 'nombre', true)
         ]);
+        console.log("✅ 1. Diccionarios cargados correctamente.");
 
         // 3. RECUPERAR DATOS DEL ALBARÁN
+        console.log(`⏳ 2. Solicitando datos del albarán ${albaranId} al servidor...`);
         const response = await fetch(`/api/v1/albaranes/id/${albaranId}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
-        if (!response.ok) throw new Error("No se pudo obtener el registro del servidor.");
+        if (!response.ok) {
+            console.error("❌ Error en la respuesta del servidor:", response.status);
+            throw new Error(`Error ${response.status}: No se pudo obtener el registro.`);
+        }
 
         const result = await response.json();
+        console.log("📥 2. Datos recibidos del servidor:", result.data);
+        
         const data = result.data;
 
-        // 4. POBLAR FORMULARIO
+        // 4. POBLAR FORMULARIO Y BLOQUEAR LICENCIA
         populateAdminForm(data);
+        lockLicenseField(data);
 
         // UI Helpers
         if(document.getElementById('header_num')) {
             document.getElementById('header_num').textContent = `#${data.numero_albaran}`;
         }
+        console.log("✅ 3. Formulario poblado y listo.");
 
     } catch (err) {
-        console.error("❌ [ERROR]:", err.message);
+        console.error("❌ [CRITICAL-ERROR]:", err.message);
         showStatus("Error al cargar datos: " + err.message, "error");
     }
+    console.groupEnd();
 
     initCalculosKms();
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 });
 
 /**
- * Mapeo de datos al formulario (Lógica robusta para Admin)
+ * Mapeo de datos al formulario
  */
 function populateAdminForm(data) {
     const form = document.getElementById('albaranForm');
     if (!form) return;
 
-    for (const key in data) {
+    Object.keys(data).forEach(key => {
         const el = form.querySelector(`[name="${key}"]`);
         if (el) {
             if (el.type === 'checkbox') {
@@ -65,18 +76,44 @@ function populateAdminForm(data) {
             } else if (el.type === 'date') {
                 el.value = data[key] ? data[key].substring(0, 10) : '';
             } else if (el.type === 'time') {
-                el.value = data[key] && data[key].includes('T') 
-                    ? data[key].split('T')[1].substring(0, 5) 
-                    : data[key] ? data[key].substring(0, 5) : '';
+                let timeVal = data[key];
+                if (timeVal && timeVal.includes('T')) {
+                    timeVal = timeVal.split('T')[1].substring(0, 5);
+                } else if (timeVal) {
+                    timeVal = timeVal.substring(0, 5);
+                }
+                el.value = timeVal || '';
             } else {
                 el.value = data[key] || '';
             }
         }
-    }
+    });
 
     if(data.id) document.getElementById('albaran_id').value = data.id;
-    if(data.numero_albaran) document.getElementById('n_albaran').value = data.numero_albaran;
-    if(data.cliente) document.getElementById('nombre_pasajero').value = data.cliente;
+    if(data.numero_albaran) {
+        const nAlbaran = document.getElementById('n_albaran') || form.querySelector('[name="numero_albaran"]');
+        if(nAlbaran) nAlbaran.value = data.numero_albaran;
+    }
+}
+
+/**
+ * 🔒 Bloquea el campo de Licencia Titular
+ */
+function lockLicenseField(data) {
+    const selectLic = document.getElementById('licencia_ref');
+    if (selectLic) {
+        selectLic.value = data.licencia_ref;
+        selectLic.disabled = true; 
+        selectLic.classList.add('bg-gray-100', 'cursor-not-allowed', 'border-orange-300');
+        
+        if (!document.getElementById('lic-lock-msg')) {
+            const msg = document.createElement('div');
+            msg.id = 'lic-lock-msg';
+            msg.className = 'text-[10px] text-orange-600 font-bold uppercase mt-1';
+            msg.innerHTML = '🔒 Propiedad vinculada (No editable)';
+            selectLic.parentNode.appendChild(msg);
+        }
+    }
 }
 
 /**
@@ -94,14 +131,16 @@ async function loadSelectData(url, elementId, textField, useTextAsValue = false)
         const list = json.data || json;
 
         if (Array.isArray(list)) {
-            const currentHTML = select.innerHTML;
-            select.innerHTML = currentHTML + list.map(item => {
+            const options = list.map(item => {
                 const val = useTextAsValue ? item[textField] : item.id;
-                return `<option value="${val}">${item[textField]}</option>`;
+                return `<option value="${val}">${String(item[textField]).toUpperCase()}</option>`;
             }).join('');
+            
+            const firstOption = select.options[0] ? select.options[0].outerHTML : '<option value="">Seleccione...</option>';
+            select.innerHTML = firstOption + options;
         }
     } catch (e) {
-        console.warn(`No se cargó select ${elementId}`);
+        console.warn(`⚠️ No se cargó selector: ${elementId}`, e);
     }
 }
 
@@ -112,20 +151,28 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     const formData = new FormData(e.target);
     const payload = Object.fromEntries(formData.entries());
 
-    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos', 'cobrado', 'pagado', 'finalizado', 'festivo'];
+    // Normalizar Checkboxes
+    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos', 'cobrado', 'pagado', 'finalizado', 'festivo', 'adjuntos_bool'];
     bools.forEach(id => {
         const el = e.target.querySelector(`[name="${id}"]`);
-        payload[id] = el ? el.checked : false;
+        if (el) payload[id] = el.checked;
     });
 
-    const nums = ['licencia_ref', 'empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total'];
+    // Normalizar Números
+    const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total'];
     nums.forEach(f => payload[f] = parseFloat(payload[f]) || 0);
 
-    // REGLA 2025-12-17: El ID está en la URL, se limpia del body
+    // Limpieza de seguridad
     delete payload.id;
+    delete payload.licencia_ref; 
+
+    console.group("📡 [ENVÍO] Petición PUT al Servidor");
+    console.log("📍 URL:", `/api/v1/albaranes/${albaranId}`);
+    console.log("📤 Datos enviados (Payload):", payload);
+    console.groupEnd();
 
     try {
-        const res = await fetch(`/api/v1/albaranes/admin/${albaranId}`, {
+        const res = await fetch(`/api/v1/albaranes/${albaranId}`, {
             method: 'PUT',
             headers: { 
                 'Content-Type': 'application/json',
@@ -134,23 +181,27 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
             body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-            showStatus("✅ REGISTRO MAESTRO ACTUALIZADO", "success");
-            
-            // 🔄 MATIZ DE RUTA: Redirección al panel principal admin
-            setTimeout(() => window.location.href = '/admin/', 1500); 
+        const result = await res.json();
 
+        console.group("📥 [RECIBIDO] Respuesta del Servidor");
+        console.log("📊 Status:", res.status);
+        console.log("📦 Cuerpo:", result);
+        console.groupEnd();
+
+        if (res.ok) {
+            showStatus("✅ ACTUALIZADO CORRECTAMENTE", "success");
+            setTimeout(() => window.location.href = '/admin/albaranes', 1500); 
         } else {
-            const errData = await res.json();
-            throw new Error(errData.error || "Error al actualizar");
+            throw new Error(result.error || "Error al actualizar");
         }
     } catch (err) {
+        console.error("❌ [UPDATE-ERROR]:", err.message);
         showStatus(err.message, "error");
     }
 };
 
 /**
- * Utilidades UI
+ * Utilidades UI y Cálculos
  */
 function initCalculosKms() {
     const v1 = document.querySelector('[name="km_ini"]');
@@ -168,4 +219,5 @@ function showStatus(msg, type) {
         type === 'success' ? 'bg-green-100 text-green-700 border-green-500' : 'bg-red-100 text-red-700 border-red-500'
     }`;
     el.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
