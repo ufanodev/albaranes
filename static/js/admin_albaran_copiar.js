@@ -1,151 +1,130 @@
 /**
- * admin_albaran_copiar.js
- * Lógica para generar un nuevo albarán basado en uno existente.
- * Recupera datos de un ID origen y realiza un POST (Create).
+ * ARCHIVO: static/js/admin_albaran_copiar.js
+ * DESCRIPCIÓN: Clonación de albaranes. Conductor es INPUT, no SELECT.
+ * ACTUALIZADO: 19/02/2026
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Obtener ID del albarán origen desde la URL
-    const urlParts = window.location.pathname.split('/');
+    const urlParts = window.location.pathname.split('/').filter(p => p !== "");
     const albaranOrigenId = urlParts[urlParts.length - 1];
 
     if (!albaranOrigenId || isNaN(albaranOrigenId)) {
-        showError("ID de origen no válido.");
+        showPopup("ID de origen no válido.", "error");
         return;
     }
 
-    console.log(`📂 [MODO COPIA] Preparando nuevo registro basado en ID: ${albaranOrigenId}`);
+    console.log(`📂 [CLONACIÓN] Cargando base desde ID: ${albaranOrigenId}`);
 
     try {
-        // 2. Carga de Diccionarios (Igual que en Update)
+        // 1. Cargar solo catálogos necesarios (Licencias y Empresas)
         await Promise.all([
             loadSelectData('/api/v1/licencias', 'licencia_ref', 'licencia'),
-            loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre'),
-            loadSelectData('/api/v1/conductores', 'asalariado', 'nombre', true) 
+            loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre')
         ]);
 
-        // 3. Recuperar datos del albarán origen
-        const response = await fetch(`/api/v1/albaranes/id/${albaranOrigenId}`);
+        // 2. Recuperar datos del albarán origen
+        const response = await fetch(`/api/v1/albaranes/id/${albaranOrigenId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        
+        if (!response.ok) throw new Error("No se pudo leer el albarán original");
         const result = await response.json();
 
-        if (!response.ok) throw new Error(result.error || "No se pudo leer el origen");
-
-        // 4. Poblar el formulario
-        if (typeof populateForm === 'function') {
-            populateForm(result.data);
-            // Referenciamos el origen en el título
-            document.getElementById('header_id').textContent = `(Origen #${albaranOrigenId})`;
-            
-            // Opcional: Limpiar el número de albarán para obligar a poner uno nuevo
-            // document.getElementById('numero_albaran').value = ""; 
+        // 3. Poblar el formulario usando admin_albaran_cargar.js
+        if (window.populateForm) {
+            // El segundo parámetro 'true' indica modo CLONACIÓN
+            window.populateForm(result.data, true);
         }
+        
+        const headerId = document.getElementById('header_id');
+        if (headerId) headerId.textContent = `(BASADO EN #${result.data.numero_albaran})`;
 
     } catch (err) {
         console.error("❌ [ERROR]:", err.message);
-        showError(err.message);
+        showPopup(err.message, "error");
     }
 
-    // 5. MANEJO DEL ENVÍO (POST /copy)
-    const copyForm = document.getElementById('copyForm');
-    if (copyForm) {
-        copyForm.onsubmit = async (e) => {
+    // 4. MANEJO DEL ENVÍO (POST)
+    const form = document.getElementById('albaranForm');
+    if (form) {
+        form.onsubmit = async (e) => {
             e.preventDefault();
             
-            const statusMsg = document.getElementById('statusMessage');
-            const errorMsg = document.getElementById('errorMessage');
-            if (statusMsg) statusMsg.classList.add('hidden');
-            if (errorMsg) errorMsg.classList.add('hidden');
-
-            const formData = new FormData(copyForm);
+            const formData = new FormData(form);
             const payload = Object.fromEntries(formData.entries());
 
-            // --- A. GESTIÓN DE CHECKBOXES ---
-            const checkboxes = [
-                'urbano', 'diurno', 'noct_fest', 'festivo', 
-                'finalizado', 'enganche', 'enviado', 'cobrado', 'pagado'
-            ];
+            // Gestión de Checkboxes
+            const checkboxes = ['urbano', 'diurno', 'noct_fest', 'festivo', 'finalizado', 'cobrado', 'pagado'];
             checkboxes.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) payload[id] = el.checked;
             });
 
-            // --- B. LIMPIEZA Y CONVERSIÓN ---
-            // IMPORTANTE: Eliminamos IDs para asegurar que la DB asigne uno nuevo
+            // Limpieza y conversión
             delete payload.id;
-            delete payload.ID;
-
             payload.licencia_ref = parseInt(payload.licencia_ref);
             payload.empresa_ref = parseInt(payload.empresa_ref);
-            payload.num_plazas = parseInt(payload.num_plazas) || 0;
-            
-            const floatFields = ['km_totales', 'km_nacionales', 'km_internacionales', 'importe_suplidos', 'importe_total'];
-            floatFields.forEach(field => {
-                payload[field] = parseFloat(payload[field]) || 0;
-            });
-
-            // Limpieza de strings de tiempo vacíos
-            if (payload.hora && payload.hora.trim() === "") payload.hora = "";
-            if (payload.tiempo_espera && payload.tiempo_espera.trim() === "") payload.tiempo_espera = "";
-
-            console.log("📤 [COPY SEND] Creando nuevo registro a partir de copia...");
+            payload.importe_total = parseFloat(payload.importe_total) || 0;
 
             try {
-                // Notar que usamos POST y el endpoint /copy
-                const res = await fetch(`/api/v1/albaranes/copy`, {
+                // 🚀 PETICIÓN POST PARA CREAR NUEVO
+                const res = await fetch(`/api/v1/albaranes`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
                     body: JSON.stringify(payload)
                 });
 
-                const copyRes = await res.json();
-                
-                if (!res.ok) throw new Error(copyRes.error || "Error al crear la copia.");
-
-                if (statusMsg) {
-                    statusMsg.textContent = "✅ Copia creada con éxito. Redirigiendo...";
-                    statusMsg.className = "mt-6 p-4 bg-blue-600 text-white rounded-lg text-center font-black block shadow-lg";
-                    statusMsg.classList.remove('hidden');
+                if (res.ok) {
+                    showPopup("✅ ¡Albarán creado con éxito!", "success");
+                    setTimeout(() => { window.location.href = '/admin'; }, 1500);
+                } else {
+                    const errRes = await res.json();
+                    throw new Error(errRes.error || "Fallo al crear copia");
                 }
-                
-                // Volver al panel de admin
-                setTimeout(() => { window.location.href = '/admin'; }, 1500);
-
             } catch (err) {
-                console.error("❌ [COPY ERROR]:", err.message);
-                if (errorMsg) {
-                    errorMsg.textContent = "Error al copiar: " + err.message;
-                    errorMsg.classList.remove('hidden');
-                }
+                showPopup(err.message, "error");
             }
         };
     }
 });
 
 /**
- * Carga datos para elementos <select>
+ * Muestra una notificación flotante en la pantalla
  */
-async function loadSelectData(url, elementId, textField, useTextAsValue = false) {
-    try {
-        const r = await fetch(url);
-        const d = await r.json();
-        const list = d.data || d;
-        const select = document.getElementById(elementId);
-        if (!select) return;
+function showPopup(message, type) {
+    const old = document.getElementById('floating-popup');
+    if (old) old.remove();
 
-        const firstOption = select.options[0] ? select.options[0].outerHTML : '';
-        select.innerHTML = firstOption + list.map(item => {
-            const val = useTextAsValue ? item[textField] : item.id;
-            return `<option value="${val}">${item[textField]}</option>`;
-        }).join('');
-    } catch (e) {
-        console.error(`❌ [LOAD ERROR] ${elementId}:`, e);
+    const popup = document.createElement('div');
+    popup.id = 'floating-popup';
+    const bgColor = type === 'success' ? 'bg-emerald-600' : 'bg-red-600';
+    
+    // Z-INDEX muy alto para que sea visible
+    popup.className = `fixed top-10 left-1/2 -translate-x-1/2 z-[9999] 
+                       ${bgColor} text-white px-10 py-5 rounded-3xl shadow-2xl 
+                       font-black uppercase tracking-widest flex items-center gap-4 
+                       animate-bounce border-4 border-white/20 min-w-[300px] justify-center`;
+    
+    popup.innerHTML = `<span>${message}</span>`;
+    document.body.appendChild(popup);
+
+    if (type === 'error') {
+        setTimeout(() => popup.remove(), 4000);
     }
 }
 
-function showError(msg) {
-    const errDiv = document.getElementById('errorMessage');
-    if (errDiv) {
-        errDiv.textContent = `❌ ERROR: ${msg}`;
-        errDiv.classList.remove('hidden');
-    }
+async function loadSelectData(url, elementId, textField) {
+    const select = document.getElementById(elementId);
+    if (!select) return;
+    try {
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const json = await res.json();
+        const list = json.data || json;
+        if (Array.isArray(list)) {
+            select.innerHTML = list.map(i => `<option value="${i.id}">${String(i[textField]).toUpperCase()}</option>`).join('');
+        }
+    } catch (e) { console.error("Error loading select:", elementId); }
 }

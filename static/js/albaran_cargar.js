@@ -1,93 +1,97 @@
 /**
- * albaran_cargar.js
- * Función: Obtener datos del servidor y llenar el formulario.
+ * ARCHIVO: admin_albaran_cargar.js
+ * FUNCIÓN: Motor universal para llenar formularios de albaranes (View, Edit, Copy).
+ * ACTUALIZADO: 19/02/2026
  */
 
-async function cargarCatálogos() {
-    console.log("📦 Cargando catálogos de empresas y conductores...");
-    await Promise.all([cargarEmpresas(), cargarAsalariados()]);
-}
+const AlbaranLoader = {
+    // Formateador de tiempo robusto para inputs type="time"
+    formatTime(isoValue) {
+        if (!isoValue) return "";
+        // Si ya viene como HH:mm o HH:mm:ss, extraemos los primeros 5
+        if (isoValue.includes(':') && !isoValue.includes('T')) return isoValue.substring(0, 5);
+        // Si es formato ISO fecha
+        try {
+            const date = new Date(isoValue);
+            if (isNaN(date.getTime())) return "";
+            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+        } catch (e) { return ""; }
+    },
 
-async function cargarEmpresas() {
-    const select = document.getElementById('empresa');
-    if (!select) return;
-    const res = await fetch('/api/v1/empresas');
-    const result = await res.json();
-    select.innerHTML = '<option value="">-- Seleccionar Empresa --</option>';
-    result.data.forEach(emp => {
-        const opt = document.createElement('option');
-        opt.value = emp.id;
-        opt.textContent = emp.nombre;
-        select.appendChild(opt);
-    });
-}
+    /**
+     * @param {Object} data - Datos del albarán desde la API
+     * @param {Boolean} isCloning - Si es true, ignora IDs y permite editar campos clave
+     */
+    populateForm(data, isCloning = false) {
+        if (!data) return;
+        const form = document.getElementById('albaranForm');
+        if (!form) return;
 
-async function cargarAsalariados() {
-    const select = document.getElementById('asalariado_select');
-    if (!select) return;
-    const res = await fetch('/api/v1/conductores/mis-conductores');
-    const result = await res.json();
-    select.innerHTML = '<option value="">-- Conductor Titular --</option>';
-    result.data.forEach(con => {
-        const opt = document.createElement('option');
-        opt.value = con.nombre;
-        opt.textContent = con.nombre;
-        select.appendChild(opt);
-    });
-}
+        console.log(`🚀 [LOADER] Poblando datos. Modo: ${isCloning ? 'CLONACIÓN' : 'EDICIÓN/VISTA'}`);
 
-async function loadAlbaranToEdit(id) {
-    try {
-        const res = await fetch(`/api/v1/albaranes/${id}`);
-        if (!res.ok) throw new Error("Albarán no encontrado");
-        const { data } = await res.json();
+        // 1. Manejo del Header visual (si existe)
+        const headerNum = document.getElementById('header_num');
+        if (headerNum) headerNum.textContent = isCloning ? `(NUEVA COPIA)` : `#${data.numero_albaran}`;
 
-        // Mapeo manual a los IDs del HTML Master
-        document.getElementById('albaran_id').value = data.id;
-        document.getElementById('licencia').value = data.licencia;
-        document.getElementById('n_albaran').value = data.numero_albaran;
-        document.getElementById('header_num').textContent = `#${data.numero_albaran}`;
-        document.getElementById('fecha').value = data.fecha.split('T')[0];
-        
-        // Datos Personales
-        document.getElementById('nombre_pasajero').value = data.cliente || '';
-        document.getElementById('tlf_pasajero').value = data.tlf_pasajero || '';
-        document.getElementById('dni_pasajero').value = data.dni_pasajero || '';
-        document.getElementById('matricula').value = data.matricula || '';
+        // 2. Mapeo Automático por Atributo 'name' o 'id'
+        // Esto hace que funcione en cualquier HTML sin importar el orden
+        Object.keys(data).forEach(key => {
+            
+            // REGLA DE CLONACIÓN: No heredar identificadores únicos ni datos de cobro antiguos
+            if (isCloning && ['id', 'ID', 'created_at', 'updated_at', 'num_factura', 'fecha_cobro', 'fecha_pago'].includes(key)) {
+                return;
+            }
 
-        // Ruta
-        document.getElementById('origen').value = data.origen || '';
-        document.getElementById('destino').value = data.destino || '';
-        document.getElementById('parada').value = data.parada || '';
+            // Buscamos el elemento por nombre (estándar de formularios) o por ID
+            const el = form.querySelector(`[name="${key}"]`) || document.getElementById(key);
 
-        // Tiempos (Formato HH:mm)
-        const fTime = (iso) => iso ? new Date(iso).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit', hour12:false}) : '';
-        document.getElementById('hora_ini').value = fTime(data.hora_ini);
-        document.getElementById('hora_fin').value = fTime(data.hora_fin);
-        document.getElementById('espera_ini').value = fTime(data.espera_ini);
-        document.getElementById('espera_fin').value = fTime(data.espera_fin);
+            if (el) {
+                const value = data[key];
 
-        // Selects (Empresa y Conductor)
-        document.getElementById('empresa').value = data.empresa_ref;
-        document.getElementById('asalariado_select').value = data.asalariado;
+                if (el.type === 'checkbox') {
+                    el.checked = Boolean(value);
+                } 
+                else if (el.type === 'date') {
+                    el.value = value ? value.substring(0, 10) : '';
+                } 
+                else if (el.type === 'time') {
+                    el.value = this.formatTime(value);
+                } 
+                else {
+                    el.value = (value === null || value === undefined) ? '' : value;
+                }
+            }
+        });
 
-        // Numéricos
-        document.getElementById('km_nacionales').value = data.km_nacionales;
-        document.getElementById('km_internacionales').value = data.km_internacionales;
-        document.getElementById('km_totales').value = data.km_totales;
-        document.getElementById('importe_espera').value = data.importe_espera;
-        document.getElementById('importe_suplidos').value = data.importe_suplidos;
-        document.getElementById('importe_total').value = data.importe_total;
+        // 3. Ajustes específicos de campos con nombres distintos entre DB e ID de HTML
+        const mapping = {
+            'cliente': 'nombre_pasajero', // Si en DB es cliente y en HTML nombre_pasajero
+            'licencia': 'licencia_ref'
+        };
 
-        // Checks
-        document.getElementById('urbano').checked = data.urbano;
-        document.getElementById('remolque').checked = data.remolque;
-        document.getElementById('noct_fest').checked = data.noct_fest;
-        document.getElementById('adjuntos').checked = data.adjuntos;
-        
-        document.getElementById('observaciones').value = data.observaciones || '';
+        Object.entries(mapping).forEach(([dbKey, htmlId]) => {
+            const el = document.getElementById(htmlId);
+            if (el && data[dbKey]) {
+                el.value = data[dbKey];
+            }
+        });
 
-    } catch (err) {
-        console.error("❌ Error en cargar_albaran:", err);
+        // 4. LÓGICA DE CLONACIÓN (Desbloqueo)
+        if (isCloning) {
+            const fieldsToUnlock = ['licencia_ref', 'numero_albaran', 'n_albaran'];
+            fieldsToUnlock.forEach(id => {
+                const field = document.getElementById(id);
+                if (field) {
+                    field.readOnly = false;
+                    field.disabled = false;
+                    field.classList.remove('input-readonly', 'bg-slate-100');
+                    if (id.includes('albaran')) field.value = "COPIA-" + (field.value || "");
+                }
+            });
+        }
     }
-}
+};
+
+// Exponer funciones al scope global para que los otros scripts las vean
+window.loadAlbaranToEdit = AlbaranLoader.populateForm.bind(AlbaranLoader);
+window.populateForm = AlbaranLoader.populateForm.bind(AlbaranLoader);
