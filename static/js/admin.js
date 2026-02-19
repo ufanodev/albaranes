@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/admin.js
- * DESCRIPCIÓN: Gestión maestra de albaranes para el Administrador.
- * ACTUALIZADO: 19/02/2026 - FIX: Carga robusta de licencias y ordenación visual.
+ * DESCRIPCIÓN: Gestión maestra de albaranes para el Administrador (admin.html).
+ * ACTUALIZADO: 19/02/2026 - FIX: Carga robusta de catálogos y ordenación visual.
  */
 
 const APP = {
@@ -66,13 +66,13 @@ const UI = {
     },
 
     updateSortIcons() {
-        // Limpiar iconos de todas las cabeceras
+        // Limpiar todas las cabeceras del HTML
         document.querySelectorAll('[id^="sort-icon-"]').forEach(span => {
             span.innerHTML = '↕';
             span.className = 'ml-1 opacity-30 italic';
         });
 
-        // Activar el icono de la columna activa en el state
+        // Activar el icono de la columna activa en el estado actual
         const active = document.getElementById(`sort-icon-${APP.state.currentSort.key}`);
         if (active) {
             active.innerHTML = APP.state.currentSort.direction === 'asc' ? '↑' : '↓';
@@ -94,33 +94,36 @@ const API = {
 
     async loadLicencias() {
         try {
+            console.log("📡 Cargando licencias...");
             const r = await fetch('/api/v1/licencias', { headers: this.getHeaders() });
             const result = await r.json();
-            // Soporta tanto { data: [] } como []
-            const list = Array.isArray(result) ? result : result.data;
+            
+            // FIX: Extraer array sea cual sea el formato del backend
+            const list = Array.isArray(result) ? result : (result.data || []);
 
-            if (APP.elements.licenciaSelect && Array.isArray(list)) {
+            if (APP.elements.licenciaSelect) {
                 const ordenadas = list.sort((a, b) => String(a.licencia).localeCompare(String(b.licencia), undefined, { numeric: true }));
                 let html = '<option value="">🆔 TODAS LAS LICENCIAS</option>';
                 html += ordenadas.map(l => `<option value="${l.id}">${String(l.licencia).toUpperCase()}</option>`).join('');
                 APP.elements.licenciaSelect.innerHTML = html;
+                console.log("✅ Licencias cargadas.");
             }
-        } catch (e) { console.error("Error cargando licencias:", e); }
+        } catch (e) { console.error("Error licencias:", e); }
     },
 
     async loadEmpresas() {
         try {
             const r = await fetch('/api/v1/empresas', { headers: this.getHeaders() });
             const result = await r.json();
-            const list = Array.isArray(result) ? result : result.data;
+            const list = Array.isArray(result) ? result : (result.data || []);
 
-            if (APP.elements.empresaSelect && Array.isArray(list)) {
+            if (APP.elements.empresaSelect) {
                 const ordenadas = list.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
                 let html = '<option value="">📋 TODAS LAS EMPRESAS</option>';
                 html += ordenadas.map(e => `<option value="${e.id}">${String(e.nombre).toUpperCase()}</option>`).join('');
                 APP.elements.empresaSelect.innerHTML = html;
             }
-        } catch (e) { console.error("Error cargando empresas:", e); }
+        } catch (e) { console.error("Error empresas:", e); }
     },
 
     async searchAlbaranes() {
@@ -149,7 +152,6 @@ const API = {
         APP.state.filteredAlbaranes.sort((a, b) => {
             let vA, vB;
 
-            // Lógica de extracción de valor según la columna
             switch(key) {
                 case 'licencia':
                     vA = a.LicenciaData?.licencia || a.licencia || "";
@@ -290,7 +292,7 @@ window.handleLogout = () => {
 // 🚀 INICIALIZACIÓN
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Cargar diccionarios (Soportando {data:[]} o [])
+    // 1. Cargar diccionarios con orden asíncrono controlado
     await Promise.all([API.loadLicencias(), API.loadEmpresas()]);
 
     // 2. Listener filas por página
@@ -321,6 +323,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    // 4. Carga inicial
+    // 4. Ejecutar búsqueda inicial
     API.searchAlbaranes();
 });
