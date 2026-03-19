@@ -1,14 +1,13 @@
 /**
- * ARCHIVO: static/js/admin_albaran_cargar.js
- * FUNCIÓN: Motor universal para llenar formularios de albaranes.
- * ACTUALIZADO: 19/02/2026 - FIX: Mapeo de EmpresaRef y Referencia.
+ * ARCHIVO: static/js/albaran_cargar.js
+ * FUNCIÓN: Motor universal para llenar formularios y vistas de albaranes.
+ * ACTUALIZADO: 19/03/2026 - FIX: Mapeo Cliente -> Nombre Pasajero con Logs de Auditoría.
  */
 
 const AlbaranLoader = {
-    // Formateador de tiempo para inputs type="time" (HH:mm)
+    // Formateador de tiempo para elementos visuales o inputs (HH:mm)
     formatTime(isoValue) {
         if (!isoValue) return "";
-        // Si ya es un string corto tipo "14:30", devolverlo
         if (typeof isoValue === 'string' && isoValue.length === 5 && isoValue.includes(':')) {
             return isoValue;
         }
@@ -25,86 +24,100 @@ const AlbaranLoader = {
 
     /**
      * @param {Object} data - Datos del albarán desde la API (JSON)
-     * @param {Boolean} isCloning - Si es true, limpia IDs y campos de cobro.
+     * @param {Boolean} isCloning - Si es true, limpia identificadores y campos de cobro.
      */
     populateForm(data, isCloning = false) {
         if (!data) return;
         const form = document.getElementById('albaranForm');
         if (!form) {
-            console.error("❌ [LOADER] No se encontró el elemento #albaranForm");
+            console.error("❌ [LOADER] No se encontró el contenedor #albaranForm");
             return;
         }
 
-        console.log("🚀 [LOADER] Procesando datos del albarán:", data.numero_albaran);
+        console.log("%c🚀 [LOADER] Iniciando mapeo de datos...", "color: #FF8C00; font-weight: bold;");
 
-        // 1. Mapeo Automático General (Busca por name o id)
+        // 1. MAPEADO AUTOMÁTICO GENERAL (Busca por atributo 'name' o por 'id')
         Object.keys(data).forEach(key => {
-            // Regla de exclusión para clonación
             if (isCloning && ['id', 'ID', 'created_at', 'updated_at', 'num_factura', 'fecha_cobro', 'fecha_pago'].includes(key)) {
                 return;
             }
 
             const el = form.querySelector(`[name="${key}"]`) || document.getElementById(key);
-
             if (el) {
-                const value = data[key];
-
-                if (el.type === 'checkbox') {
-                    el.checked = Boolean(value);
-                } 
-                else if (el.type === 'date') {
-                    el.value = value ? value.substring(0, 10) : '';
-                } 
-                else if (el.type === 'time') {
-                    el.value = this.formatTime(value);
-                } 
-                else {
-                    // Manejo de valores null (común en punteros de Go como Referencia)
-                    el.value = (value === null || value === undefined) ? '' : value;
-                }
+                this.assignValue(el, data[key]);
             }
         });
 
-        // 2. Mapeo Específico (Sincronización Model Go -> HTML ID)
-        // Aquí corregimos los campos que no coinciden exactamente
+        // 2. MAPEADO ESPECÍFICO (Corrección de discrepancias DB vs HTML)
+        // ✅ AQUÍ ESTÁ EL TRUCO: 'cliente' (SQL) -> 'nombre_pasajero' (HTML)
         const specialMapping = {
-            'cliente': 'nombre_pasajero',   // JSON: cliente -> HTML: nombre_pasajero
-            'empresa_ref': 'empresa',       // JSON: empresa_ref -> HTML: empresa (select)
-            'licencia_ref': 'licencia_ref', // JSON: licencia_ref -> HTML: licencia_ref
-            'referencia': 'referencia'      // JSON: referencia -> HTML: referencia
+            'cliente': 'nombre_pasajero',   // Pedro Picapiedra
+            'empresa_ref': 'empresa',       // ID numérico
+            'licencia_ref': 'licencia',     // ID numérico
+            'referencia': 'referencia'      // Texto Ref
         };
 
+        console.log("%c🔍 [LOADER] Aplicando mapeos especiales...", "color: #3B82F6;");
+
         Object.entries(specialMapping).forEach(([jsonKey, htmlId]) => {
-            const el = document.getElementById(htmlId);
+            const el = document.getElementById(htmlId) || form.querySelector(`[name="${htmlId}"]`);
             if (el) {
                 const val = data[jsonKey];
-                el.value = (val === null || val === undefined) ? '' : val;
+                console.log(`   🔗 Mapeando: ${jsonKey} ("${val}") -> #${htmlId}`);
+                this.assignValue(el, val);
                 
-                // IMPORTANTE: Disparar evento 'change' para que los selects se actualicen
+                // Disparar evento change por si hay lógica dependiente
                 el.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+                console.warn(`   ⚠️ No se encontró el elemento HTML #${htmlId} para la clave ${jsonKey}`);
             }
         });
 
-        // 3. Lógica visual de cabecera
+        // 3. Ajuste de cabecera visual
         const headerNum = document.getElementById('header_num');
         if (headerNum) {
             headerNum.textContent = isCloning ? `COPIA DE #${data.numero_albaran}` : `#${data.numero_albaran}`;
         }
 
-        // 4. Desbloqueo si es modo clonación o edición
-        if (isCloning) {
-            this.unlockFieldsForCloning(form);
+        if (isCloning) this.unlockFieldsForCloning(form);
+        
+        console.log("%c✅ [LOADER] Proceso finalizado.", "color: #10B981; font-weight: bold;");
+    },
+
+    /**
+     * Asigna valores inteligentemente según el tipo de elemento
+     */
+    assignValue(el, value) {
+        const finalValue = (value === null || value === undefined) ? '' : value;
+
+        // Caso A: Elementos de Formulario (INPUT, SELECT, TEXTAREA)
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) {
+            if (el.type === 'checkbox') {
+                el.checked = Boolean(value);
+            } else if (el.type === 'date') {
+                el.value = finalValue ? String(finalValue).substring(0, 10) : '';
+            } else if (el.type === 'time') {
+                el.value = this.formatTime(finalValue);
+            } else {
+                el.value = finalValue;
+            }
+        } 
+        // Caso B: Elementos de Visualización (DIV, SPAN, P, TD)
+        else {
+            el.textContent = finalValue;
+            // Si el campo estaba vacío, poner un guion para que no se rompa el diseño
+            if (finalValue === '') el.innerHTML = '<span class="text-gray-300">-</span>';
         }
     },
 
     unlockFieldsForCloning(form) {
-        const toUnlock = ['licencia_ref', 'numero_albaran', 'n_albaran', 'referencia', 'empresa'];
+        const toUnlock = ['licencia', 'numero_albaran', 'referencia', 'empresa'];
         toUnlock.forEach(id => {
             const field = document.getElementById(id) || form.querySelector(`[name="${id}"]`);
             if (field) {
                 field.readOnly = false;
                 field.disabled = false;
-                field.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                field.classList.remove('bg-gray-100', 'cursor-not-allowed', 'opacity-70');
                 if (id.includes('albaran')) field.value = "COPY-" + (field.value || "");
             }
         });

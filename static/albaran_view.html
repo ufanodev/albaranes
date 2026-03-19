@@ -2,10 +2,9 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
-    <title>Vista Albarán - Panel Titular [DEBUG]</title>
+    <title>Vista Albarán - Panel Titular</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Comentado temporalmente para debug -->
-    <!-- <script src="/js/security.js"></script> -->
+    <script src="/js/security.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         tailwind.config = {
@@ -22,8 +21,8 @@
             body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
             .view-field { @apply w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl shadow-inner text-gray-800 text-sm font-bold flex items-center min-h-[38px]; }
             .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; }
-            .checkbox-inline { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 opacity-70 h-full; }
-            .view-dark { @apply bg-transparent border-none text-right font-black text-primary-link p-0 text-4xl; }
+            .checkbox-inline { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 h-full; }
+            .view-dark { @apply bg-transparent border-none text-right font-black text-primary-link p-0 text-4xl flex items-center justify-end; }
         }
     </style>
 </head>
@@ -34,7 +33,7 @@
 
         <div class="bg-gradient-to-r from-slate-700 to-slate-900 p-6 flex justify-between items-center border-b border-slate-800">
             <h1 class="text-2xl font-black text-white flex items-center uppercase">
-                <i data-lucide="eye" class="mr-3 text-primary-link"></i> DETALLE ALBARÁN
+                <i data-lucide="eye" class="mr-3 text-primary-link"></i> DETALLE ALBARÁN <span id="header_num" class="ml-3 text-primary-link opacity-50 text-lg"></span>
             </h1>
             <button onclick="window.history.back()"
                 class="bg-white/10 text-white px-5 py-2 rounded-xl font-bold hover:bg-white/20 transition flex items-center shadow-lg text-sm backdrop-blur-md">
@@ -44,13 +43,13 @@
 
         <div id="albaranForm" class="p-6 md:p-10 space-y-8">
             
-            <p id="loadingIndicator" class="text-center font-bold text-primary-link animate-pulse uppercase text-xs">Cargando información...</p>
+            <p id="loadingIndicator" class="text-center font-bold text-primary-link animate-pulse uppercase text-xs">Recuperando datos del servidor...</p>
 
             <div class="space-y-4">
                 <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">1. Identificación del Servicio</h2>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                     <div class="md:col-span-1">
-                        <label class="label-style">Lic. Ref</label>
+                        <label class="label-style">Licencia</label>
                         <div id="licencia" class="view-field bg-slate-200 justify-center"></div>
                     </div>
                     <div class="md:col-span-2">
@@ -80,13 +79,12 @@
                 <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">2. Cliente y Pasajero</h2>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-3">
-                        <label class="label-style">Empresa Ref</label>
+                        <label class="label-style">Empresa</label>
                         <div id="empresa_nombre" class="view-field uppercase"></div>
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Nombre Pasajero</label>
-                        <div id="nombre_pasajero" class="view-field"></div>
-                    </div>
+                        <div id="cliente" class="view-field"></div> </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Teléfono</label>
                         <div id="tlf_pasajero" class="view-field"></div>
@@ -137,22 +135,22 @@
                 <div class="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="checkbox-inline">
-                            <input type="checkbox" id="urbano" disabled class="w-4 h-4 text-orange-500">
+                            <input type="checkbox" name="urbano" id="urbano" disabled class="w-4 h-4 text-orange-500">
                             <span class="text-[10px] font-black uppercase ml-2">Servicio Urbano</span>
                         </div>
                         <div class="checkbox-inline">
-                            <input type="checkbox" id="diurno" disabled class="w-4 h-4 text-blue-500">
+                            <input type="checkbox" name="diurno" id="diurno" disabled class="w-4 h-4 text-blue-500">
                             <span class="text-[10px] font-black uppercase ml-2">Servicio Diurno</span>
                         </div>
                         <div class="checkbox-inline">
-                            <input type="checkbox" id="noct_fest" disabled class="w-4 h-4 text-purple-600">
+                            <input type="checkbox" name="noct_fest" id="noct_fest" disabled class="w-4 h-4 text-purple-600">
                             <span class="text-[10px] font-black uppercase ml-2">Nocturno / Festivo</span>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                         <div>
                             <label class="label-style text-primary-link font-black">Kms Totales</label>
-                            <div id="km_totales" class="view-field bg-white border-primary-link font-black justify-end"></div>
+                            <div id="km_totales" class="view-field bg-white border-primary-link font-black justify-end text-lg"></div>
                         </div>
                         <div>
                             <label class="label-style text-slate-500">Kms Nacionales</label>
@@ -177,11 +175,11 @@
                                 <div id="importe_suplidos" class="view-field font-bold border-orange-100"></div>
                             </div>
                             <div class="md:col-span-5">
-                                <label class="label-style">Autorizado Por y Adjuntos</label>
+                                <label class="label-style">Autorizado Por</label>
                                 <div id="autorizado_por" class="view-field uppercase font-bold"></div>
                             </div>
                             <div class="md:col-span-5">
-                                <label class="label-style text-primary-link font-black">Nombre Conductor / Asalariado</label>
+                                <label class="label-style text-primary-link font-black">Conductor / Asalariado</label>
                                 <div id="asalariado" class="view-field font-bold border-orange-200 uppercase"></div>
                             </div>
                         </div>
@@ -189,7 +187,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                             <div class="md:col-span-3">
                                 <div class="checkbox-inline w-full">
-                                    <input type="checkbox" id="remolque" disabled class="w-4 h-4 text-orange-600">
+                                    <input type="checkbox" name="remolque" id="remolque" disabled class="w-4 h-4 text-orange-600">
                                     <span class="text-[9px] font-black uppercase ml-2">Remolque</span>
                                 </div>
                             </div>
@@ -199,7 +197,7 @@
                             </div>
                             <div class="md:col-span-2">
                                 <div class="checkbox-inline w-full border-blue-200 bg-blue-50">
-                                    <input type="checkbox" id="adjuntos_bool" disabled class="w-4 h-4 text-blue-600">
+                                    <input type="checkbox" name="adjuntos" id="adjuntos" disabled class="w-4 h-4 text-blue-600">
                                     <span class="text-[9px] font-black uppercase ml-2">Adjuntos</span>
                                 </div>
                             </div>
@@ -220,7 +218,7 @@
                             <label class="text-[11px] font-black text-white uppercase tracking-tighter text-center mb-2">Importe Total</label>
                             <div class="flex items-center justify-center">
                                 <span class="text-2xl font-black text-white mr-2">€</span>
-                                <div id="importe_total" class="view-dark"></div>
+                                <div id="importe_total" class="view-dark text-4xl"></div>
                             </div>
                         </div>
                     </div>
@@ -231,25 +229,12 @@
         </div>
     </div>
 
-    <!-- Script de debugging inline para verificar la carga -->
+    <script src="/js/albaran_cargar.js"></script>
+    <script src="/js/albaran_view.js" defer></script>
     <script>
-        console.log("🔧 [DEBUG] Script inline ejecutándose...");
-        console.log("🔧 [DEBUG] DOMContentLoaded ya disparado:", document.readyState);
-        
-        // Verificar que los elementos existan
-        window.addEventListener('load', () => {
-            console.log("🔧 [DEBUG] Window load event disparado");
-            const testElements = ['licencia', 'numero_albaran', 'importe_total'];
-            testElements.forEach(id => {
-                const el = document.getElementById(id);
-                console.log(`🔧 [DEBUG] Elemento '${id}':`, el ? 'ENCONTRADO' : 'NO ENCONTRADO');
-            });
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
         });
     </script>
-    
-    <!-- El script principal DEBE ir después del HTML -->
-    <script src="/js/albaran_view.js" defer></script>
-    
-    <script>lucide.createIcons();</script>
 </body>
 </html>
