@@ -1,30 +1,51 @@
 /**
  * ARCHIVO: static/js/albaran_cargar.js
  * FUNCIÓN: Motor universal para llenar formularios y vistas de albaranes.
- * ACTUALIZADO: 19/03/2026 - FIX: Mapeo Cliente -> Nombre Pasajero con Logs de Auditoría.
+ * ACTUALIZADO: 19/03/2026 - FIX: Formato Europeo (DD-MM-YYYY HH:mm) y Mapeo de Cliente.
  */
 
 const AlbaranLoader = {
-    // Formateador de tiempo para elementos visuales o inputs (HH:mm)
+    /**
+     * Formatea una fecha ISO (2026-03-19...) a estándar europeo DD-MM-YYYY
+     */
+    formatEuropeanDate(isoValue) {
+        if (!isoValue) return "-";
+        try {
+            const date = new Date(isoValue);
+            if (isNaN(date.getTime())) return isoValue;
+            
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            
+            return `${day}-${month}-${year}`;
+        } catch (e) { return "-"; }
+    },
+
+    /**
+     * Formatea una hora ISO a HH:mm (24h) limpia
+     */
     formatTime(isoValue) {
-        if (!isoValue) return "";
+        if (!isoValue) return "--:--";
+        // Si ya viene formateado como "HH:mm" (5 caracteres)
         if (typeof isoValue === 'string' && isoValue.length === 5 && isoValue.includes(':')) {
             return isoValue;
         }
         try {
+            // Si es un objeto Date o string ISO
             const date = new Date(isoValue);
-            if (isNaN(date.getTime())) return "";
+            if (isNaN(date.getTime())) return "--:--";
             return date.toLocaleTimeString('es-ES', { 
                 hour: '2-digit', 
                 minute: '2-digit', 
                 hour12: false 
             });
-        } catch (e) { return ""; }
+        } catch (e) { return "--:--"; }
     },
 
     /**
      * @param {Object} data - Datos del albarán desde la API (JSON)
-     * @param {Boolean} isCloning - Si es true, limpia identificadores y campos de cobro.
+     * @param {Boolean} isCloning - Si es true, limpia IDs y campos administrativos.
      */
     populateForm(data, isCloning = false) {
         if (!data) return;
@@ -34,9 +55,9 @@ const AlbaranLoader = {
             return;
         }
 
-        console.log("%c🚀 [LOADER] Iniciando mapeo de datos...", "color: #FF8C00; font-weight: bold;");
+        console.log("%c🚀 [LOADER] Cargando datos con formato europeo...", "color: #FF8C00; font-weight: bold;");
 
-        // 1. MAPEADO AUTOMÁTICO GENERAL (Busca por atributo 'name' o por 'id')
+        // 1. MAPEADO AUTOMÁTICO GENERAL (Busca por name o id)
         Object.keys(data).forEach(key => {
             if (isCloning && ['id', 'ID', 'created_at', 'updated_at', 'num_factura', 'fecha_cobro', 'fecha_pago'].includes(key)) {
                 return;
@@ -44,57 +65,55 @@ const AlbaranLoader = {
 
             const el = form.querySelector(`[name="${key}"]`) || document.getElementById(key);
             if (el) {
-                this.assignValue(el, data[key]);
+                this.assignValue(el, data[key], key);
             }
         });
 
-        // 2. MAPEADO ESPECÍFICO (Corrección de discrepancias DB vs HTML)
-        // ✅ AQUÍ ESTÁ EL TRUCO: 'cliente' (SQL) -> 'nombre_pasajero' (HTML)
+        // 2. MAPEADO ESPECÍFICO (Corrección de nombres DB vs HTML)
         const specialMapping = {
             'cliente': 'nombre_pasajero',   // Pedro Picapiedra
-            'empresa_ref': 'empresa',       // ID numérico
-            'licencia_ref': 'licencia',     // ID numérico
-            'referencia': 'referencia'      // Texto Ref
+            'empresa_ref': 'empresa',       
+            'licencia_ref': 'licencia',     
+            'referencia': 'referencia'      
         };
-
-        console.log("%c🔍 [LOADER] Aplicando mapeos especiales...", "color: #3B82F6;");
 
         Object.entries(specialMapping).forEach(([jsonKey, htmlId]) => {
             const el = document.getElementById(htmlId) || form.querySelector(`[name="${htmlId}"]`);
             if (el) {
                 const val = data[jsonKey];
-                console.log(`   🔗 Mapeando: ${jsonKey} ("${val}") -> #${htmlId}`);
-                this.assignValue(el, val);
-                
-                // Disparar evento change por si hay lógica dependiente
+                this.assignValue(el, val, jsonKey);
+                // Notificar cambio para disparar validaciones o plugins
                 el.dispatchEvent(new Event('change', { bubbles: true }));
-            } else {
-                console.warn(`   ⚠️ No se encontró el elemento HTML #${htmlId} para la clave ${jsonKey}`);
             }
         });
 
-        // 3. Ajuste de cabecera visual
+        // 3. Ajuste visual de la cabecera
         const headerNum = document.getElementById('header_num');
         if (headerNum) {
             headerNum.textContent = isCloning ? `COPIA DE #${data.numero_albaran}` : `#${data.numero_albaran}`;
         }
 
         if (isCloning) this.unlockFieldsForCloning(form);
-        
-        console.log("%c✅ [LOADER] Proceso finalizado.", "color: #10B981; font-weight: bold;");
+        console.log("%c✅ [LOADER] Mapeo completado con éxito.", "color: #10B981; font-weight: bold;");
     },
 
     /**
-     * Asigna valores inteligentemente según el tipo de elemento
+     * Inyecta el valor en el elemento detectando el tipo de campo
      */
-    assignValue(el, value) {
+    assignValue(el, value, key) {
         const finalValue = (value === null || value === undefined) ? '' : value;
+        const isInput = ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName);
 
-        // Caso A: Elementos de Formulario (INPUT, SELECT, TEXTAREA)
-        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) {
+        // Identificar si el campo es de tipo Fecha u Hora por su nombre
+        const isDateField = key.toLowerCase().includes('fecha');
+        const isTimeField = key.toLowerCase().includes('hora') || key.toLowerCase().includes('espera_');
+
+        if (isInput) {
+            // --- LÓGICA PARA EDICIÓN (FORMULARIOS) ---
             if (el.type === 'checkbox') {
                 el.checked = Boolean(value);
             } else if (el.type === 'date') {
+                // El navegador requiere YYYY-MM-DD para el calendario
                 el.value = finalValue ? String(finalValue).substring(0, 10) : '';
             } else if (el.type === 'time') {
                 el.value = this.formatTime(finalValue);
@@ -102,14 +121,26 @@ const AlbaranLoader = {
                 el.value = finalValue;
             }
         } 
-        // Caso B: Elementos de Visualización (DIV, SPAN, P, TD)
         else {
-            el.textContent = finalValue;
-            // Si el campo estaba vacío, poner un guion para que no se rompa el diseño
-            if (finalValue === '') el.innerHTML = '<span class="text-gray-300">-</span>';
+            // --- LÓGICA PARA VISTA (DIV / SPAN) ---
+            if (isDateField && finalValue) {
+                el.textContent = this.formatEuropeanDate(finalValue);
+            } else if (isTimeField && finalValue) {
+                el.textContent = this.formatTime(finalValue);
+            } else {
+                el.textContent = finalValue;
+            }
+            
+            // Si el campo está vacío, ponemos un guion elegante
+            if (finalValue === '' || finalValue === null) {
+                el.innerHTML = '<span class="text-gray-300">-</span>';
+            }
         }
     },
 
+    /**
+     * Habilita campos bloqueados cuando se clona un registro
+     */
     unlockFieldsForCloning(form) {
         const toUnlock = ['licencia', 'numero_albaran', 'referencia', 'empresa'];
         toUnlock.forEach(id => {
@@ -124,6 +155,6 @@ const AlbaranLoader = {
     }
 };
 
-// Exposición global
+// Exportación global para que otros scripts lo vean
 window.AlbaranLoader = AlbaranLoader;
 window.populateForm = AlbaranLoader.populateForm.bind(AlbaranLoader);

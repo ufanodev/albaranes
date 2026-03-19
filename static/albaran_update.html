@@ -6,7 +6,6 @@
     <title>Editar Albarán - Panel Titular</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
-    <script src="/js/albaran_update.js" defer></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         tailwind.config = {
@@ -36,15 +35,16 @@
 
         <div class="bg-gradient-to-r from-slate-700 to-slate-900 p-6 flex justify-between items-center border-b border-slate-800">
             <h1 class="text-2xl font-black text-white flex items-center">
-                <i data-lucide="file-edit" class="mr-3 text-primary-link"></i> ACTUALIZAR ALBARÁN
+                <i data-lucide="file-edit" class="mr-3 text-primary-link"></i> ACTUALIZAR ALBARÁN 
+                <span id="header_num" class="ml-4 text-primary-link/50 text-lg italic"></span>
             </h1>
-            <button onclick="window.location.href='/titulares'"
+            <button onclick="window.history.back()"
                 class="bg-white/10 text-white px-5 py-2 rounded-xl font-bold hover:bg-white/20 transition flex items-center shadow-lg text-sm backdrop-blur-md">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> CANCELAR
             </button>
         </div>
 
-        <form id="albaranForm" class="p-6 md:p-10 space-y-8" onsubmit="handleAction('update', event)">
+        <form id="albaranForm" class="p-6 md:p-10 space-y-8">
             
             <input type="hidden" name="id" id="albaran_id">
 
@@ -52,19 +52,16 @@
                 <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">1. Identificación del Servicio</h2>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                     <div class="md:col-span-1">
-                        <label class="label-style">Lic. Ref</label>
-                        <input type="text" id="licencia" name="licencia_ref" readonly
-                            class="input-field bg-slate-200 cursor-not-allowed font-bold text-center p-1">
+                        <label class="label-style">Licencia</label>
+                        <input type="text" id="licencia" name="licencia" readonly class="input-field bg-slate-200 cursor-not-allowed font-bold text-center p-1">
                     </div>
                     <div class="md:col-span-2">
-                        <label class="label-style">Nº Albarán *</label>
-                        <input type="text" name="numero_albaran" id="n_albaran" required readonly
-                            class="input-field bg-slate-100 font-black text-slate-500 uppercase cursor-not-allowed" placeholder="Ej: 033-001">
+                        <label class="label-style">Nº Albarán</label>
+                        <input type="text" name="numero_albaran" id="numero_albaran" readonly class="input-field bg-slate-100 font-black text-slate-500 uppercase cursor-not-allowed">
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Referencia / Expediente *</label>
-                        <input type="text" name="referencia" id="referencia" required
-                            class="input-field font-bold uppercase" placeholder="Ej: REF-999888">
+                        <input type="text" name="referencia" id="referencia" required class="input-field font-bold uppercase" placeholder="Ej: REF-12345">
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Fecha *</label>
@@ -85,24 +82,24 @@
                 <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">2. Cliente y Pasajero</h2>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-3">
-                        <label class="label-style">Empresa Ref *</label>
+                        <label class="label-style">Empresa *</label>
                         <select id="empresa" name="empresa_ref" required class="input-field font-semibold"></select>
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Nombre Pasajero</label>
-                        <input type="text" name="nombre_pasajero" id="nombre_pasajero" class="input-field" placeholder="Nombre completo">
+                        <input type="text" name="nombre_pasajero" id="nombre_pasajero" class="input-field" placeholder="Nombre del cliente">
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Teléfono</label>
-                        <input type="text" name="tlf_pasajero" id="tlf_pasajero" class="input-field" placeholder="Móvil">
+                        <input type="text" name="tlf_pasajero" id="tlf_pasajero" class="input-field">
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style">DNI Pasajero</label>
-                        <input type="text" name="dni_pasajero" id="dni_pasajero" class="input-field uppercase" placeholder="DNI/NIE">
+                        <input type="text" name="dni_pasajero" id="dni_pasajero" class="input-field uppercase">
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Matrícula</label>
-                        <input type="text" name="matricula" id="matricula" maxlength="15" class="input-field font-bold uppercase" placeholder="Placa">
+                        <input type="text" name="matricula" id="matricula" maxlength="15" class="input-field font-bold uppercase">
                     </div>
                 </div>
             </div>
@@ -112,19 +109,19 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-4">
                         <label class="label-style">Origen *</label>
-                        <input type="text" name="origen" id="origen" required class="input-field" placeholder="Lugar de recogida">
+                        <input type="text" name="origen" id="origen" required class="input-field">
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Parada / Vía</label>
-                        <input type="text" name="parada" id="parada" class="input-field" placeholder="Punto intermedio">
+                        <input type="text" name="parada" id="parada" class="input-field">
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Destino *</label>
-                        <input type="text" name="destino" id="destino" required class="input-field" placeholder="Lugar de llegada">
+                        <input type="text" name="destino" id="destino" required class="input-field">
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Espera Total (Decimal)</label>
-                        <input type="number" step="0.01" name="hora_total" id="hora_total" class="input-field font-bold text-orange-600" placeholder="0.00">
+                        <input type="number" step="0.01" name="hora_total" id="hora_total" class="input-field font-bold text-orange-600" value="0.00">
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Espera Inicio</label>
@@ -157,16 +154,15 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                         <div>
                             <label class="label-style text-primary-link font-black">Kms Totales *</label>
-                            <input type="number" step="0.01" name="km_totales" id="km_totales" required
-                                class="input-field bg-white border-primary-link font-black text-right" placeholder="0.00">
+                            <input type="number" step="0.01" name="km_totales" id="km_totales" required class="input-field bg-white border-primary-link font-black text-right">
                         </div>
                         <div>
                             <label class="label-style text-slate-500">Kms Nacionales</label>
-                            <input type="number" step="0.01" name="km_nacionales" id="km_nacionales" class="input-field" placeholder="0.00">
+                            <input type="number" step="0.01" name="km_nacionales" id="km_nacionales" class="input-field" value="0.00">
                         </div>
                         <div>
                             <label class="label-style text-slate-500">Kms Internacionales</label>
-                            <input type="number" step="0.01" name="km_internacionales" id="km_internacionales" class="input-field" placeholder="0.00">
+                            <input type="number" step="0.01" name="km_internacionales" id="km_internacionales" class="input-field" value="0.00">
                         </div>
                     </div>
                 </div>
@@ -180,19 +176,15 @@
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                             <div class="md:col-span-2">
                                 <label class="label-style text-orange-600">Suplidos (€)</label>
-                                <input type="number" step="0.01" name="importe_suplidos" id="importe_suplidos"
-                                    class="input-field font-bold border-orange-100" value="0.00">
+                                <input type="number" step="0.01" name="importe_suplidos" id="importe_suplidos" class="input-field font-bold border-orange-100" value="0.00">
                             </div>
                             <div class="md:col-span-5">
-                                <label class="label-style">Autorizado Por y Adjuntos</label>
-                                <input type="text" name="autorizado_por" id="autorizado_por" class="input-field uppercase font-bold"
-                                    placeholder="NOMBRE DE QUIEN AUTORIZA">
+                                <label class="label-style">Autorizado Por</label>
+                                <input type="text" name="autorizado_por" id="autorizado_por" class="input-field uppercase font-bold">
                             </div>
                             <div class="md:col-span-5">
-                                <label class="label-style text-primary-link font-black">Nombre Conductor / Asalariado</label>
-                                <input type="text" name="asalariado" id="asalariado"
-                                    class="input-field font-bold border-orange-200 uppercase"
-                                    placeholder="NOMBRE DEL CONDUCTOR">
+                                <label class="label-style text-primary-link font-black">Conductor / Asalariado</label>
+                                <input type="text" name="asalariado" id="asalariado" class="input-field font-bold border-orange-200 uppercase">
                             </div>
                         </div>
 
@@ -215,22 +207,19 @@
                             </div>
                             <div class="md:col-span-2">
                                 <label class="checkbox-inline w-full border-blue-200 bg-blue-50">
-                                    <input type="checkbox" name="adjuntos_bool" id="adjuntos_bool" class="w-4 h-4 text-blue-600">
+                                    <input type="checkbox" name="adjuntos" id="adjuntos_bool" class="w-4 h-4 text-blue-600">
                                     <span class="text-[9px] font-black uppercase ml-2">Adjuntos</span>
                                 </label>
                             </div>
                             <div class="md:col-span-4">
                                 <label class="label-style">Referencia / Nº Adjuntos</label>
-                                <input type="text" name="adjuntos" id="adjuntos_ref"
-                                    class="input-field font-bold border-blue-100" placeholder="Ej: 3 tickets">
+                                <input type="text" name="adjuntos_ref" id="adjuntos_ref" class="input-field font-bold border-blue-100">
                             </div>
                         </div>
 
                         <div>
-                            <label class="label-style tracking-widest text-slate-500 mb-1 block uppercase">Observaciones</label>
-                            <textarea name="observaciones" id="observaciones" rows="3"
-                                class="input-field italic w-full resize-none p-4"
-                                placeholder="Desglose detallado del servicio..."></textarea>
+                            <label class="label-style">Observaciones</label>
+                            <textarea name="observaciones" id="observaciones" rows="3" class="input-field italic w-full resize-none p-4" placeholder="Notas adicionales..."></textarea>
                         </div>
                     </div>
 
@@ -239,14 +228,8 @@
                             <label class="text-[11px] font-black text-white uppercase tracking-tighter text-center mb-2">Importe Total *</label>
                             <div class="flex items-center justify-center">
                                 <span class="text-2xl font-black text-white mr-2">€</span>
-                                <input type="number" step="0.01" id="importe_total" name="importe_total" required
-                                    class="input-dark text-4xl w-full text-center" placeholder="0.00">
+                                <input type="number" step="0.01" id="importe_total" name="importe_total" required class="input-dark text-4xl w-full text-center" placeholder="0.00">
                             </div>
-                        </div>
-                        <div class="bg-slate-800/50 p-3 rounded-xl text-center">
-                            <p class="text-[8px] text-slate-400 font-bold italic uppercase leading-tight">
-                                * Debe incluir el total facturable al cliente.
-                            </p>
                         </div>
                     </div>
                 </div>
@@ -255,14 +238,15 @@
             <div class="flex flex-col items-center pt-8 border-t border-slate-100">
                 <button type="submit"
                     class="bg-slate-800 text-white font-black py-5 px-24 rounded-2xl shadow-2xl hover:bg-primary-link transform transition-all hover:scale-105 active:scale-95 flex items-center gap-4 text-xl uppercase tracking-[0.2em]">
-                    <i data-lucide="refresh-cw" class="w-7 h-7"></i> ACTUALIZAR DATOS
+                    <i data-lucide="save" class="w-7 h-7"></i> GUARDAR CAMBIOS
                 </button>
                 <div id="statusMessage" class="hidden mt-6 p-4 rounded-xl text-center font-bold w-full max-w-md border-2"></div>
             </div>
         </form>
     </div>
 
-    <script>lucide.createIcons();</script>
+    <script src="/js/albaran_cargar.js"></script>
+    <script src="/js/albaran_update.js" defer></script>
 </body>
 
 </html>
