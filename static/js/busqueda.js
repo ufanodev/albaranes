@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/busqueda.js
  * DESCRIPCIÓN: Lógica completa de búsqueda, paginación y exportación.
- * FIX: Carga inicial forzada en orden DESCENDENTE por fecha.
+ * FIX: Visualización de Empresa y Referencia + Orden Descendente.
  */
 
 const APP = {
@@ -28,7 +28,6 @@ const APP = {
         totalPages: 1,        
         userLicenciaId: null,
         userLicenciaNumero: null,
-        // ✅ FIX: Forzamos el estado inicial a fecha DESC
         currentSort: { key: 'fecha', direction: 'desc' },
         searchMode: 'campos' 
     }
@@ -41,8 +40,9 @@ const UI = {
     formatDate(isoString) { return isoString ? isoString.substring(0, 10) : '-'; },
 
     setSearchModeManual(mode) {
-        console.log(`%c[AUDITORÍA] Cambio de modo: ${mode}`, "color: #FF8C00; font-weight: bold;");
+        console.log(`%c[BUSCADOR] Modo: ${mode}`, "color: #3B82F6; font-weight: bold;");
         APP.state.searchMode = mode;
+        
         const btnCampos = document.getElementById('btn-mode-campos');
         const btnPalabra = document.getElementById('btn-mode-palabra');
         const palabraSection = document.getElementById('palabraSection');
@@ -62,7 +62,6 @@ const UI = {
             }
             if(searchForm) searchForm.classList.add('hidden');
         }
-        API.searchAlbaranes();
     },
 
     updatePageInfo() {
@@ -89,10 +88,10 @@ const UI = {
             if (icon) {
                 if (k === key) {
                     icon.setAttribute('data-lucide', direction === 'asc' ? 'chevron-up' : 'chevron-down');
-                    icon.className = "w-3 h-3 ml-1 text-primary-link opacity-100 transition-all";
+                    icon.className = "w-3 h-3 ml-1 text-primary-link opacity-100";
                 } else {
                     icon.setAttribute('data-lucide', 'chevrons-up-down');
-                    icon.className = "w-3 h-3 ml-1 text-gray-400 opacity-30 group-hover:opacity-100 transition-all";
+                    icon.className = "w-3 h-3 ml-1 text-gray-400 opacity-30 group-hover:opacity-100";
                 }
             }
         });
@@ -106,7 +105,7 @@ const UI = {
 const API = {
     async fetchMyLicencia() {
         try {
-            const response = await fetch('/api/v1/user/licencia_info');
+            const response = await fetch('/api/v1/user/licencia_info', { credentials: 'include' });
             const data = await response.json();
             if (data && data.licencia_id !== undefined) {
                 APP.state.userLicenciaId = data.licencia_id;
@@ -122,7 +121,7 @@ const API = {
 
     async loadEmpresas() {
         try {
-            const r = await fetch('/api/v1/empresas');
+            const r = await fetch('/api/v1/empresas', { credentials: 'include' });
             const d = await r.json();
             const list = d.data || d;
             if(APP.elements.empresaSelect && Array.isArray(list)) {
@@ -141,8 +140,6 @@ const API = {
         
         const params = new URLSearchParams();
         params.append('licencia_ref', APP.state.userLicenciaId);
-        params.append('page', APP.state.currentPage);
-        params.append('pageSize', APP.state.pageSize);
         
         if (APP.state.searchMode === 'campos') {
             const empresa = document.getElementById('empresa').value;
@@ -169,16 +166,14 @@ const API = {
 
         try {
             const url = `/api/v1/albaranes/search-user?${params.toString()}`;
-            const response = await fetch(url);
+            const response = await fetch(url, { credentials: 'include' });
             const res = await response.json();
             
             APP.state.filteredAlbaranes = res.data || [];
             APP.state.totalRecords = res.total || 0;
             
-            // ✅ APLICAR ORDENACIÓN INMEDIATAMENTE
             this.applyLocalSort();
             DOM.renderResults();
-            UI.updatePageInfo();
         } catch (e) { 
             console.error("❌ Error en búsqueda:", e);
             DOM.showNoResults(); 
@@ -187,8 +182,6 @@ const API = {
 
     applyLocalSort() {
         const { key, direction } = APP.state.currentSort;
-        console.log(`📊 [ORDENACIÓN] Aplicando: ${key} | ${direction}`);
-        
         APP.state.filteredAlbaranes.sort((a, b) => {
             let valA, valB;
             switch(key) {
@@ -201,8 +194,13 @@ const API = {
                     valB = parseFloat(b.importe_total || 0);
                     break;
                 case 'empresa':
-                    valA = (a.empresa_nombre || '').toLowerCase();
-                    valB = (b.empresa_nombre || '').toLowerCase();
+                    // Prioridad: nombre desnormalizado > objeto empresa_data > guion
+                    valA = (a.empresa_nombre || (a.empresa_data ? a.empresa_data.nombre : '')).toLowerCase();
+                    valB = (b.empresa_nombre || (b.empresa_data ? b.empresa_data.nombre : '')).toLowerCase();
+                    break;
+                case 'referencia':
+                    valA = (a.referencia || '').toLowerCase();
+                    valB = (b.referencia || '').toLowerCase();
                     break;
                 default:
                     valA = (a[key] || '').toString().toLowerCase();
@@ -220,28 +218,38 @@ const API = {
 // =================================================================================
 const DOM = {
     showLoading() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Consultando...</td></tr>'; 
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Consultando albaranes...</td></tr>'; 
     },
     showNoResults() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No hay resultados que coincidan.</td></tr>'; 
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No se encontraron resultados.</td></tr>'; 
     },
     
     renderResults() {
         if (!APP.elements.resultsBody) return;
         APP.elements.resultsBody.innerHTML = '';
-        if (APP.state.filteredAlbaranes.length === 0) { this.showNoResults(); return; }
+        
+        if (APP.state.filteredAlbaranes.length === 0) { 
+            this.showNoResults(); 
+            if(APP.elements.tableFooter) APP.elements.tableFooter.classList.add('hidden');
+            return; 
+        }
 
         let sumatorio = 0;
         APP.state.filteredAlbaranes.forEach(a => {
             const importe = parseFloat(a.importe_total || 0);
             sumatorio += importe;
+
+            // ✅ LOGICA DE EXTRACCION DE DATOS CORREGIDA
+            const nombreEmpresa = a.empresa_nombre || (a.empresa_data ? a.empresa_data.nombre : '---');
+            const valorReferencia = a.referencia || '---';
+
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm group';
             tr.innerHTML = `
                 <td class="px-4 py-4 font-black text-gray-900">${a.numero_albaran || 'N/A'}</td>
                 <td class="px-4 py-4 text-gray-500 font-bold">${UI.formatDate(a.fecha)}</td>
-                <td class="px-4 py-4 font-medium text-gray-700 uppercase">${a.empresa_nombre || '-'}</td>
-                <td class="px-4 py-4 text-gray-400 italic text-xs uppercase">${a.referencia || '-'}</td>
+                <td class="px-4 py-4 font-medium text-gray-700 uppercase">${nombreEmpresa}</td>
+                <td class="px-4 py-4 text-gray-400 italic text-xs uppercase">${valorReferencia}</td>
                 <td class="px-4 py-4 text-gray-600 font-medium uppercase">${a.asalariado || 'TITULAR'}</td>
                 <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${importe.toFixed(2)}</td>
                 <td class="px-4 py-4 text-center">${this.getBadge(a)}</td>
@@ -270,7 +278,6 @@ const DOM = {
 // =================================================================================
 // 🚀 EVENTOS GLOBALES
 // =================================================================================
-
 window.sortTable = (key) => {
     if (APP.state.currentSort.key === key) {
         APP.state.currentSort.direction = APP.state.currentSort.direction === 'asc' ? 'desc' : 'asc';
@@ -292,28 +299,32 @@ window.handleClearAllFilters = () => {
     if(APP.elements.searchForm) APP.elements.searchForm.reset();
     if(APP.elements.palabraInput) APP.elements.palabraInput.value = '';
     APP.state.currentPage = 1;
-    // Forzamos el orden por fecha al limpiar
     APP.state.currentSort = { key: 'fecha', direction: 'desc' };
     API.searchAlbaranes();
 };
 
 // =================================================================================
-// 🏁 INICIALIZACIÓN
+// 🏁 INICIALIZACIÓN SECUENCIAL
 // =================================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-    if (await API.fetchMyLicencia()) {
+    const hasLicencia = await API.fetchMyLicencia();
+    
+    if (hasLicencia) {
         await API.loadEmpresas();
         
-        ['empresa', 'state', 'fecha_desde', 'fecha_hasta'].forEach(id => {
-            document.getElementById(id)?.addEventListener('change', () => { 
-                APP.state.currentPage = 1; 
-                API.searchAlbaranes(); 
-            });
+        ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) {
+                const eventType = (el.tagName === 'SELECT' || el.type === 'date') ? 'change' : 'input';
+                el.addEventListener(eventType, () => { 
+                    APP.state.currentPage = 1; 
+                    API.searchAlbaranes(); 
+                });
+            }
         });
 
-        const recordsSelect = document.getElementById('recordsPerPage');
-        if(recordsSelect) {
-            recordsSelect.onchange = (e) => {
+        if(APP.elements.recordsSelect) {
+            APP.elements.recordsSelect.onchange = (e) => {
                 const val = e.target.value;
                 APP.state.pageSize = val === 'todos' ? 99999 : parseInt(val);
                 APP.state.currentPage = 1;
@@ -321,12 +332,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
         }
 
-        const prevBtn = document.getElementById('prevPageBtn');
-        const nextBtn = document.getElementById('nextPageBtn');
-        if(prevBtn) prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
-        if(nextBtn) nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
+        if(APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
+        if(APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
         
-        // Carga inicial
         API.searchAlbaranes();
     }
 });

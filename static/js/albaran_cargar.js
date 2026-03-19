@@ -1,48 +1,49 @@
 /**
- * ARCHIVO: admin_albaran_cargar.js
- * FUNCIÓN: Motor universal para llenar formularios de albaranes (View, Edit, Copy).
- * ACTUALIZADO: 19/02/2026
+ * ARCHIVO: static/js/admin_albaran_cargar.js
+ * FUNCIÓN: Motor universal para llenar formularios de albaranes.
+ * ACTUALIZADO: 19/02/2026 - FIX: Mapeo de EmpresaRef y Referencia.
  */
 
 const AlbaranLoader = {
-    // Formateador de tiempo robusto para inputs type="time"
+    // Formateador de tiempo para inputs type="time" (HH:mm)
     formatTime(isoValue) {
         if (!isoValue) return "";
-        // Si ya viene como HH:mm o HH:mm:ss, extraemos los primeros 5
-        if (isoValue.includes(':') && !isoValue.includes('T')) return isoValue.substring(0, 5);
-        // Si es formato ISO fecha
+        // Si ya es un string corto tipo "14:30", devolverlo
+        if (typeof isoValue === 'string' && isoValue.length === 5 && isoValue.includes(':')) {
+            return isoValue;
+        }
         try {
             const date = new Date(isoValue);
             if (isNaN(date.getTime())) return "";
-            return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+            return date.toLocaleTimeString('es-ES', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                hour12: false 
+            });
         } catch (e) { return ""; }
     },
 
     /**
-     * @param {Object} data - Datos del albarán desde la API
-     * @param {Boolean} isCloning - Si es true, ignora IDs y permite editar campos clave
+     * @param {Object} data - Datos del albarán desde la API (JSON)
+     * @param {Boolean} isCloning - Si es true, limpia IDs y campos de cobro.
      */
     populateForm(data, isCloning = false) {
         if (!data) return;
         const form = document.getElementById('albaranForm');
-        if (!form) return;
+        if (!form) {
+            console.error("❌ [LOADER] No se encontró el elemento #albaranForm");
+            return;
+        }
 
-        console.log(`🚀 [LOADER] Poblando datos. Modo: ${isCloning ? 'CLONACIÓN' : 'EDICIÓN/VISTA'}`);
+        console.log("🚀 [LOADER] Procesando datos del albarán:", data.numero_albaran);
 
-        // 1. Manejo del Header visual (si existe)
-        const headerNum = document.getElementById('header_num');
-        if (headerNum) headerNum.textContent = isCloning ? `(NUEVA COPIA)` : `#${data.numero_albaran}`;
-
-        // 2. Mapeo Automático por Atributo 'name' o 'id'
-        // Esto hace que funcione en cualquier HTML sin importar el orden
+        // 1. Mapeo Automático General (Busca por name o id)
         Object.keys(data).forEach(key => {
-            
-            // REGLA DE CLONACIÓN: No heredar identificadores únicos ni datos de cobro antiguos
+            // Regla de exclusión para clonación
             if (isCloning && ['id', 'ID', 'created_at', 'updated_at', 'num_factura', 'fecha_cobro', 'fecha_pago'].includes(key)) {
                 return;
             }
 
-            // Buscamos el elemento por nombre (estándar de formularios) o por ID
             const el = form.querySelector(`[name="${key}"]`) || document.getElementById(key);
 
             if (el) {
@@ -58,40 +59,58 @@ const AlbaranLoader = {
                     el.value = this.formatTime(value);
                 } 
                 else {
+                    // Manejo de valores null (común en punteros de Go como Referencia)
                     el.value = (value === null || value === undefined) ? '' : value;
                 }
             }
         });
 
-        // 3. Ajustes específicos de campos con nombres distintos entre DB e ID de HTML
-        const mapping = {
-            'cliente': 'nombre_pasajero', // Si en DB es cliente y en HTML nombre_pasajero
-            'licencia': 'licencia_ref'
+        // 2. Mapeo Específico (Sincronización Model Go -> HTML ID)
+        // Aquí corregimos los campos que no coinciden exactamente
+        const specialMapping = {
+            'cliente': 'nombre_pasajero',   // JSON: cliente -> HTML: nombre_pasajero
+            'empresa_ref': 'empresa',       // JSON: empresa_ref -> HTML: empresa (select)
+            'licencia_ref': 'licencia_ref', // JSON: licencia_ref -> HTML: licencia_ref
+            'referencia': 'referencia'      // JSON: referencia -> HTML: referencia
         };
 
-        Object.entries(mapping).forEach(([dbKey, htmlId]) => {
+        Object.entries(specialMapping).forEach(([jsonKey, htmlId]) => {
             const el = document.getElementById(htmlId);
-            if (el && data[dbKey]) {
-                el.value = data[dbKey];
+            if (el) {
+                const val = data[jsonKey];
+                el.value = (val === null || val === undefined) ? '' : val;
+                
+                // IMPORTANTE: Disparar evento 'change' para que los selects se actualicen
+                el.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
 
-        // 4. LÓGICA DE CLONACIÓN (Desbloqueo)
-        if (isCloning) {
-            const fieldsToUnlock = ['licencia_ref', 'numero_albaran', 'n_albaran'];
-            fieldsToUnlock.forEach(id => {
-                const field = document.getElementById(id);
-                if (field) {
-                    field.readOnly = false;
-                    field.disabled = false;
-                    field.classList.remove('input-readonly', 'bg-slate-100');
-                    if (id.includes('albaran')) field.value = "COPIA-" + (field.value || "");
-                }
-            });
+        // 3. Lógica visual de cabecera
+        const headerNum = document.getElementById('header_num');
+        if (headerNum) {
+            headerNum.textContent = isCloning ? `COPIA DE #${data.numero_albaran}` : `#${data.numero_albaran}`;
         }
+
+        // 4. Desbloqueo si es modo clonación o edición
+        if (isCloning) {
+            this.unlockFieldsForCloning(form);
+        }
+    },
+
+    unlockFieldsForCloning(form) {
+        const toUnlock = ['licencia_ref', 'numero_albaran', 'n_albaran', 'referencia', 'empresa'];
+        toUnlock.forEach(id => {
+            const field = document.getElementById(id) || form.querySelector(`[name="${id}"]`);
+            if (field) {
+                field.readOnly = false;
+                field.disabled = false;
+                field.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                if (id.includes('albaran')) field.value = "COPY-" + (field.value || "");
+            }
+        });
     }
 };
 
-// Exponer funciones al scope global para que los otros scripts las vean
-window.loadAlbaranToEdit = AlbaranLoader.populateForm.bind(AlbaranLoader);
+// Exposición global
+window.AlbaranLoader = AlbaranLoader;
 window.populateForm = AlbaranLoader.populateForm.bind(AlbaranLoader);
