@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Clonar Albarán - Administración</title>
+    <title>Clonación Maestro - Administración</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
-    <script src="/js/admin_albaran_cargar.js" defer></script>
+    <script src="/js/admin_albaran_cargar.js"></script>
     <script src="/js/admin_albaran_copiar.js" defer></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
@@ -32,6 +32,7 @@
             .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; }
             .checkbox-inline { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 hover:bg-white transition cursor-pointer h-full; }
             .section-title { @apply text-xl font-bold text-slate-700 mb-4 border-b-2 border-orange-100 pb-2 mt-8 uppercase tracking-widest flex items-center gap-2; }
+            .input-dark { @apply bg-transparent border-none text-right font-black text-primary-link outline-none focus:ring-0 p-0; }
         }
     </style>
 </head>
@@ -39,14 +40,14 @@
 
     <div class="max-w-7xl mx-auto bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-slate-100">
         
-        <div class="bg-gradient-to-r from-primary-pastel to-orange-100 p-8 flex justify-between items-center border-b border-orange-200">
+        <div class="bg-gradient-to-r from-blue-100 to-orange-100 p-8 flex justify-between items-center border-b border-orange-200">
             <div>
-                <h1 class="text-3xl font-black text-slate-800 flex items-center tracking-tighter">
+                <h1 class="text-3xl font-black text-slate-800 flex items-center tracking-tighter uppercase">
                     <i data-lucide="copy" class="mr-3 text-primary-link w-8 h-8"></i> 
-                    CLONACIÓN <span class="text-primary-link ml-2">MAESTRA</span>
+                    CLONACIÓN <span class="text-primary-link ml-2">ADMIN</span>
                 </h1>
-                <p class="text-[10px] font-bold text-orange-700 uppercase tracking-widest mt-1 opacity-70">Generando nuevo registro a partir de origen</p>
-                <span id="header_id" class="inline-block mt-2 bg-white/50 px-3 py-1 rounded-full text-[10px] font-black text-orange-800 uppercase italic">Cargando origen...</span>
+                <p class="text-[10px] font-bold text-orange-700 uppercase tracking-widest mt-1 opacity-70">Nuevo registro a partir de copia origen</p>
+                <span id="header_num" class="inline-block mt-2 bg-white/50 px-3 py-1 rounded-full text-[10px] font-black text-orange-800 uppercase italic">Cargando datos origen...</span>
             </div>
             <button onclick="window.location.href='/admin'" class="bg-slate-800 text-white px-6 py-2.5 rounded-2xl font-bold hover:bg-black transition flex items-center shadow-lg text-xs tracking-widest uppercase">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Cancelar Copia
@@ -54,32 +55,31 @@
         </div>
 
         <form id="albaranForm" class="p-6 md:p-12 space-y-8">
-            <input type="hidden" name="importe_espera" id="importe_espera" value="0">
-
+            
             <div>
-                <div class="section-title !mt-0"><i data-lucide="shield-check" class="w-5 h-5 text-primary-link"></i> Nuevos Datos de Control</div>
-                <div class="grid grid-cols-1 md:grid-cols-6 gap-6">
-                    <div>
-                        <label class="label-style text-orange-600">Licencia Asignada *</label>
-                        <select id="licencia_ref" name="licencia_ref" required class="input-field font-bold text-blue-600 border-orange-400 bg-orange-50/30"></select>
+                <div class="section-title !mt-0"><i data-lucide="shield-check" class="w-5 h-5 text-primary-link"></i> Datos de la Nueva Copia *</div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-3">
+                        <label class="label-style text-orange-600">Licencia *</label>
+                        <select id="licencia_ref" name="licencia_ref" required class="input-field font-bold text-blue-600 border-orange-300 bg-orange-50/30"></select>
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="label-style text-orange-600">Nº Albarán (Nuevo) *</label>
-                        <input type="text" name="numero_albaran" id="n_albaran" required class="input-field font-black text-primary-link uppercase border-orange-400 bg-orange-50/30" placeholder="COPIA-000">
+                        <input type="text" name="numero_albaran" id="n_albaran" required class="input-field font-black text-primary-link uppercase border-orange-300 bg-orange-50/30">
                     </div>
-                    <div>
-                        <label class="label-style text-orange-600">Empresa Ref *</label>
-                        <select id="empresa_ref" name="empresa_ref" required class="input-field font-semibold border-slate-200"></select>
+                    <div class="md:col-span-3">
+                        <label class="label-style">Referencia / Expediente</label>
+                        <input type="text" name="referencia" id="referencia" class="input-field font-bold uppercase">
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="label-style text-orange-600">Fecha Servicio *</label>
-                        <input type="date" name="fecha" id="fecha" required class="input-field border-slate-200">
+                        <input type="date" name="fecha" id="fecha" required class="input-field border-orange-300">
                     </div>
-                    <div>
-                        <label class="label-style">Hora Inicio</label>
+                    <div class="md:col-span-1">
+                        <label class="label-style">Hora Ini</label>
                         <input type="time" name="hora_ini" id="hora_ini" class="input-field">
                     </div>
-                    <div>
+                    <div class="md:col-span-1">
                         <label class="label-style">Hora Fin</label>
                         <input type="time" name="hora_fin" id="hora_fin" class="input-field">
                     </div>
@@ -87,85 +87,56 @@
             </div>
 
             <div>
-                <div class="section-title"><i data-lucide="users" class="w-5 h-5 text-primary-link"></i> Información del Pasajero</div>
+                <div class="section-title"><i data-lucide="users" class="w-5 h-5 text-primary-link"></i> Detalles del Pasajero</div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
                     <div class="md:col-span-3">
-                        <label class="label-style">Matrícula</label>
-                        <input type="text" name="matricula" id="matricula" maxlength="12" class="input-field font-bold uppercase">
+                        <label class="label-style text-orange-600">Empresa</label>
+                        <select id="empresa_ref" name="empresa_ref" required class="input-field font-semibold border-orange-300"></select>
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Pasajero / Cliente</label>
                         <input type="text" name="nombre_pasajero" id="nombre_pasajero" class="input-field">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
+                        <label class="label-style">Teléfono</label>
+                        <input type="text" name="tlf_pasajero" id="tlf_pasajero" class="input-field">
+                    </div>
+                    <div class="md:col-span-2">
                         <label class="label-style">DNI Pasajero</label>
                         <input type="text" name="dni_pasajero" id="dni_pasajero" class="input-field uppercase">
                     </div>
-                    <div class="md:col-span-3">
-                        <label class="label-style">Tlf. Pasajero</label>
-                        <input type="text" name="tlf_pasajero" id="tlf_pasajero" class="input-field">
+                    <div class="md:col-span-2">
+                        <label class="label-style">Matrícula</label>
+                        <input type="text" name="matricula" id="matricula" maxlength="15" class="input-field font-bold uppercase">
                     </div>
                 </div>
             </div>
 
             <div>
                 <div class="section-title"><i data-lucide="map-pinned" class="w-5 h-5 text-primary-link"></i> Itinerario Heredado</div>
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div class="md:col-span-4">
-                        <label class="label-style">Origen</label>
-                        <input type="text" name="origen" id="origen" class="input-field">
-                    </div>
-                    <div class="md:col-span-4">
-                        <label class="label-style">Destino</label>
-                        <input type="text" name="destino" id="destino" class="input-field">
-                    </div>
-                    <div class="md:col-span-4">
-                        <label class="label-style">Referencia Expediente</label>
-                        <input type="text" name="referencia" id="referencia" class="input-field font-bold uppercase">
-                    </div>
-                    <div class="md:col-span-6">
-                        <label class="label-style">Parada Intermedia</label>
-                        <input type="text" name="parada" id="parada" class="input-field">
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="label-style">Espera Inicio</label>
-                        <input type="time" name="espera_ini" id="espera_ini" class="input-field">
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="label-style">Espera Fin</label>
-                        <input type="time" name="espera_fin" id="espera_fin" class="input-field">
-                    </div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-4"><label class="label-style">Origen</label><input type="text" name="origen" id="origen" class="input-field"></div>
+                    <div class="md:col-span-4"><label class="label-style">Parada / Vía</label><input type="text" name="parada" id="parada" class="input-field"></div>
+                    <div class="md:col-span-4"><label class="label-style">Destino</label><input type="text" name="destino" id="destino" class="input-field"></div>
+                    <div class="md:col-span-4"><label class="label-style">Espera Total (Decimal)</label><input type="number" step="0.01" name="hora_total" id="hora_total" class="input-field font-bold text-orange-600"></div>
+                    <div class="md:col-span-4"><label class="label-style">Espera Inicio</label><input type="time" name="espera_ini" id="espera_ini" class="input-field"></div>
+                    <div class="md:col-span-4"><label class="label-style">Espera Fin</label><input type="time" name="espera_fin" id="espera_fin" class="input-field"></div>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-12 gap-6 bg-slate-50 p-6 rounded-[2rem] border border-slate-200 shadow-inner">
-                <div class="md:col-span-2">
-                    <label class="label-style">Km Inicio</label>
-                    <input type="number" step="0.01" name="km_ini" id="km_ini" class="input-field font-bold">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="label-style">Km Fin</label>
-                    <input type="number" step="0.01" name="km_fin" id="km_fin" class="input-field font-bold">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="label-style">Km Totales</label>
-                    <input type="number" step="0.01" name="km_totales" id="km_totales" class="input-field bg-white border-primary-link font-black text-right">
-                </div>
-                <input type="hidden" name="km_nacionales" id="km_nacionales">
-                <input type="hidden" name="km_internacionales" id="km_internacionales">
-
+                <div class="md:col-span-2"><label class="label-style">Km Inicio</label><input type="number" step="0.01" name="km_ini" id="km_ini" value="0" class="input-field font-bold"></div>
+                <div class="md:col-span-2"><label class="label-style">Km Fin</label><input type="number" step="0.01" name="km_fin" id="km_fin" value="0" class="input-field font-bold"></div>
+                <div class="md:col-span-2"><label class="label-style">Km Totales</label><input type="number" step="0.01" name="km_totales" id="km_totales" value="0" class="input-field bg-white border-primary-link font-black text-right"></div>
                 <div class="md:col-span-6 flex flex-wrap gap-2">
                     <label class="checkbox-inline flex-1"><input type="checkbox" name="urbano" id="urbano"> <span class="text-[9px] font-bold uppercase">Urbano</span></label>
-                    <label class="checkbox-inline flex-1"><input type="checkbox" name="diurno" id="diurno"> <span class="text-[9px] font-bold uppercase">Diurno</span></label>
+                    <label class="checkbox-inline flex-1"><input type="checkbox" name="diurno" id="diurno" checked> <span class="text-[9px] font-bold uppercase">Diurno</span></label>
                     <label class="checkbox-inline flex-1"><input type="checkbox" name="noct_fest" id="noct_fest"> <span class="text-[9px] font-bold uppercase">Noche/Fest.</span></label>
                     <label class="checkbox-inline flex-1"><input type="checkbox" name="remolque" id="remolque"> <span class="text-[9px] font-bold uppercase">Remolque</span></label>
                     <div class="w-20">
                         <label class="label-style">Plazas</label>
                         <select name="num_plazas" id="num_plazas" class="input-field font-bold text-center">
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="7">7</option>
-                            <option value="9">9</option>
+                            <option value="4">4</option><option value="5">5</option><option value="7">7</option><option value="9">9</option>
                         </select>
                     </div>
                 </div>
@@ -174,23 +145,18 @@
             <div>
                 <div class="section-title"><i data-lucide="banknote" class="w-5 h-5 text-primary-link"></i> Economía y Conductor</div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div class="md:col-span-3">
-                        <label class="label-style">Conductor Asignado</label>
-                        <select id="asalariado_select" name="asalariado" class="input-field font-semibold uppercase"></select>
-                    </div>
-                    <div class="md:col-span-3">
-                        <label class="label-style">Autorizado Por</label>
-                        <input type="text" name="autorizado_por" id="autorizado_por" class="input-field uppercase">
-                    </div>
+                    <div class="md:col-span-3"><label class="label-style">Asalariado (Conductor)</label><input type="text" name="asalariado" id="asalariado" class="input-field font-semibold uppercase"></div>
+                    <div class="md:col-span-3"><label class="label-style">Autorizado Por</label><input type="text" name="autorizado_por" id="autorizado_por" class="input-field uppercase"></div>
                     <div class="md:col-span-2">
                         <label class="label-style text-orange-600">Suplidos (€)</label>
                         <input type="number" step="0.01" name="importe_suplidos" id="importe_suplidos" class="input-field border-orange-200 bg-orange-50 font-bold">
                     </div>
-                    <div class="md:col-span-4 bg-slate-900 p-4 rounded-3xl border-4 border-primary-pastel shadow-2xl">
-                        <label class="block text-[9px] font-black text-primary-pastel uppercase mb-1 text-center tracking-tighter">Importe Total Albarán *</label>
+                    <div class="md:col-span-4 bg-slate-900 p-4 rounded-3xl border-4 border-primary-pastel shadow-2xl text-center">
+                        <label class="block text-[9px] font-black text-primary-pastel uppercase mb-1 tracking-tighter">Importe Total Copiado *</label>
                         <div class="flex items-center justify-center">
                             <span class="text-2xl font-black text-white mr-2">€</span>
-                            <input type="number" step="0.01" name="importe_total" id="importe_total" required class="bg-transparent border-none w-full text-right font-black text-4xl text-primary-link outline-none focus:ring-0">
+                            <input type="number" step="0.01" name="importe_total" id="importe_total" required class="input-dark text-4xl w-full text-center">
+                            <span id="importe_total_view" class="hidden"></span>
                         </div>
                     </div>
                 </div>
@@ -198,59 +164,42 @@
 
             <div class="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-200 shadow-lg space-y-6">
                 <h3 class="text-blue-800 font-black uppercase text-xs tracking-[0.2em] flex items-center gap-2">
-                    <i data-lucide="file-text" class="w-4 h-4"></i> Facturación y Liquidación (Administración)
+                    <i data-lucide="file-text" class="w-4 h-4"></i> Facturación y Liquidación (Reset Copia)
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                        <label for="num_factura" class="label-style text-blue-400">Nuevo Nº Factura</label>
-                        <input type="text" id="num_factura" name="num_factura" class="input-field bg-white border-blue-200 font-bold" placeholder="Pendiente..." />
+                        <label class="label-style text-blue-400">Nº Factura</label>
+                        <input type="text" id="num_factura" name="num_factura" class="input-field bg-white border-blue-200" placeholder="Pendiente" />
+                        <span id="num_factura_view" class="hidden"></span>
                     </div>
                     <div>
-                        <label for="fecha_cobro" class="label-style text-blue-400">Fecha de Cobro Estimada</label>
+                        <label class="label-style text-blue-400">Fecha Cobro</label>
                         <input type="date" id="fecha_cobro" name="fecha_cobro" class="input-field bg-white border-blue-200" />
+                        <span id="fecha_cobro_view" class="hidden"></span>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-4 pt-4 border-t border-blue-100">
-                    <label class="checkbox-inline flex-1 border-blue-200 bg-blue-100/50">
-                        <input type="checkbox" name="cobrado" id="cobrado" class="w-5 h-5 accent-blue-600">
-                        <span class="text-[10px] font-black uppercase text-blue-800">Cobrado</span>
-                    </label>
-                    <label class="checkbox-inline flex-1 border-green-200 bg-green-50">
-                        <input type="checkbox" name="pagado" id="pagado" class="w-5 h-5 accent-green-600">
-                        <span class="text-[10px] font-black uppercase text-green-800">Pagado</span>
-                    </label>
-                    <label class="checkbox-inline flex-1 border-teal-200 bg-teal-50">
-                        <input type="checkbox" name="finalizado" id="finalizado" checked class="w-5 h-5 accent-teal-600">
-                        <span class="text-[10px] font-black uppercase text-teal-800">Finalizado</span>
-                    </label>
-                    <label class="checkbox-inline flex-1 border-pink-200 bg-pink-50">
-                        <input type="checkbox" name="festivo" id="festivo" class="w-5 h-5 accent-pink-600">
-                        <span class="text-[10px] font-black uppercase text-pink-800">Plus Festivo</span>
-                    </label>
-                    <input type="checkbox" name="enviado" id="enviado" class="hidden">
-                    <input type="checkbox" name="enganche" id="enganche" class="hidden">
+                    <label class="checkbox-inline flex-1 border-blue-200"><input type="checkbox" name="cobrado" id="cobrado"> <span class="text-[10px] font-black uppercase text-blue-800">Cobrado</span></label>
+                    <label class="checkbox-inline flex-1 border-green-200"><input type="checkbox" name="pagado" id="pagado"> <span class="text-[10px] font-black uppercase text-green-800">Pagado</span></label>
+                    <label class="checkbox-inline flex-1 border-teal-200"><input type="checkbox" name="finalizado" id="finalizado" checked> <span class="text-[10px] font-black uppercase text-teal-800">Finalizado</span></label>
+                    <label class="checkbox-inline flex-1 border-blue-200"><input type="checkbox" name="adjuntos_bool" id="adjuntos_bool"> <span class="text-[10px] font-black uppercase text-blue-800">Adjuntos</span></label>
+                    <div class="flex-1"><input type="text" name="adjuntos" id="adjuntos_ref" class="input-field h-full" placeholder="Ref. Adjuntos"></div>
                 </div>
             </div>
 
             <div class="w-full">
-                <label class="label-style tracking-widest text-slate-500 mb-2 block uppercase">Observaciones de la Clonación</label>
-                <textarea name="observaciones" id="observaciones" rows="4" class="input-field italic w-full resize-none p-6 text-sm" placeholder="Anotaciones extra..."></textarea>
+                <label class="label-style tracking-widest text-slate-500 mb-2 block uppercase">Observaciones del origen</label>
+                <textarea name="observaciones" id="observaciones" rows="4" class="input-field italic w-full resize-none p-6 text-sm"></textarea>
+                <span id="observaciones_view" class="hidden"></span>
             </div>
 
             <div class="flex flex-col items-center pt-10 border-t border-slate-100">
-                <button type="submit" class="bg-blue-600 text-white font-black py-5 px-24 rounded-[2rem] shadow-2xl hover:bg-slate-800 transform transition-all hover:scale-105 active:scale-95 flex items-center gap-4 text-xl uppercase tracking-widest">
+                <button type="submit" class="bg-primary-link text-white font-black py-5 px-24 rounded-[2rem] shadow-2xl hover:bg-slate-800 transform transition-all hover:scale-105 active:scale-95 flex items-center gap-4 text-xl uppercase tracking-widest">
                     <i data-lucide="plus-circle" class="w-7 h-7"></i> Crear Albarán desde Copia
                 </button>
                 <div id="statusMessage" class="hidden mt-8 p-5 rounded-2xl text-center font-black w-full max-w-2xl border-2 uppercase text-xs tracking-widest"></div>
-                <div id="errorMessage" class="hidden mt-4 text-red-600 font-bold uppercase text-xs"></div>
             </div>
         </form>
     </div>
-
-    <script>
-        window.addEventListener('load', () => {
-            if (window.lucide) lucide.createIcons();
-        });
-    </script>
 </body>
 </html>
