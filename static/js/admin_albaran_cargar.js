@@ -1,149 +1,164 @@
 /**
- * albaran_cargar.js
- * Motor unificado para el mapeo de datos entre el Backend (JSON) y el Frontend (HTML).
- * Compatible con albaran_view.html y albaran_update.html
+ * ARCHIVO: static/js/admin_albaran_cargar.js
+ * DESCRIPCIÓN: Motor de mapeo de datos para la vista de detalle del Administrador.
+ * FUNCIONALIDAD: Formato europeo, detección de elementos Input vs Text y renderizado de badges.
+ * ACTUALIZADO: 21/03/2026
  */
 
 function populateForm(data) {
-    console.log("📦 [MAPPER] Iniciando mapeo de datos del albarán:", data);
+    if (!data) return;
+    console.log("📦 [ADMIN MAPPER] Procesando albarán maestro:", data);
 
-    /**
-     * Helper para asignar contenido a elementos (Input o Div/Span)
+    // --- HELPERS DE FORMATO ---
+
+    /** Formatea fecha ISO a estándar europeo DD/MM/YYYY */
+    const formatEuroDate = (isoStr) => {
+        if (!isoStr) return "-";
+        try {
+            const d = new Date(isoStr);
+            if (isNaN(d.getTime())) return isoStr;
+            return d.toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+            });
+        } catch (e) { return "-"; }
+    };
+
+    /** Limpia strings de tiempo ISO o MySQL a HH:mm */
+    const formatTime = (timeStr) => {
+        if (!timeStr) return "--:--";
+        let rawTime = timeStr;
+        if (timeStr.includes('T')) rawTime = timeStr.split('T')[1];
+        else if (timeStr.includes(' ')) rawTime = timeStr.split(' ')[1];
+        return rawTime.substring(0, 5);
+    };
+
+    /** * ASIGNADOR UNIVERSAL:
+     * Detecta si es un campo de formulario o un elemento de visualización.
      */
-    const setContent = (elementId, value) => {
-        const el = document.getElementById(elementId);
+    const setVal = (id, value, isDate = false, isTime = false) => {
+        const el = document.getElementById(id);
         if (!el) return;
 
-        // Limpieza de valores nulos o indefinidos
-        const val = (value !== null && value !== undefined && value !== '') ? value : '-';
+        let finalValue = (value !== null && value !== undefined && value !== '') ? value : "-";
         
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
-            el.value = (val === '-') ? '' : val;
+        if (isDate && value) finalValue = formatEuroDate(value);
+        if (isTime && value) finalValue = formatTime(value);
+
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) {
+            el.value = (finalValue === "-") ? "" : finalValue;
         } else {
-            el.textContent = val;
+            el.textContent = finalValue;
         }
     };
 
-    /**
-     * Helper para gestionar Checkboxes
-     */
-    const setCheck = (elementId, value) => {
-        const el = document.getElementById(elementId);
-        if (el) {
-            el.checked = (value === true || value === 1 || value === 'Si' || value === '1');
+    // --- 1. IDENTIFICACIÓN Y CABECERA ---
+    setVal('header_num', `#${data.numero_albaran}`);
+    setVal('licencia_ref', data.licencia || data.licencia_ref);
+    setVal('n_albaran', data.numero_albaran);
+    setVal('fecha', data.fecha, true);
+    setVal('hora_ini', data.hora_ini, false, true);
+    setVal('hora_fin', data.hora_fin, false, true);
+
+    // --- 2. FACTURACIÓN Y CLIENTE ---
+    const empresaNombre = data.empresa_data?.nombre || data.empresa_nombre || "-";
+    setVal('empresa_nombre_view', empresaNombre.toUpperCase());
+    setVal('matricula', data.matricula);
+    setVal('nombre_pasajero', data.cliente); // Columna 'cliente' -> ID 'nombre_pasajero'
+    setVal('dni_pasajero', data.dni_pasajero);
+    setVal('tlf_pasajero', data.tlf_pasajero);
+
+    // --- 3. ITINERARIO ---
+    setVal('origen', data.origen);
+    setVal('destino', data.destino);
+    setVal('referencia', data.referencia);
+    setVal('parada', data.parada);
+    setVal('espera_ini', data.espera_ini, false, true);
+    setVal('espera_fin', data.espera_fin, false, true);
+
+    // --- 4. KILOMETRAJE ---
+    setVal('km_ini', data.km_ini);
+    setVal('km_fin', data.km_fin);
+    setVal('km_totales', data.km_totales);
+
+    // --- 5. ECONOMÍA Y CONDUCTOR ---
+    setVal('asalariado', data.asalariado);
+    setVal('autorizado_por', data.autorizado_por);
+    
+    // Suplidos con símbolo de euro
+    const suplidos = parseFloat(data.importe_suplidos) || 0;
+    setVal('importe_suplidos', suplidos.toFixed(2) + " €");
+    
+    // Importe Total (Badge principal)
+    const totalEl = document.getElementById('importe_total_view');
+    if (totalEl) {
+        totalEl.textContent = (parseFloat(data.importe_total) || 0).toFixed(2);
+    }
+
+    // --- 6. ESTADO ADMINISTRATIVO ---
+    setVal('num_factura_view', data.num_factura);
+    setVal('fecha_cobro_view', data.fecha_cobro, true);
+    
+    const obsEl = document.getElementById('observaciones_view');
+    if (obsEl) {
+        obsEl.textContent = data.observaciones || "Sin observaciones registradas.";
+    }
+
+    // --- 7. SINCRONIZACIÓN VISUAL DE CHECKBOXES (Km Badges) ---
+    const syncBadge = (id, active) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const parent = el.parentElement;
+        if (active) {
+            // Aplicar estilo activo (naranja pastel)
+            parent.classList.add('bg-orange-100', 'border-orange-300', 'text-orange-700', 'opacity-100');
+            parent.classList.remove('bg-slate-100', 'opacity-80');
+        } else {
+            // Estilo inactivo
+            parent.classList.remove('bg-orange-100', 'border-orange-300', 'text-orange-700', 'opacity-100');
+            parent.classList.add('bg-slate-100', 'opacity-80');
         }
     };
 
-    /**
-     * Helper para extraer la hora (HH:mm) de un string ISO o MySQL DateTime
-     */
-    const formatTime = (timeStr) => {
-        if (!timeStr) return '';
-        // Si es formato ISO "2026-01-02T12:37:00Z" o MySQL "2026-01-02 12:37:00"
-        let rawTime = timeStr;
-        if (timeStr.includes('T')) {
-            rawTime = timeStr.split('T')[1];
-        } else if (timeStr.includes(' ')) {
-            rawTime = timeStr.split(' ')[1];
-        }
-        return rawTime.substring(0, 5); // Retorna "12:37"
-    };
+    syncBadge('urbano_val', data.urbano);
+    syncBadge('diurno_val', data.diurno);
+    syncBadge('noct_fest_val', data.noct_fest);
+    syncBadge('remolque_val', data.remolque);
 
-    // --- SECCIÓN 1: IDENTIFICACIÓN Y TIEMPOS ---
-    const nAlbaran = data.numero_albaran || '-';
-    setContent('view_numero_albaran_header', nAlbaran);
-    setContent('numero_albaran', nAlbaran);
-    setContent('n_albaran', nAlbaran); 
-    
-    if (data.fecha) {
-        setContent('fecha', data.fecha.substring(0, 10));
+    // --- 8. RENDERIZADO DINÁMICO DE BADGES DE ESTADO ---
+    const statusContainer = document.getElementById('status_badges_container');
+    if (statusContainer) {
+        statusContainer.innerHTML = ''; // Limpiar
+        
+        // Badge de Facturación
+        const hasFactura = data.num_factura && data.num_factura !== '-';
+        const factClass = hasFactura ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-slate-100 text-slate-400 border-slate-200";
+        const factIcon = hasFactura ? "file-check" : "file-minus";
+        const factText = hasFactura ? "FACTURADO" : "NO FACTURADO";
+        
+        statusContainer.innerHTML += `
+            <div class="badge-status ${factClass}">
+                <i data-lucide="${factIcon}" class="w-3 h-3"></i> ${factText}
+            </div>`;
+        
+        // Badge de Cobro
+        const hasCobro = data.fecha_cobro;
+        const cobroClass = hasCobro ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200";
+        const cobroIcon = hasCobro ? "check-circle" : "clock";
+        const cobroText = hasCobro ? "COBRADO" : "PENDIENTE COBRO";
+        
+        statusContainer.innerHTML += `
+            <div class="badge-status ${cobroClass}">
+                <i data-lucide="${cobroIcon}" class="w-3 h-3"></i> ${cobroText}
+            </div>`;
     }
 
-    // 🕒 Tiempos de Servicio (Mapeo exacto a columnas DB)
-    setContent('hora_ini', formatTime(data.hora_ini));
-    setContent('hora_fin', formatTime(data.hora_fin));
-
-    // Licencia (Muestra el número de licencia si existe, si no el ID)
-    setContent('licencia_ref', data.licencia || data.licencia_ref);
-    setContent('licencia', data.licencia || data.licencia_ref); // Para el input readonly
-
-    // Empresa
-    if (data.empresa_data) {
-        setContent('empresa_nombre', data.empresa_data.nombre);
-    } else {
-        setContent('empresa_nombre', data.empresa_nombre);
+    // Refrescar iconos de Lucide tras inyectar el HTML de los badges
+    if (window.lucide) {
+        lucide.createIcons();
     }
-    // Si estamos en edición, pre-seleccionamos el ID en el SELECT
-    const empSelect = document.getElementById('empresa');
-    if (empSelect) empSelect.value = data.empresa_ref;
-
-    // --- SECCIÓN 2: CLIENTE Y VEHÍCULO ---
-    setContent('matricula', data.matricula);
-    setContent('dni_pasajero', data.dni_pasajero);
-    setContent('referencia', data.referencia);
-    setContent('asalariado', data.asalariado);
-    
-    // 👤 MAPEO CRÍTICO: La DB guarda en 'cliente', la vista muestra en 'nombre_pasajero'
-    setContent('nombre_pasajero', data.cliente); 
-
-    // Pre-selección de asalariado en combo de edición
-    const asalariadoSelect = document.getElementById('asalariado_select');
-    if (asalariadoSelect) asalariadoSelect.value = data.asalariado;
-
-    // --- SECCIÓN 3: TRAYECTO Y DATOS TÉCNICOS ---
-    setContent('origen', data.origen);
-    setContent('destino', data.destino);
-    setContent('parada', data.parada);
-    
-    // ⏳ Tiempos de Espera (Mapeo exacto a columnas DB)
-    setContent('espera_ini', formatTime(data.espera_ini));
-    setContent('espera_fin', formatTime(data.espera_fin));
-
-    setCheck('urbano', data.urbano);
-    setCheck('diurno', data.diurno);
-    setCheck('noct_fest', data.noct_fest);
-    setCheck('remolque', data.remolque); 
-    setCheck('festivo', data.festivo);
-
-    // Kilómetros
-    setContent('km_ini', data.km_ini);
-    setContent('km_fin', data.km_fin);
-    setContent('km_totales', data.km_totales);
-    setContent('km_nacionales', data.km_nacionales);
-    setContent('km_internacionales', data.km_internacionales);
-
-    // --- SECCIÓN 4: IMPORTES Y OTROS ---
-    setContent('num_plazas', data.num_plazas);
-    setContent('autorizado_por', data.autorizado_por);
-    setContent('observaciones', data.observaciones);
-    setCheck('adjuntos', data.adjuntos);
-
-    // Formateo de moneda
-    const fmt = (v) => (parseFloat(v) || 0).toFixed(2) + " €";
-    
-    // Total Albarán
-    const totalView = document.getElementById('importe_total');
-    if (totalView) {
-        if (totalView.tagName === 'INPUT') {
-            totalView.value = (parseFloat(data.importe_total) || 0).toFixed(2);
-        } else {
-            totalView.textContent = fmt(data.importe_total);
-        }
-    }
-    
-    // Suplidos
-    const suplidosView = document.getElementById('importe_suplidos');
-    if (suplidosView) {
-        if (suplidosView.tagName === 'INPUT') {
-            suplidosView.value = (parseFloat(data.importe_suplidos) || 0).toFixed(2);
-        } else {
-            suplidosView.textContent = fmt(data.importe_suplidos);
-        }
-    }
-
-    // Finalización visual
-    const loader = document.getElementById('loadingIndicator');
-    if (loader) loader.classList.add('hidden');
-    
-    console.log("✅ [MAPPER] Mapeo completado satisfactoriamente.");
 }
+
+// Hacer la función disponible globalmente
+window.populateForm = populateForm;
