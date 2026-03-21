@@ -22,27 +22,16 @@
     </script>
     <style type="text/tailwindcss">
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        
         @layer base {
             body { font-family: 'Inter', sans-serif; @apply bg-slate-50 text-slate-900; }
         }
-
         @layer components {
-            .input-field { 
-                @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl shadow-inner outline-none transition-all duration-200 text-gray-800 text-sm; 
-            }
-            .input-field:focus { 
-                @apply bg-white border-primary-link ring-4 ring-orange-100 shadow-none; 
-            }
-            .label-style { 
-                @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; 
-            }
-            .checkbox-inline { 
-                @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 hover:bg-white transition cursor-pointer h-full; 
-            }
-            .section-title {
-                @apply text-xl font-bold text-slate-700 mb-4 border-b-2 border-orange-100 pb-2 mt-8 uppercase tracking-widest flex items-center gap-2;
-            }
+            .input-field { @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl shadow-inner outline-none transition-all duration-200 text-gray-800 text-sm; }
+            .input-field:focus { @apply bg-white border-primary-link ring-4 ring-orange-100 shadow-none; }
+            .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; }
+            .checkbox-inline { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg shadow-inner border border-slate-200 hover:bg-white transition cursor-pointer h-full; }
+            .section-title { @apply text-xl font-bold text-slate-700 mb-4 border-b-2 border-orange-100 pb-2 mt-8 uppercase tracking-widest flex items-center gap-2; }
+            .input-dark { @apply bg-transparent border-none text-right font-black text-primary-link outline-none focus:ring-0 p-0; }
         }
     </style>
 </head>
@@ -54,7 +43,7 @@
             <div>
                 <h1 class="text-3xl font-black text-slate-800 flex items-center tracking-tighter">
                     <i data-lucide="file-plus-2" class="mr-3 text-primary-link w-8 h-8"></i> 
-                    GESTIÓN MAESTRA <span class="text-primary-link ml-2">ALBARÁN</span>
+                    GESTIÓN ADMIN <span class="text-primary-link ml-2">ALBARÁN</span>
                 </h1>
                 <p class="text-[10px] font-bold text-orange-700 uppercase tracking-widest mt-1 opacity-70">Módulo de Inserción Administrativa Rápida</p>
             </div>
@@ -67,26 +56,30 @@
             
             <div>
                 <div class="section-title !mt-0"><i data-lucide="shield-check" class="w-5 h-5 text-primary-link"></i> Datos Obligatorios *</div>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
-                    <div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div class="md:col-span-3">
                         <label class="label-style text-orange-600">Licencia Titular *</label>
                         <select id="licencia_ref" name="licencia_ref" required class="input-field font-bold text-blue-600 border-orange-300 bg-orange-50/30"></select>
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="label-style text-orange-600">Nº Albarán *</label>
                         <input type="text" name="numero_albaran" id="n_albaran" required class="input-field font-black text-primary-link uppercase border-orange-300 bg-orange-50/30" placeholder="000-0000">
                     </div>
-                    <div>
-                        <label class="label-style text-orange-600">Empresa Ref *</label>
-                        <select id="empresa_ref" name="empresa_ref" required class="input-field font-semibold border-orange-300 bg-orange-50/30"></select>
+                    <div class="md:col-span-3">
+                        <label class="label-style">Referencia / Expediente</label>
+                        <input type="text" name="referencia" class="input-field font-bold uppercase" placeholder="Ej: REF-999888">
                     </div>
-                    <div>
-                        <label class="label-style text-orange-600">Fecha Servicio *</label>
+                    <div class="md:col-span-2">
+                        <label class="label-style text-orange-600">Fecha *</label>
                         <input type="date" name="fecha" id="fecha" required class="input-field border-orange-300 bg-orange-50/30">
                     </div>
-                    <div>
-                        <label class="label-style">Hora Inicio</label>
-                        <input type="time" name="hora_ini" value="00:00" class="input-field">
+                    <div class="md:col-span-1">
+                        <label class="label-style">Hora Ini</label>
+                        <input type="time" name="hora_ini" class="input-field">
+                    </div>
+                    <div class="md:col-span-1">
+                        <label class="label-style">Hora Fin</label>
+                        <input type="time" name="hora_fin" class="input-field">
                     </div>
                 </div>
             </div>
@@ -95,50 +88,54 @@
                 <div class="section-title"><i data-lucide="users" class="w-5 h-5 text-primary-link"></i> Detalles del Cliente</div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
                     <div class="md:col-span-3">
-                        <label class="label-style">Matrícula</label>
-                        <input type="text" name="matricula" value="-" maxlength="12" class="input-field font-bold uppercase">
+                        <label class="label-style text-orange-600">Empresa</label>
+                        <select id="empresa_ref" name="empresa_ref" required class="input-field font-semibold border-orange-300 bg-orange-50/30"></select>
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Pasajero / Cliente</label>
-                        <input type="text" name="nombre_pasajero" value="S/N" class="input-field">
+                        <input type="text" name="nombre_pasajero" class="input-field" placeholder="Nombre completo">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
+                        <label class="label-style">Teléfono</label>
+                        <input type="text" name="tlf_pasajero" class="input-field" placeholder="Móvil">
+                    </div>
+                    <div class="md:col-span-2">
                         <label class="label-style">DNI Pasajero</label>
-                        <input type="text" name="dni_pasajero" value="-" class="input-field uppercase">
+                        <input type="text" name="dni_pasajero" class="input-field uppercase" placeholder="DNI/NIE">
                     </div>
-                    <div class="md:col-span-3">
-                        <label class="label-style">Tlf. Pasajero</label>
-                        <input type="text" name="tlf_pasajero" value="-" class="input-field">
+                    <div class="md:col-span-2">
+                        <label class="label-style">Matrícula</label>
+                        <input type="text" name="matricula" maxlength="15" class="input-field font-bold uppercase" placeholder="Placa">
                     </div>
                 </div>
             </div>
 
             <div>
-                <div class="section-title"><i data-lucide="map-pinned" class="w-5 h-5 text-primary-link"></i> Itinerario del Viaje</div>
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <div class="section-title"><i data-lucide="map-pinned" class="w-5 h-5 text-primary-link"></i> Itinerario y Esperas</div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div class="md:col-span-4">
                         <label class="label-style">Origen</label>
-                        <input type="text" name="origen" value="-" class="input-field">
+                        <input type="text" name="origen" class="input-field">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style">Parada / Vía</label>
+                        <input type="text" name="parada" class="input-field">
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Destino</label>
-                        <input type="text" name="destino" value="-" class="input-field">
+                        <input type="text" name="destino" class="input-field">
                     </div>
                     <div class="md:col-span-4">
-                        <label class="label-style">Referencia</label>
-                        <input type="text" name="referencia" value="-" class="input-field">
+                        <label class="label-style">Espera Total (Decimal)</label>
+                        <input type="number" step="0.01" name="hora_total" class="input-field font-bold text-orange-600" placeholder="0.00">
                     </div>
-                    <div class="md:col-span-6">
-                        <label class="label-style">Parada Intermedia</label>
-                        <input type="text" name="parada" value="-" class="input-field">
-                    </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-4">
                         <label class="label-style">Espera Inicio</label>
-                        <input type="time" name="espera_ini" value="00:00" class="input-field">
+                        <input type="time" name="espera_ini" class="input-field">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-4">
                         <label class="label-style">Espera Fin</label>
-                        <input type="time" name="espera_fin" value="00:00" class="input-field">
+                        <input type="time" name="espera_fin" class="input-field">
                     </div>
                 </div>
             </div>
@@ -178,11 +175,11 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
                     <div class="md:col-span-3">
                         <label class="label-style">Asalariado (Conductor)</label>
-                        <input type="text" name="asalariado" value="TITULAR" class="input-field font-semibold uppercase">
+                        <input type="text" name="asalariado" class="input-field font-semibold uppercase" placeholder="CONDUCTOR">
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Autorizado Por</label>
-                        <input type="text" name="autorizado_por" value="ADMIN" class="input-field">
+                        <input type="text" name="autorizado_por" class="input-field" placeholder="ADMIN">
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style text-orange-600">Suplidos (€)</label>
@@ -192,7 +189,7 @@
                         <label class="block text-[9px] font-black text-primary-pastel uppercase mb-1 text-center tracking-tighter">Importe Total Albarán</label>
                         <div class="flex items-center justify-center">
                             <span class="text-2xl font-black text-white mr-2">€</span>
-                            <input type="number" step="0.01" name="importe_total" id="importe_total" value="0.00" required class="bg-transparent border-none w-full text-right font-black text-4xl text-primary-link outline-none focus:ring-0">
+                            <input type="number" step="0.01" name="importe_total" id="importe_total" value="0.00" required class="input-dark text-4xl w-full text-center">
                         </div>
                     </div>
                 </div>
@@ -205,7 +202,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
                         <label for="num_factura" class="label-style text-blue-400">Nº Factura</label>
-                        <input type="text" id="num_factura" name="num_factura" value="-" class="input-field bg-white border-blue-200" />
+                        <input type="text" id="num_factura" name="num_factura" class="input-field bg-white border-blue-200" placeholder="Pendiente" />
                     </div>
                     <div>
                         <label for="fecha_cobro" class="label-style text-blue-400">Fecha Cobro</label>
@@ -225,12 +222,19 @@
                         <input type="checkbox" name="finalizado" checked class="w-5 h-5 accent-teal-600">
                         <span class="text-[10px] font-black uppercase text-teal-800">Finalizado</span>
                     </label>
+                    <label class="checkbox-inline flex-1 border-blue-200 bg-blue-50">
+                        <input type="checkbox" name="adjuntos_bool" class="w-5 h-5 accent-blue-600">
+                        <span class="text-[10px] font-black uppercase text-blue-800">Adjuntos</span>
+                    </label>
+                    <div class="flex-1">
+                        <input type="text" name="adjuntos" id="adjuntos_ref" class="input-field h-full" placeholder="Ref. Adjuntos">
+                    </div>
                 </div>
             </div>
 
             <div class="w-full">
                 <label class="label-style tracking-widest text-slate-500 mb-2 block uppercase">Observaciones del Servicio</label>
-                <textarea name="observaciones" id="observaciones" rows="4" class="input-field italic w-full resize-none p-6 text-sm" placeholder="Sin observaciones."></textarea>
+                <textarea name="observaciones" id="observaciones" rows="4" class="input-field italic w-full resize-none p-6 text-sm" placeholder="Notas internas o detalles adicionales..."></textarea>
             </div>
 
             <div class="flex flex-col items-center pt-10 border-t border-slate-100">
@@ -242,6 +246,10 @@
         </form>
     </div>
 
-    <script>lucide.createIcons();</script>
+    <script>
+        window.addEventListener('load', () => {
+            if (window.lucide) lucide.createIcons();
+        });
+    </script>
 </body>
 </html>

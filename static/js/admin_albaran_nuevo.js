@@ -1,34 +1,26 @@
 /**
- * admin_albaran_nuevo.js - PANEL ADMINISTRADOR
- * Inserción rápida optimizada para entorno administrativo.
- * Redirección tras éxito a: http://localhost:8080/admin/
+ * ARCHIVO: static/js/admin_albaran_nuevo.js
+ * DESCRIPCIÓN: Inserción rápida para Administrador con valores por defecto para SQL.
+ * ACTUALIZADO: 21/03/2026 - FIX: Prevención de errores de tipo en campos obligatorios.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log("🚀 [ADMIN] Iniciando Motor de Inserción Rápida");
+    console.log("🚀 [ADMIN] Motor de Inserción blindado iniciado");
 
-    // 1. Carga paralela de datos maestros
-    await Promise.all([
-        cargarLicencias(),
-        cargarEmpresas()
-    ]);
+    await Promise.all([cargarLicencias(), cargarEmpresas()]);
 
-    // 2. Establecer fecha de hoy
+    // Establecer fecha de hoy por defecto
     const fechaInput = document.getElementById('fecha');
     if (fechaInput) {
         fechaInput.value = new Date().toISOString().split('T')[0];
     }
 
-    // 3. Inicializar componentes
-    initEventListeners();
     initCalculosKms();
+    document.getElementById('albaranForm')?.addEventListener('submit', handleInsertMaestro);
     
     if (window.lucide) lucide.createIcons();
 });
 
-/**
- * Obtiene las licencias y puebla el select con sus IDs reales
- */
 async function cargarLicencias() {
     const select = document.getElementById('licencia_ref');
     if (!select) return;
@@ -36,24 +28,15 @@ async function cargarLicencias() {
         const res = await fetch('/api/v1/licencias', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        const data = await res.json();
-        const list = data.data || data;
-
+        const result = await res.json();
+        const list = result.data || result;
         select.innerHTML = '<option value="0" disabled selected>-- SELECCIONAR LICENCIA --</option>';
-        list.forEach(l => {
-            const opt = document.createElement('option');
-            opt.value = l.id; 
-            opt.textContent = `LICENCIA: ${l.licencia}`;
-            select.appendChild(opt);
+        list.sort((a,b) => String(a.licencia).localeCompare(String(b.licencia), undefined, {numeric:true})).forEach(l => {
+            select.innerHTML += `<option value="${l.id}">LICENCIA: ${l.licencia}</option>`;
         });
-    } catch (err) { 
-        console.error("❌ [ADMIN] Error cargando licencias:", err); 
-    }
+    } catch (err) { console.error("❌ Error licencias:", err); }
 }
 
-/**
- * Obtiene las empresas y puebla el select (Orden A-Z)
- */
 async function cargarEmpresas() {
     const select = document.getElementById('empresa_ref');
     if (!select) return;
@@ -61,75 +44,62 @@ async function cargarEmpresas() {
         const res = await fetch('/api/v1/empresas', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        const data = await res.json();
-        const list = data.data || data;
-
-        const ordenadas = (list || []).sort((a, b) => a.nombre.localeCompare(b.nombre));
-
+        const result = await res.json();
+        const list = result.data || result;
         select.innerHTML = '<option value="0" disabled selected>-- SELECCIONAR EMPRESA --</option>';
-        ordenadas.forEach(e => {
-            const opt = document.createElement('option');
-            opt.value = e.id; 
-            opt.textContent = e.nombre.toUpperCase();
-            select.appendChild(opt);
+        list.sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(e => {
+            select.innerHTML += `<option value="${e.id}">${e.nombre.toUpperCase()}</option>`;
         });
-    } catch (err) { 
-        console.error("❌ [ADMIN] Error cargando empresas:", err); 
-    }
+    } catch (err) { console.error("❌ Error empresas:", err); }
 }
 
-function initEventListeners() {
-    const form = document.getElementById('albaranForm');
-    if (form) {
-        form.addEventListener('submit', handleInsertMaestro);
-    }
-}
-
-/**
- * Procesa el envío del formulario con normalización estricta para ADMIN
- */
 async function handleInsertMaestro(event) {
     event.preventDefault();
     const statusMsg = document.getElementById('statusMessage');
     const form = event.target;
-    
-    // Captura manual de IDs para asegurar integridad numérica
-    const rawLicencia = document.getElementById('licencia_ref').value;
-    const rawEmpresa = document.getElementById('empresa_ref').value;
-    
     const formData = new FormData(form);
     const data = {};
 
-    // 1. Mapeo de datos y gestión de Checkboxes
+    // 1. PROCESAMIENTO CON VALORES POR DEFECTO PARA SQL
     formData.forEach((value, key) => {
         const input = form.querySelector(`[name="${key}"]`);
-        if (input && input.type === 'checkbox') {
+        const valStr = value.toString().trim();
+
+        if (input.type === 'checkbox') {
             data[key] = input.checked;
-        } else {
-            // Normalización preventiva: Si el texto está vacío, enviamos "-" para evitar error 1364
-            data[key] = (typeof value === 'string' && value.trim() === "") ? "-" : value;
+        } 
+        else if (input.type === 'number') {
+            // ✅ Para SQL Decimal/Int: si está vacío va a 0 (evita el error '-')
+            data[key] = valStr === "" ? 0 : parseFloat(valStr);
+        } 
+        else if (input.type === 'time') {
+            // ✅ Para SQL Time: si está vacío va a null (Go parseTimePtr lo ignora)
+            data[key] = valStr === "" ? null : valStr;
+        }
+        else {
+            // ✅ Para SQL String: si está vacío va a "-"
+            data[key] = valStr === "" ? "-" : valStr;
         }
     });
 
-    // 2. FORZADO DE TIPOS PARA BACKEND
-    data.licencia_ref = parseInt(rawLicencia) || 0;
-    data.empresa_ref = parseInt(rawEmpresa) || 0;
-    data.importe_total = parseFloat(data.importe_total) || 0;
-    data.km_totales = parseFloat(data.km_totales) || 0;
-    data.finalizado = true; // Por defecto para admin
+    // 2. MAPEADO DE CAMPOS ESPECIALES Y FORZADO DE TIPOS
+    // HTML 'nombre_pasajero' -> Backend 'cliente'
+    data.cliente = data.nombre_pasajero || "-";
+    delete data.nombre_pasajero;
 
-    // 3. CAMPOS CRÍTICOS (Garantizar NOT NULL)
-    data.tlf_pasajero = data.tlf_pasajero && data.tlf_pasajero !== "-" ? data.tlf_pasajero : "-";
-    data.dni_pasajero = data.dni_pasajero && data.dni_pasajero !== "-" ? data.dni_pasajero : "-";
-    data.asalariado = data.asalariado && data.asalariado !== "-" ? data.asalariado : "TITULAR";
+    // Asegurar IDs numéricos
+    data.licencia_ref = parseInt(document.getElementById('licencia_ref').value) || 0;
+    data.empresa_ref = parseInt(document.getElementById('empresa_ref').value) || 0;
+    
+    // Otros valores técnicos
+    data.num_plazas = parseInt(data.num_plazas) || 4;
+    data.finalizado = true; // Por ser admin
 
-    console.log("📤 [DEBUG FRONT] Enviando al servidor:", data);
+    console.log("📤 [DEBUG] Payload Final a enviar:", data);
 
-    // Validación mínima
-    if (data.licencia_ref === 0 || data.empresa_ref === 0) {
-        statusMsg.className = "mt-6 p-4 rounded-xl text-center font-bold bg-orange-100 text-orange-700 block border-2 border-orange-500";
-        statusMsg.textContent = "⚠️ Error: Debes seleccionar Licencia y Empresa.";
-        statusMsg.classList.remove('hidden');
+    // Validación de campos mínimos requeridos en el front
+    if (data.licencia_ref === 0 || data.empresa_ref === 0 || data.numero_albaran === "-") {
+        showUIStatus("⚠️ Mínimo requerido: Licencia, Empresa y Nº Albarán.", "error");
         return;
     }
 
@@ -144,36 +114,33 @@ async function handleInsertMaestro(event) {
         });
 
         const result = await res.json();
-        console.log("📥 [DEBUG FRONT] Respuesta:", result);
 
         if (res.ok) {
-            statusMsg.className = "mt-6 p-4 rounded-xl text-center font-bold bg-green-100 text-green-700 block border-2 border-green-500 shadow-lg";
-            statusMsg.textContent = "✅ ALBARÁN GUARDADO. REDIRIGIENDO AL PANEL...";
-            statusMsg.classList.remove('hidden');
-            
-            // REDIRECCIÓN A LA RAÍZ DE ADMIN
-            setTimeout(() => {
-                window.location.href = '/admin';
-            }, 1200);
-            
+            showUIStatus("✅ ALBARÁN GUARDADO CON ÉXITO", "success");
+            setTimeout(() => window.location.href = '/admin', 1500);
         } else {
-            throw new Error(result.error || "Fallo en el guardado");
+            throw new Error(result.error || "Error al procesar en el servidor");
         }
     } catch (err) {
-        statusMsg.className = "mt-6 p-4 rounded-xl text-center font-bold bg-red-100 text-red-700 block border-2 border-red-500 shadow-lg";
-        statusMsg.textContent = `❌ ERROR: ${err.message}`;
-        statusMsg.classList.remove('hidden');
+        console.error("❌ Error en POST:", err);
+        showUIStatus(`❌ FALLO: ${err.message}`, "error");
     }
 }
 
-/**
- * Cálculo automático de KMs
- */
+function showUIStatus(msg, type) {
+    const el = document.getElementById('statusMessage');
+    if (!el) return;
+    el.className = `mt-8 p-5 rounded-2xl text-center font-black w-full max-w-2xl border-2 uppercase text-xs tracking-widest block shadow-lg ${
+        type === 'success' ? 'bg-green-100 text-green-700 border-green-500' : 'bg-red-100 text-red-700 border-red-500'
+    }`;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+}
+
 function initCalculosKms() {
     const v1 = document.querySelector('input[name="km_ini"]');
     const v2 = document.querySelector('input[name="km_fin"]');
     const tot = document.querySelector('input[name="km_totales"]');
-    
     const calc = () => { 
         if (v1 && v2 && tot) {
             const val1 = parseFloat(v1.value) || 0;
@@ -181,7 +148,6 @@ function initCalculosKms() {
             tot.value = Math.max(0, (val2 - val1)).toFixed(2); 
         }
     };
-    
     v1?.addEventListener('input', calc); 
     v2?.addEventListener('input', calc);
 }
