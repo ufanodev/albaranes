@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con soporte robusto para SQL directo y tipos de tiempo.
- * ACTUALIZADO: 19/03/2026 - FIX: time.ParseInLocation para evitar desfases de zona horaria en MySQL.
+ * ACTUALIZADO: 23/03/2026 - FIX: Soporte para estados (enviado, cobrado, pagado) en SQL directo.
  */
 
 package controllers
@@ -154,6 +154,18 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "Adjuntos"
 		case "adjuntos":
 			structKey = "AdjuntosRef"
+		case "enviado":
+			structKey = "Enviado"
+		case "cobrado":
+			structKey = "Cobrado"
+		case "pagado":
+			structKey = "Pagado"
+		case "num_factura":
+			structKey = "NumFactura"
+		case "finalizado":
+			structKey = "Finalizado"
+		case "festivo":
+			structKey = "Festivo"
 		default:
 			parts := strings.Split(key, "_")
 			for i := range parts {
@@ -292,19 +304,21 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		timePtrOrNil(cleanInput, "Fecha"))
 
 	query := `
-		UPDATE albaranes SET
-			fecha              = ?, hora_ini           = ?, hora_fin           = ?,
-			espera_ini         = ?, espera_fin         = ?, referencia         = ?,
-			asalariado         = ?, dni_pasajero       = ?, tlf_pasajero       = ?,
-			matricula          = ?, cliente            = ?, origen             = ?,
-			parada             = ?, destino            = ?, empresa_ref        = ?,
-			empresa_nombre     = ?, km_totales         = ?, km_nacionales      = ?,
-			km_internacionales = ?, importe_total      = ?, importe_suplidos   = ?,
-			hora_total         = ?, num_plazas         = ?, urbano             = ?,
-			diurno             = ?, noct_fest          = ?, remolque           = ?,
-			adjuntos           = ?, adjuntos_ref       = ?, autorizado_por     = ?,
-			observaciones      = ?, updated_at         = NOW()
-		WHERE id = ?`
+        UPDATE albaranes SET
+            fecha              = ?, hora_ini           = ?, hora_fin           = ?,
+            espera_ini         = ?, espera_fin         = ?, referencia         = ?,
+            asalariado         = ?, dni_pasajero       = ?, tlf_pasajero       = ?,
+            matricula          = ?, cliente            = ?, origen             = ?,
+            parada             = ?, destino            = ?, empresa_ref        = ?,
+            empresa_nombre     = ?, km_totales         = ?, km_nacionales      = ?,
+            km_internacionales = ?, importe_total      = ?, importe_suplidos   = ?,
+            hora_total         = ?, num_plazas         = ?, urbano             = ?,
+            diurno             = ?, noct_fest          = ?, remolque           = ?,
+            adjuntos           = ?, adjuntos_ref       = ?, autorizado_por     = ?,
+            observaciones      = ?, enviado            = ?, cobrado            = ?,
+            pagado             = ?, num_factura        = ?, finalizado         = ?,
+            fecha_cobro        = ?, updated_at         = NOW()
+        WHERE id = ?`
 
 	params := []interface{}{
 		timePtrOrNil(cleanInput, "Fecha"),
@@ -338,6 +352,12 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		strOrEmpty(cleanInput, "AdjuntosRef"),
 		strPtrOrNil(cleanInput, "AutorizadoPor"),
 		strPtrOrNil(cleanInput, "Observaciones"),
+		boolOrFalse(cleanInput, "Enviado"),   // ✅ AÑADIDO
+		boolOrFalse(cleanInput, "Cobrado"),   // ✅ AÑADIDO
+		boolOrFalse(cleanInput, "Pagado"),    // ✅ AÑADIDO
+		strOrEmpty(cleanInput, "NumFactura"), // ✅ AÑADIDO
+		boolOrFalse(cleanInput, "Finalizado"),
+		timePtrOrNil(cleanInput, "FechaCobro"),
 		id,
 	}
 
