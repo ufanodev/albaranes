@@ -33,7 +33,8 @@
 
         <div class="bg-gradient-to-r from-slate-700 to-slate-900 p-6 flex justify-between items-center border-b border-slate-800">
             <h1 class="text-2xl font-black text-white flex items-center uppercase">
-                <i data-lucide="eye" class="mr-3 text-primary-link"></i> DETALLE ALBARÁN <span id="header_num" class="ml-3 text-primary-link opacity-50 text-lg"></span>
+                <i data-lucide="eye" class="mr-3 text-primary-link"></i> DETALLE ALBARÁN 
+                <span id="header_num" class="ml-3 text-primary-link opacity-50 text-lg"></span>
             </h1>
             <button onclick="window.history.back()"
                 class="bg-white/10 text-white px-5 py-2 rounded-xl font-bold hover:bg-white/20 transition flex items-center shadow-lg text-sm backdrop-blur-md">
@@ -50,7 +51,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                     <div class="md:col-span-1">
                         <label class="label-style">Licencia</label>
-                        <div id="licencia" class="view-field bg-slate-200 justify-center"></div>
+                        <div id="licencia_ref" class="view-field bg-slate-200 justify-center"></div>
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Nº Albarán</label>
@@ -84,7 +85,8 @@
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Nombre Pasajero</label>
-                        <div id="cliente" class="view-field"></div> </div>
+                        <div id="cliente" class="view-field"></div> 
+                    </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Teléfono</label>
                         <div id="tlf_pasajero" class="view-field"></div>
@@ -135,15 +137,15 @@
                 <div class="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="checkbox-inline">
-                            <input type="checkbox" name="urbano" id="urbano" disabled class="w-4 h-4 text-orange-500">
+                            <input type="checkbox" id="urbano" disabled class="w-4 h-4 text-orange-500">
                             <span class="text-[10px] font-black uppercase ml-2">Servicio Urbano</span>
                         </div>
                         <div class="checkbox-inline">
-                            <input type="checkbox" name="diurno" id="diurno" disabled class="w-4 h-4 text-blue-500">
+                            <input type="checkbox" id="diurno" disabled class="w-4 h-4 text-blue-500">
                             <span class="text-[10px] font-black uppercase ml-2">Servicio Diurno</span>
                         </div>
                         <div class="checkbox-inline">
-                            <input type="checkbox" name="noct_fest" id="noct_fest" disabled class="w-4 h-4 text-purple-600">
+                            <input type="checkbox" id="noct_fest" disabled class="w-4 h-4 text-purple-600">
                             <span class="text-[10px] font-black uppercase ml-2">Nocturno / Festivo</span>
                         </div>
                     </div>
@@ -187,7 +189,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                             <div class="md:col-span-3">
                                 <div class="checkbox-inline w-full">
-                                    <input type="checkbox" name="remolque" id="remolque" disabled class="w-4 h-4 text-orange-600">
+                                    <input type="checkbox" id="remolque" disabled class="w-4 h-4 text-orange-600">
                                     <span class="text-[9px] font-black uppercase ml-2">Remolque</span>
                                 </div>
                             </div>
@@ -197,7 +199,7 @@
                             </div>
                             <div class="md:col-span-2">
                                 <div class="checkbox-inline w-full border-blue-200 bg-blue-50">
-                                    <input type="checkbox" name="adjuntos" id="adjuntos" disabled class="w-4 h-4 text-blue-600">
+                                    <input type="checkbox" id="adjuntos" disabled class="w-4 h-4 text-blue-600">
                                     <span class="text-[9px] font-black uppercase ml-2">Adjuntos</span>
                                 </div>
                             </div>

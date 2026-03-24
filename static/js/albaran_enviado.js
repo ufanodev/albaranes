@@ -1,41 +1,56 @@
 /**
- * ARCHIVO: albaran_enviado.js - Panel de Usuario (Titular)
+ * ARCHIVO: static/js/albaran_enviado.js - Panel de Usuario (Titular)
  * GESTIÓN: Histórico de Albaranes (Enviados, Cobrados, Pagados)
- * ACTUALIZADO: 23/03/2026 - Ordenación total y Fix visualización campos.
+ * ACTUALIZADO: 24/03/2026 - FIX DEFINITIVO: Mapeo de IDs a Nombres de Empresa.
  */
 
 (function() {
     let localData = [];       
     let filteredData = [];    
+    let empresasCatalog = {}; // Diccionario para traducir IDs a Nombres { "70": "CORTICHAPA" }
     let page = 1;
     let size = 20;
     let licId = null;
     let currentSort = { key: 'fecha', direction: 'desc' };
     let searchMode = 'campos'; 
 
+    /**
+     * Inicialización del módulo
+     */
     async function startApp() {
-        console.log('🚀 [HISTORIAL] Iniciando módulo...');
+        console.log('🚀 [HISTORIAL] Iniciando módulo con diccionario de empresas...');
         try {
+            // 1. Obtener Identidad del Titular
             const resp = await fetch('/api/v1/user/licencia_info', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const identity = await resp.json();
             licId = identity.licencia_id;
 
+            // 2. Cargar Empresas para el filtro y el DICCIONARIO
             const rEmp = await fetch('/api/v1/empresas', {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const dEmp = await rEmp.json();
-            const empresaSelect = document.getElementById('empresa');
+            const empresasArr = dEmp.data || [];
             
+            // Llenar el catálogo para traducción inmediata
+            empresasArr.forEach(e => {
+                empresasCatalog[e.id] = e.nombre.toUpperCase();
+            });
+
+            const empresaSelect = document.getElementById('empresa');
             if (empresaSelect) {
-                const empresasOrdenadas = (dEmp.data || []).sort((a, b) => 
+                const empresasOrdenadas = [...empresasArr].sort((a, b) => 
                     a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
                 );
                 empresaSelect.innerHTML = '<option value="">Todas las empresas</option>' + 
                     empresasOrdenadas.map(e => `<option value="${e.nombre}">${e.nombre.toUpperCase()}</option>`).join('');
             }
-        } catch (e) { console.error("Error en inicio:", e); return; }
+        } catch (e) { 
+            console.error("Error en inicio:", e); 
+            return; 
+        }
 
         setupEventListeners();
         await fetchData();
@@ -55,6 +70,11 @@
 
         document.getElementById('prevPageBtn')?.addEventListener('click', () => { if(page > 1) { page--; render(); } });
         document.getElementById('nextPageBtn')?.addEventListener('click', () => { if(page < Math.ceil(filteredData.length/size)) { page++; render(); } });
+        
+        // Búsqueda por palabra en tiempo real
+        document.getElementById('palabra')?.addEventListener('input', () => {
+            if (searchMode === 'palabra') applyFilters();
+        });
     }
 
     async function fetchData() {
@@ -68,7 +88,7 @@
             const json = await response.json();
             const items = json.data || [];
 
-            // FILTRO MAESTRO: Enviado, Cobrado o Pagado
+            // FILTRO MAESTRO: Enviado, Cobrado o Pagado (ya procesados)
             localData = items.filter(i => i.enviado || i.cobrado || i.pagado);
             
             applyFilters(); 
@@ -85,14 +105,17 @@
         const palabra = document.getElementById('palabra')?.value?.toLowerCase();
 
         filteredData = localData.filter(i => {
+            // Buscamos el nombre real para filtrar
+            const nombreEmp = empresasCatalog[i.empresa_ref] || i.empresa_nombre || "";
+
             if (searchMode === 'campos') {
-                const matchEmpresa = !empresa || i.empresa_nombre === empresa;
+                const matchEmpresa = !empresa || (nombreEmp === empresa);
                 const matchRef = !ref || (i.referencia && i.referencia.toLowerCase().includes(ref));
                 const matchDesde = !desde || i.fecha >= desde;
                 const matchHasta = !hasta || i.fecha <= hasta;
                 return matchEmpresa && matchRef && matchDesde && matchHasta;
             } else {
-                const searchTxt = `${i.numero_albaran} ${i.referencia} ${i.empresa_nombre} ${i.asalariado}`.toLowerCase();
+                const searchTxt = `${i.numero_albaran} ${i.referencia} ${nombreEmp} ${i.asalariado}`.toLowerCase();
                 return !palabra || searchTxt.includes(palabra);
             }
         });
@@ -118,6 +141,9 @@
         pageItems.forEach(i => {
             const imp = parseFloat(i.importe_total || 0);
             
+            // ✅ TRADUCCIÓN: Usar el diccionario local para el nombre de empresa
+            const nombreEmpresaFinal = empresasCatalog[i.empresa_ref] || i.empresa_nombre || "ID: " + i.empresa_ref;
+
             // Lógica de Badges de Estado
             let badge = '';
             if (i.pagado) {
@@ -129,13 +155,13 @@
             }
 
             body.insertAdjacentHTML('beforeend', `
-                <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs transition-colors">
+                <tr class="hover:bg-slate-50 border-b border-slate-100 text-xs transition-colors group">
                     <td class="px-4 py-4 font-black text-slate-900">${i.numero_albaran}</td>
-                    <td class="px-4 py-4 text-slate-500 font-medium">${i.fecha.substring(0,10)}</td>
+                    <td class="px-4 py-4 text-slate-500 font-medium">${i.fecha ? i.fecha.substring(0,10) : "-"}</td>
                     <td class="px-4 py-4 text-blue-600 font-black">${i.licencia || i.licencia_ref}</td>
-                    <td class="px-4 py-4 font-bold text-slate-700 uppercase">${i.empresa_nombre || '-'}</td>
+                    <td class="px-4 py-4 font-bold text-slate-700 uppercase truncate max-w-[150px]" title="${nombreEmpresaFinal}">${nombreEmpresaFinal}</td>
                     <td class="px-4 py-4 text-slate-400 italic">${i.referencia || '-'}</td>
-                    <td class="px-4 py-4 text-slate-600 font-semibold">${i.asalariado || 'Titular'}</td>
+                    <td class="px-4 py-4 text-slate-600 font-semibold">${i.asalariado || 'TITULAR'}</td>
                     <td class="px-4 py-4 text-right font-black text-slate-900 tracking-tight">€${imp.toFixed(2)}</td>
                     <td class="px-4 py-4 text-center">${badge}</td>
                     <td class="px-4 py-4 text-center">
@@ -164,9 +190,10 @@
             let vA, vB;
 
             if (key === 'estado') {
-                // Orden de prioridad: Pagado(3) > Cobrado(2) > Enviado(1)
                 const getWeight = (x) => x.pagado ? 3 : (x.cobrado ? 2 : 1);
                 vA = getWeight(a); vB = getWeight(b);
+            } else if (key === 'empresa') {
+                vA = empresasCatalog[a.empresa_ref] || ""; vB = empresasCatalog[b.empresa_ref] || "";
             } else {
                 switch(key) {
                     case 'importe_total': vA = parseFloat(a.importe_total || 0); vB = parseFloat(b.importe_total || 0); break;
@@ -199,10 +226,8 @@
     window.UI = {
         setSearchModeManual(mode) {
             searchMode = mode;
-            const form = document.getElementById('searchForm');
-            const palabraSec = document.getElementById('palabraSection');
-            form.classList.toggle('hidden', mode === 'palabra');
-            palabraSec.classList.toggle('hidden', mode === 'campos');
+            document.getElementById('searchForm').classList.toggle('hidden', mode === 'palabra');
+            document.getElementById('palabraSection').classList.toggle('hidden', mode === 'campos');
             
             document.getElementById('btn-mode-campos').className = mode === 'campos' ? "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
             document.getElementById('btn-mode-palabra').className = mode === 'palabra' ? "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
