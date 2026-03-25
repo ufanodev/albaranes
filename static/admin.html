@@ -7,8 +7,6 @@
     
     <script src="/js/security.js"></script>    
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/js/admin.js" defer></script> 
-
     <script>
         tailwind.config = {
             theme: {
@@ -29,7 +27,7 @@
         @layer components {
             body { font-family: 'Inter', sans-serif; @apply bg-slate-50 text-slate-900; }
             .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
-            .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150; }
+            .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150 text-sm font-bold text-gray-700; }
 
             /* DROPDOWNS */
             .dropdown-content {
@@ -121,13 +119,13 @@
 
                     <div class="flex items-center gap-2 border-l border-orange-400 pl-4 ml-2">
                         <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-white/20 hover:bg-white/40 p-2 rounded-xl shadow-md transition active:scale-95">
-                            <i data-lucide="printer" class="h-5 w-5"></i>
+                            <i data-lucide="printer" class="h-5 w-5 text-white"></i>
                         </button>
                         <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500/20 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
-                            <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
+                            <i data-lucide="file-spreadsheet" class="h-5 w-5 text-white"></i>
                         </button>
                         <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl shadow-lg transition active:scale-95" title="Cerrar Sesión">
-                            <i data-lucide="log-out" class="h-5 w-5"></i>
+                            <i data-lucide="log-out" class="h-5 w-5 text-white"></i>
                         </button>
                     </div>
                 </nav>
@@ -148,61 +146,62 @@
             </div>
 
             <div class="card">
-                <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-4">
+                <div class="flex flex-wrap gap-3 mb-6 items-center">
+                    <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all">📝 Por Filtros</button>
+                    <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border transition-all">💬 Por Palabra</button>
+                    
+                    <button type="button" id="btn-buscar-accion" onclick="handleSearch(event)" class="px-6 py-2 rounded-lg bg-primary-link text-white text-[10px] font-black uppercase hover:bg-orange-600 transition shadow-lg flex items-center gap-2">
+                        <i data-lucide="search" class="w-3 h-3"></i> Buscar ahora
+                    </button>
+
+                    <button type="button" onclick="handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-slate-200 text-slate-600 text-[10px] font-black uppercase hover:bg-slate-300 ml-auto transition">Limpiar Filtros</button>
+                </div>
+
+                <form id="searchForm" class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                         <div>
                             <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Licencia</label>
-                            <select id="licenciaSelect" name="licencia_ref" class="input-field text-xs h-10 font-bold">
-                                <option value="">🆔 TODAS LAS LICENCIAS</option>
-                            </select>
+                            <select id="licenciaSelect" name="licencia_ref" class="input-field text-xs h-10"></select>
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Empresa</label>
-                            <select id="empresaSelect" name="empresa_ref" class="input-field text-xs h-10 font-bold">
-                                <option value="">📋 TODAS LAS EMPRESAS</option>
+                            <select id="empresaSelect" name="empresa_ref" class="input-field text-xs h-10"></select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Estado</label>
+                            <select id="state" name="state" class="input-field text-xs h-10">
+                                <option value="">🎯 TODOS LOS ESTADOS</option>
+                                <option value="creado">🆕 PENDIENTES</option>
+                                <option value="enviado">📧 ENVIADOS</option>
+                                <option value="pagado">💰 PAGADOS</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Referencia</label>
-                            <input type="text" name="referencia" placeholder="Expediente..." class="input-field text-xs h-10">
+                            <input type="text" name="referencia" placeholder="Expediente..." class="input-field text-xs h-10 uppercase">
                         </div>
                         <div>
                             <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Albarán Nº</label>
                             <input type="text" name="numero_albaran" placeholder="Número..." class="input-field text-xs h-10">
                         </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Desde</label>
-                            <input type="date" name="fecha_desde" class="input-field text-xs h-10">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Hasta</label>
-                            <input type="date" name="fecha_hasta" class="input-field text-xs h-10">
+                        <div class="flex gap-1">
+                            <input type="date" name="fecha_desde" class="input-field text-xs h-10 p-1">
+                            <input type="date" name="fecha_hasta" class="input-field text-xs h-10 p-1">
                         </div>
                     </div>
-
-<div class="flex gap-2 items-end pt-2">
-    <div class="relative flex-1">
-        <i data-lucide="search" class="absolute left-3 top-3 h-4 w-4 text-gray-400"></i>
-        <input type="text" id="palabra" name="palabra" placeholder="Búsqueda global..." class="input-field pl-10 py-3 bg-slate-50 font-medium">
-    </div>
-
-    <a href="/admin/nuevo_albaran" class="bg-emerald-600 text-white px-6 py-3 rounded-lg font-black text-xs uppercase shadow-lg hover:bg-emerald-700 transition flex items-center gap-2">
-        <i data-lucide="plus-circle" class="w-4 h-4"></i>
-        Nuevo Albarán
-    </a>
-
-    <button type="submit" class="bg-primary-link text-white px-8 py-3 rounded-lg font-black text-xs uppercase shadow-lg hover:bg-orange-600 transition">Filtrar</button>
-    <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 px-4 py-3 rounded-lg font-black text-xs uppercase hover:bg-slate-300 transition">Limpiar</button>
-</div>
                 </form>
+
+                <div id="palabraSection" class="hidden mt-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                    <input type="text" id="palabra" name="palabra" placeholder="Búsqueda global..." class="input-field py-3 font-bold">
+                </div>
             </div>
 
             <div class="card overflow-hidden">
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-6 px-2">
-                    <h2 class="font-black text-slate-800 flex items-center tracking-tight text-sm">
+                    <h2 class="font-black text-slate-800 flex items-center tracking-tight text-sm uppercase">
                         <i data-lucide="list" class="mr-2 text-primary-link"></i>
-                        ALBARANES REGISTRADOS 
-                        <span id="resultsCount" class="ml-3 bg-primary-link text-white text-[10px] px-2 py-0.5 rounded-full">0</span>
+                        Albaranes Registrados 
+                        <span id="resultsCount" class="ml-3 bg-primary-link text-white text-[10px] px-2 py-0.5 rounded-full shadow-sm">0</span>
                     </h2>
 
                     <div class="flex items-center gap-4">
@@ -210,67 +209,56 @@
                             <option value="10">10 filas</option>
                             <option value="25" selected>25 filas</option>
                             <option value="50">50 filas</option>
-                            <option value="100">100 filas</option>
-                            <option value="todos">Ver Todos</option>
+                            <option value="todos">Todos</option>
                         </select>
-                        <div class="flex items-center bg-slate-100 rounded-lg p-1">
+                        <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-2">
                             <button id="prevPageBtn" class="p-1 hover:bg-white rounded transition disabled:opacity-20"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                            <span id="pageInfo" class="px-4 text-[10px] font-black text-primary-link min-w-[60px] text-center">1 / 1</span>
+                            <span id="pageInfo" class="text-[10px] font-black text-primary-link min-w-[60px] text-center">1 / 1</span>
                             <button id="nextPageBtn" class="p-1 hover:bg-white rounded transition disabled:opacity-20"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
                         </div>
                     </div>
                 </div>
 
-                <div class="overflow-x-auto shadow-2xl rounded-xl border border-slate-200">
+                <div class="overflow-x-auto shadow-inner rounded-xl border border-slate-200">
                     <table class="compact-table">
                         <thead>
                             <tr>
-                                <th class="w-[10%]" onclick="handleSort('numero_albaran')">
-                                    Nº Albarán <span id="sort-icon-numero_albaran" class="ml-1 opacity-50 italic">↕</span>
-                                </th>
-                                <th class="w-[10%]" onclick="handleSort('fecha')">
-                                    Fecha <span id="sort-icon-fecha" class="ml-1 opacity-50 italic">↕</span>
-                                </th>
-                                <th class="w-[8%]" onclick="handleSort('licencia')">
-                                    Licencia <span id="sort-icon-licencia" class="ml-1 opacity-50 italic">↕</span>
-                                </th>
-                                <th class="w-[15%]" onclick="handleSort('empresa_nombre')">
-                                    Empresa <span id="sort-icon-empresa_nombre" class="ml-1 opacity-50 italic">↕</span>
-                                </th>
-                                <th class="w-[12%]" onclick="handleSort('referencia')">
-                                    Expediente <span id="sort-icon-referencia" class="ml-1 opacity-50 italic">↕</span>
-                                </th>
-                                <th class="w-[8%]" onclick="handleSort('num_factura')">
-                                    Factura <span id="sort-icon-num_factura" class="ml-1 opacity-50 italic">↕</span>
-                                </th>
-                                <th class="w-[10%] text-right" onclick="handleSort('importe_total')">
-                                    Importe <span id="sort-icon-importe_total" class="ml-1 opacity-50 italic">↕</span>
-                                </th>
-                                <th class="w-[4%] text-center">Env.</th>
-                                <th class="w-[4%] text-center">Cob.</th>
-                                <th class="w-[4%] text-center">Pag.</th>
-                                <th class="w-[15%] text-left">Observaciones</th>
-                                <th class="w-[10%] text-center">Acciones</th>
+                                <th onclick="handleSort('numero_albaran')">Nº <span id="sort-icon-numero_albaran">↕</span></th>
+                                <th onclick="handleSort('fecha')">Fecha <span id="sort-icon-fecha">↕</span></th>
+                                <th onclick="handleSort('licencia')">Lic <span id="sort-icon-licencia">↕</span></th>
+                                <th onclick="handleSort('empresa_nombre')">Empresa <span id="sort-icon-empresa_nombre">↕</span></th>
+                                <th onclick="handleSort('referencia')">Exp <span id="sort-icon-referencia">↕</span></th>
+                                <th onclick="handleSort('num_factura')">Fac <span id="sort-icon-num_factura">↕</span></th>
+                                <th class="text-right" onclick="handleSort('importe_total')">Importe <span id="sort-icon-importe_total">↕</span></th>
+                                <th class="text-center">Env</th><th class="text-center">Cob</th><th class="text-center">Pag</th>
+                                <th class="text-left">Observaciones</th>
+                                <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody id="albaranResults" class="bg-white divide-y divide-slate-100">
-                            <tr><td colspan="12" class="p-20 text-center italic text-slate-400">Consultando base de datos...</td></tr>
-                        </tbody>
+                        <tbody id="albaranResults" class="bg-white divide-y"></tbody>
                         <tfoot id="tableFooter" class="bg-slate-900 hidden">
-                            <tr class="font-black text-white uppercase tracking-widest">
-                                <td colspan="6" class="text-right text-[9px] py-6 px-4 text-slate-400 whitespace-nowrap">Total en esta vista:</td>
-                                <td id="totalImporte" class="text-right text-sm text-primary-link py-6 px-4 font-black whitespace-nowrap">€0.00</td>
+                            <tr class="font-black text-white">
+                                <td colspan="6" class="text-right text-[9px] py-6 px-4 text-slate-400">Total en vista:</td>
+                                <td id="totalImporte" class="text-right text-sm text-primary-link py-6 px-4 font-black">€0.00</td>
                                 <td colspan="5"></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-                
-                <div id="statusMessage" class="hidden"></div>
                 <div id="totalLabel" class="text-[10px] text-gray-400 mt-4 text-right font-bold uppercase tracking-widest"></div>
             </div>
         </div>
     </main>
+
+    <div id="statusMessage" class="hidden"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script src="/js/oficina.js"></script> 
+    <script src="/js/search.js"></script>
+    <script src="/js/admin.js"></script>
 
     <script>
         function toggleDropdown(button) {
@@ -278,7 +266,11 @@
             document.querySelectorAll('.dropdown').forEach(d => { if (d !== dropdown) d.classList.remove('active'); });
             dropdown.classList.toggle('active');
         }
-        document.addEventListener('click', (e) => { if (!e.target.closest('.dropdown')) { document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); } });
+        document.addEventListener('click', (e) => { 
+            if (!e.target.closest('.dropdown')) { 
+                document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); 
+            } 
+        });
         window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); });
     </script>
 </body>
