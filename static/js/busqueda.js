@@ -2,7 +2,7 @@
  * ARCHIVO: static/js/busqueda.js
  * IMPORTANCIA: Media (Controlador de Interfaz Específico)
  * FUNCIÓN: Gestión de UI, Paginación, API y Renderizado de la tabla de búsqueda.
- * DEPENDE DE: search.js (Debe cargarse antes)
+ * DEPENDE DE: search.js y oficina.js
  */
 
 const APP = {
@@ -58,6 +58,9 @@ async function startApp() {
         await loadAlbaranes();
         setupEventListeners();
 
+        // HACER EL ESTADO ACCESIBLE PARA oficina.js
+        window.APP_STATE = APP.state;
+
     } catch (e) {
         console.error("Fallo crítico en startApp:", e);
     }
@@ -74,9 +77,9 @@ async function loadAlbaranes() {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const json = await response.json();
-        APP.state.rawAlbaranes = json.data || [];
+        APP.state.rawAlbaranes = json.data || json || [];
         
-        // Una vez cargados, aplicamos el filtrado inicial (que por defecto es "todos")
+        // Una vez cargados, aplicamos el filtrado inicial
         executeFiltering(); 
 
     } catch (e) {
@@ -100,14 +103,11 @@ function executeFiltering(e) {
         palabra: APP.elements.palabraInput.value
     };
 
-    // Llamamos al motor común para que procese el array
     if (window.SearchEngine) {
         APP.state.filteredAlbaranes = SearchEngine.applyFilters(APP.state.rawAlbaranes, params);
     }
     
-    // Aplicar ordenación actual
     sortData(APP.state.currentSort.key, true);
-    
     APP.state.currentPage = 1;
     renderTable();
 }
@@ -125,16 +125,16 @@ function renderTable() {
     const pageItems = APP.state.filteredAlbaranes.slice(start, start + APP.state.pageSize);
 
     if (pageItems.length === 0) {
-        resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-slate-400 italic font-medium border-b">No se han encontrado albaranes con estos criterios.</td></tr>';
+        resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-slate-400 italic font-medium border-b">No se han encontrado albaranes.</td></tr>';
         if (tableFooter) tableFooter.classList.add('hidden');
         return;
     }
 
-    let sumTotal = 0;
+    // El total se calcula sobre el dataset filtrado COMPLETO, no solo la página
+    let sumTotalFull = APP.state.filteredAlbaranes.reduce((acc, curr) => acc + parseFloat(curr.importe_total || 0), 0);
+
     pageItems.forEach(a => {
         const imp = parseFloat(a.importe_total || 0);
-        sumTotal += imp;
-        
         const row = `
             <tr class="hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm group">
                 <td class="px-4 py-4 font-black text-gray-900">${a.numero_albaran || 'N/A'}</td>
@@ -146,16 +146,15 @@ function renderTable() {
                 <td class="px-4 py-4 text-center">${getBadge(a)}</td>
                 <td class="px-4 py-4 text-center">
                     <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-2 text-secondary-blue hover:bg-blue-100 rounded-xl transition-all" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-2 text-orange-600 hover:bg-orange-100 rounded-xl transition-all" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-2 text-secondary-blue hover:bg-blue-100 rounded-xl transition-all"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-2 text-orange-600 hover:bg-orange-100 rounded-xl transition-all"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                     </div>
                 </td>
             </tr>`;
         resultsBody.insertAdjacentHTML('beforeend', row);
     });
 
-    // Actualizar Totales y Contadores
-    totalImporte.textContent = `€${sumTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}`;
+    totalImporte.textContent = `€${sumTotalFull.toLocaleString('es-ES', { minimumFractionDigits: 2 })}`;
     if (tableFooter) tableFooter.classList.remove('hidden');
     
     document.getElementById('resultsCount').textContent = `${APP.state.filteredAlbaranes.length} REGISTROS`;
@@ -163,7 +162,6 @@ function renderTable() {
     const totalPages = Math.ceil(APP.state.filteredAlbaranes.length / APP.state.pageSize) || 1;
     pageInfo.textContent = `${APP.state.currentPage} / ${totalPages}`;
     
-    // Refrescar iconos y flechas de sort
     if (window.lucide) lucide.createIcons();
     updateSortIcons();
 }
@@ -185,13 +183,9 @@ function sortData(key, isInitial = false) {
     
     APP.state.filteredAlbaranes.sort((a, b) => {
         let vA = a[key], vB = b[key];
-        if (key === 'empresa') { 
-            vA = SearchEngine.getEmpresaNombre(a); 
-            vB = SearchEngine.getEmpresaNombre(b); 
-        }
+        if (key === 'empresa') { vA = SearchEngine.getEmpresaNombre(a); vB = SearchEngine.getEmpresaNombre(b); }
         if (key === 'importe_total') { vA = parseFloat(vA || 0); vB = parseFloat(vB || 0); }
         if (key === 'fecha') { vA = new Date(vA).getTime(); vB = new Date(vB).getTime(); }
-        
         return (vA < vB ? -1 : 1) * (APP.state.currentSort.direction === 'asc' ? 1 : -1);
     });
     if (!isInitial) renderTable();
@@ -212,16 +206,13 @@ function updateSortIcons() {
  * 6. EVENTOS DE INTERFAZ
  */
 function setupEventListeners() {
-    // Submit del formulario (Modo campos)
     APP.elements.searchForm.onsubmit = executeFiltering;
 
-    // Filtros automáticos al cambiar valores
     ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.onchange = () => executeFiltering();
     });
 
-    // Paginación
     APP.elements.recordsSelect.onchange = (e) => {
         const val = e.target.value;
         APP.state.pageSize = val === 'todos' ? 9999 : parseInt(val);
@@ -240,21 +231,17 @@ function setupEventListeners() {
 }
 
 /**
- * 7. HELPERS GLOBALES (Llamados desde botones del HTML)
+ * 7. HELPERS GLOBALES
  */
 window.UI = {
     setSearchModeManual(mode) {
         APP.state.searchMode = mode;
         document.getElementById('palabraSection').classList.toggle('hidden', mode === 'campos');
         document.getElementById('searchForm').classList.toggle('hidden', mode === 'palabra');
-        
-        // Botón condicional de búsqueda por campos
         const btnBuscar = document.getElementById('btn-buscar-campos');
         if(btnBuscar) btnBuscar.classList.toggle('hidden', mode === 'palabra');
         
-        const btnC = document.getElementById('btn-mode-campos'), 
-              btnP = document.getElementById('btn-mode-palabra');
-
+        const btnC = document.getElementById('btn-mode-campos'), btnP = document.getElementById('btn-mode-palabra');
         if (mode === 'campos') {
             btnC.className = "px-4 py-2 rounded-lg bg-secondary-blue text-white font-bold text-[10px] uppercase shadow-md";
             btnP.className = "px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-[10px] uppercase";
@@ -267,17 +254,11 @@ window.UI = {
 
 window.sortTable = sortData;
 window.handleSearch = executeFiltering;
-
 window.handleClearAllFilters = () => {
     APP.elements.searchForm.reset();
     APP.elements.palabraInput.value = '';
     executeFiltering();
 };
+window.handleLogout = () => { localStorage.removeItem('token'); window.location.href = '/login'; };
 
-window.handleLogout = () => { 
-    localStorage.removeItem('token'); 
-    window.location.href = '/login'; 
-};
-
-// Arrancar al cargar el DOM
 document.addEventListener('DOMContentLoaded', startApp);

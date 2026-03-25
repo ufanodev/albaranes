@@ -24,6 +24,12 @@
         };
     </script>
 
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <style type="text/tailwindcss">
         @layer components {
             .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
@@ -167,21 +173,15 @@
                     <th class="px-4 py-5 text-center w-24">Acciones</th>
                   </tr>
                 </thead>
-                <tbody id="albaranResults" class="bg-white divide-y divide-slate-100 text-xs font-medium">
-                    </tbody>
+                <tbody id="albaranResults" class="bg-white divide-y divide-slate-100 text-xs font-medium"></tbody>
                 <tfoot id="albaranTotal" class="bg-slate-50 font-bold border-t-2 border-slate-200"></tfoot>
               </table>
             </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
+    <script src="/js/oficina.js"></script>
     <script src="/js/search.js"></script>
-
     <script src="/js/albaran_pendiente.js"></script>
 
     <script>

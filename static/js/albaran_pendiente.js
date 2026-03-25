@@ -1,7 +1,6 @@
 /**
  * ARCHIVO: static/js/albaran_pendiente.js
- * FUNCIÓN: Controlador de Pendientes y Envío Masivo.
- * DEPENDE DE: search.js (Cerebro)
+ * FUNCIÓN: Controlador de Pendientes con Exportación.
  */
 
 const APP_PENDIENTES = {
@@ -24,9 +23,6 @@ const APP_PENDIENTES = {
     }
 };
 
-/**
- * 1. INICIALIZACIÓN
- */
 async function startApp() {
     try {
         const resp = await fetch('/api/v1/user/licencia_info', {
@@ -35,11 +31,12 @@ async function startApp() {
         const identity = await resp.json();
         APP_PENDIENTES.state.licId = identity.licencia_id;
 
-        // Iniciar Cerebro Común
         await SearchEngine.initCatalog();
-
         await loadData();
         setupEvents();
+
+        // Exponer estado para oficina.js
+        window.APP_STATE = APP_PENDIENTES.state;
     } catch (e) { console.error(e); }
 }
 
@@ -51,23 +48,17 @@ async function loadData() {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const json = await response.json();
-        const items = json.data || [];
+        const items = json.data || json || [];
 
-        // Filtro base: Solo pendientes reales
         APP_PENDIENTES.state.rawAlbaranes = items.filter(i => !i.enviado && !i.cobrado && !i.pagado);
-        
         handleSearch(); 
     } catch (e) {
         APP_PENDIENTES.elements.resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 text-red-500 font-bold">Error de conexión</td></tr>';
     }
 }
 
-/**
- * 2. FILTRADO (Delegado al Cerebro)
- */
 function handleSearch(e) {
     if (e) e.preventDefault();
-    
     const params = {
         mode: APP_PENDIENTES.state.searchMode,
         empresa: document.getElementById('empresa').value,
@@ -76,17 +67,12 @@ function handleSearch(e) {
         hasta: document.getElementById('fecha_hasta').value,
         palabra: document.getElementById('palabra').value
     };
-
     APP_PENDIENTES.state.filteredAlbaranes = SearchEngine.applyFilters(APP_PENDIENTES.state.rawAlbaranes, params);
-    
     sortTable(APP_PENDIENTES.state.currentSort.key, true);
     APP_PENDIENTES.state.currentPage = 1;
     render();
 }
 
-/**
- * 3. RENDERIZADO
- */
 function render() {
     const { resultsBody, totalFooter, pageInfo, activeCount } = APP_PENDIENTES.elements;
     if (!resultsBody) return;
@@ -96,7 +82,7 @@ function render() {
     const pageItems = APP_PENDIENTES.state.filteredAlbaranes.slice(start, start + APP_PENDIENTES.state.pageSize);
 
     if (pageItems.length === 0) {
-        resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 text-slate-400 italic">No hay registros con estos criterios.</td></tr>';
+        resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 text-slate-400 italic">No hay registros pendientes.</td></tr>';
         if (totalFooter) totalFooter.innerHTML = '';
         return;
     }
@@ -111,8 +97,8 @@ function render() {
                 <td class="px-4 py-3 text-center"><input type="checkbox" value="${i.id}" class="select-albaran w-4 h-4 rounded accent-orange-500 cursor-pointer"></td>
                 <td class="px-4 py-3 font-black text-slate-900">${i.numero_albaran || "N/A"}</td>
                 <td class="px-4 py-3 text-slate-500 font-bold">${i.fecha ? i.fecha.substring(0, 10) : "-"}</td>
-                <td class="px-4 py-3 text-secondary-blue font-black">${i.licencia || i.licencia_ref}</td>
-                <td class="px-4 py-3 font-bold text-slate-700 uppercase truncate max-w-[150px]">${SearchEngine.getEmpresaNombre(i)}</td>
+                <td class="px-4 py-3 text-secondary-blue font-black">${SearchEngine.getLicenciaNumero(i)}</td>
+                <td class="px-4 py-4 font-bold text-slate-700 uppercase truncate max-w-[150px]">${SearchEngine.getEmpresaNombre(i)}</td>
                 <td class="px-4 py-3 text-gray-400 italic">${i.referencia || "-"}</td>
                 <td class="px-4 py-3 text-slate-600 font-semibold uppercase">${i.asalariado || "TITULAR"}</td>
                 <td class="px-4 py-3 text-right font-black text-primary-link text-sm">€${imp.toFixed(2)}</td>
@@ -131,18 +117,43 @@ function render() {
         totalFooter.innerHTML = `<tr><td colspan="7" class="px-4 py-4 text-right text-slate-400 text-[10px] font-black uppercase tracking-tighter">Subtotal Página:</td><td class="px-4 py-4 text-right text-base text-primary-link font-black bg-orange-50 border-l border-slate-200">€${sumaTotal.toFixed(2)}</td><td colspan="3"></td></tr>`;
     }
 
-    if (activeCount) activeCount.textContent = `${APP_PENDIENTES.state.filteredAlbaranes.length} REGISTROS FILTRADOS`;
-    
-    const totalPages = Math.ceil(APP_PENDIENTES.state.filteredAlbaranes.length / APP_PENDIENTES.state.pageSize) || 1;
-    if (pageInfo) pageInfo.textContent = `${APP_PENDIENTES.state.currentPage} / ${totalPages}`;
-    
+    if (activeCount) activeCount.textContent = `${APP_PENDIENTES.state.filteredAlbaranes.length} REGISTROS`;
+    if (pageInfo) pageInfo.textContent = `${APP_PENDIENTES.state.currentPage} / ${Math.ceil(APP_PENDIENTES.state.filteredAlbaranes.length / APP_PENDIENTES.state.pageSize) || 1}`;
     if (window.lucide) lucide.createIcons();
     updateSortIcons();
 }
 
 /**
- * 4. ENVÍO MASIVO
+ * EXPORTACIÓN
  */
+window.handleGeneratePDF = () => {
+    const data = APP_PENDIENTES.state.filteredAlbaranes;
+    if (data.length === 0) return alert("Sin datos");
+    const clean = data.map(i => ({
+        "Nº ALBARAN": i.numero_albaran,
+        "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
+        "EMPRESA": SearchEngine.getEmpresaNombre(i),
+        "EXPEDIENTE": i.referencia || "-",
+        "CONDUCTOR": i.asalariado || "TITULAR",
+        "TOTAL": `€${parseFloat(i.importe_total || 0).toFixed(2)}`
+    }));
+    Oficina.generarPDF("ALBARANES_PENDIENTES", clean);
+};
+
+window.handleGenerateXLSX = () => {
+    const data = APP_PENDIENTES.state.filteredAlbaranes;
+    if (data.length === 0) return alert("Sin datos");
+    const clean = data.map(i => ({
+        "Nº ALBARAN": i.numero_albaran,
+        "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
+        "EMPRESA": SearchEngine.getEmpresaNombre(i),
+        "EXPEDIENTE": i.referencia || "-",
+        "TOTAL": parseFloat(i.importe_total || 0)
+    }));
+    Oficina.generarExcel("ALBARANES_PENDIENTES", clean);
+};
+
+// ... (Resto de funciones: handleEnviarSeleccionados, sortTable, updateSortIcons, setupEvents, UI) se mantienen igual ...
 window.handleEnviarSeleccionados = async () => {
     const checkboxes = document.querySelectorAll('.select-albaran:checked');
     const ids = Array.from(checkboxes).map(cb => cb.value);
@@ -169,9 +180,6 @@ window.handleEnviarSeleccionados = async () => {
     await loadData(); 
 };
 
-/**
- * 5. ORDENACIÓN
- */
 function sortTable(key, isInitial = false) {
     if (!isInitial) {
         APP_PENDIENTES.state.currentSort.direction = (APP_PENDIENTES.state.currentSort.key === key && APP_PENDIENTES.state.currentSort.direction === 'asc') ? 'desc' : 'asc';
@@ -217,23 +225,14 @@ function setupEvents() {
     };
 }
 
-/**
- * 6. UI HELPERS GLOBALES
- */
 window.UI = {
     setSearchModeManual(mode) {
         APP_PENDIENTES.state.searchMode = mode;
         document.getElementById('palabraSection').classList.toggle('hidden', mode === 'campos');
         document.getElementById('searchForm').classList.toggle('hidden', mode === 'palabra');
-        
         const btnC = document.getElementById('btn-mode-campos'), btnP = document.getElementById('btn-mode-palabra');
-        if (mode === 'campos') {
-            btnC.className = "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md";
-            btnP.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
-        } else {
-            btnP.className = "px-4 py-2 rounded-lg bg-primary-pastel text-black-pure font-bold text-[10px] uppercase shadow-md";
-            btnC.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
-        }
+        btnC.className = mode === 'campos' ? "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
+        btnP.className = mode === 'palabra' ? "px-4 py-2 rounded-lg bg-primary-pastel text-black-pure font-bold text-[10px] uppercase shadow-md" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
     },
     handleClearAllFilters() {
         document.getElementById('searchForm').reset();

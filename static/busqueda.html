@@ -24,8 +24,9 @@
     </script>
     
     <script src="https://unpkg.com/lucide@latest"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style type="text/tailwindcss">
@@ -156,7 +157,7 @@
             </div>
 
             <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
-                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <table id="tableToExport" class="min-w-full divide-y divide-gray-200 text-sm">
                     <thead class="bg-primary-link text-white text-[10px] uppercase font-black tracking-widest">
                         <tr>
                             <th class="px-4 py-4 text-left cursor-pointer group" onclick="sortTable('numero_albaran')">
@@ -179,8 +180,7 @@
                             <th class="px-4 py-4 text-center">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
-                        </tbody>
+                    <tbody id="albaranResults" class="bg-white divide-y divide-gray-200"></tbody>
                     <tfoot id="tableFooter" class="bg-gray-50 border-t-2 border-gray-200 hidden">
                         <tr class="font-black text-gray-900">
                             <td colspan="5" class="px-4 py-4 text-right uppercase tracking-tighter text-[10px] text-gray-500">Total acumulado en vista:</td>
@@ -195,17 +195,50 @@
         </div>
     </div>
 
+    <script src="/js/oficina.js"></script>
     <script src="/js/search.js"></script>
-
     <script src="/js/busqueda.js"></script>
 
     <script>
-        // Inicialización final de iconos Lucide
+        // Inicialización de iconos
         document.addEventListener('DOMContentLoaded', () => { 
             if (window.lucide) lucide.createIcons(); 
         });
 
-        // Handler global para modales
+        // Handlers de Exportación (Llaman a oficina.js)
+        function handleGeneratePDF() {
+            // Obtenemos los datos filtrados del estado global (definido en busqueda.js)
+            const data = window.APP_STATE?.filteredAlbaranes || [];
+            if (data.length === 0) return alert("No hay datos para exportar");
+
+            const dataClean = data.map(a => ({
+                "Nº ALBARAN": a.numero_albaran,
+                "FECHA": a.fecha ? a.fecha.substring(0,10) : "-",
+                "LICENCIA": a.licencia_numero || document.getElementById('licencia_display').value,
+                "EMPRESA": a.empresa_nombre || "N/A",
+                "EXPEDIENTE": a.referencia || "-",
+                "TOTAL": `€${parseFloat(a.importe_total || 0).toFixed(2)}`
+            }));
+            
+            Oficina.generarPDF("BUSQUEDA_ALBARANES", dataClean);
+        }
+
+        function handleGenerateXLSX() {
+            const data = window.APP_STATE?.filteredAlbaranes || [];
+            if (data.length === 0) return alert("No hay datos para exportar");
+
+            const dataClean = data.map(a => ({
+                "Nº ALBARAN": a.numero_albaran,
+                "FECHA": a.fecha ? a.fecha.substring(0,10) : "-",
+                "EMPRESA": a.empresa_nombre || "N/A",
+                "EXPEDIENTE": a.referencia || "-",
+                "TOTAL": parseFloat(a.importe_total || 0)
+            }));
+            
+            Oficina.generarExcel("BUSQUEDA_ALBARANES", dataClean);
+        }
+
+        // Handler para modales
         window.handleActionModal = function(show, title = '', body = '') {
             const modal = document.getElementById('actionModal');
             if(!modal) return;

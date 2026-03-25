@@ -1,7 +1,6 @@
 /**
  * ARCHIVO: static/js/albaran_enviado.js
- * FUNCIÓN: Controlador del Histórico (Enviados, Cobrados, Pagados).
- * ACTUALIZADO: 24/03/2026 - FIX: Limpiar filtros y Delegación a SearchEngine.
+ * FUNCIÓN: Controlador del Histórico con Exportación (PDF/XLSX).
  */
 
 const APP_ENVIADOS = {
@@ -22,9 +21,6 @@ const APP_ENVIADOS = {
     }
 };
 
-/**
- * 1. INICIALIZACIÓN
- */
 async function startApp() {
     try {
         const resp = await fetch('/api/v1/user/licencia_info', {
@@ -33,11 +29,12 @@ async function startApp() {
         const identity = await resp.json();
         APP_ENVIADOS.state.licId = identity.licencia_id;
 
-        // Iniciar el cerebro común (Carga empresas en el select y diccionario)
         await SearchEngine.initCatalog();
-
         await loadData();
         setupEvents();
+        
+        // Exponer estado para oficina.js
+        window.APP_STATE = APP_ENVIADOS.state;
     } catch (e) { console.error("Error histórico:", e); }
 }
 
@@ -49,23 +46,17 @@ async function loadData() {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const json = await response.json();
-        const items = json.data || [];
+        const items = json.data || json || [];
 
-        // Filtro histórico: Enviados, Cobrados o Pagados
         APP_ENVIADOS.state.rawAlbaranes = items.filter(i => i.enviado || i.cobrado || i.pagado);
-        
         handleSearch(); 
     } catch (e) {
         APP_ENVIADOS.elements.resultsBody.innerHTML = '<tr><td colspan="9" class="text-center py-20 text-red-500 font-bold">Error de conexión</td></tr>';
     }
 }
 
-/**
- * 2. FILTRADO (Delegado al Cerebro)
- */
 function handleSearch(e) {
     if (e) e.preventDefault();
-    
     const params = {
         mode: APP_ENVIADOS.state.searchMode,
         empresa: document.getElementById('empresa').value,
@@ -74,17 +65,12 @@ function handleSearch(e) {
         hasta: document.getElementById('fecha_hasta').value,
         palabra: document.getElementById('palabra').value
     };
-
     APP_ENVIADOS.state.filteredAlbaranes = SearchEngine.applyFilters(APP_ENVIADOS.state.rawAlbaranes, params);
-    
     sortTable(APP_ENVIADOS.state.currentSort.key, true);
     APP_ENVIADOS.state.currentPage = 1;
     render();
 }
 
-/**
- * 3. RENDERIZADO
- */
 function render() {
     const { resultsBody, pageInfo, activeCount } = APP_ENVIADOS.elements;
     if (!resultsBody) return;
@@ -94,55 +80,75 @@ function render() {
     const pageItems = APP_ENVIADOS.state.filteredAlbaranes.slice(start, start + APP_ENVIADOS.state.pageSize);
 
     if (pageItems.length === 0) {
-        resultsBody.innerHTML = '<tr><td colspan="9" class="text-center py-24 text-slate-400 italic font-medium">Sin registros históricos con estos filtros.</td></tr>';
+        resultsBody.innerHTML = '<tr><td colspan="9" class="text-center py-24 text-slate-400 italic font-medium">Sin registros históricos.</td></tr>';
         return;
     }
 
     pageItems.forEach(i => {
         const imp = parseFloat(i.importe_total || 0);
-        
-        let badge = '';
-        if (i.pagado) badge = '<span class="px-2.5 py-0.5 bg-green-100 text-green-700 rounded-full text-[9px] font-black uppercase border border-green-200">Pagado</span>';
-        else if (i.cobrado) badge = '<span class="px-2.5 py-0.5 bg-teal-100 text-teal-700 rounded-full text-[9px] font-black uppercase border border-teal-200">Cobrado</span>';
-        else badge = '<span class="px-2.5 py-0.5 bg-orange-100 text-orange-700 rounded-full text-[9px] font-black uppercase border border-orange-200">Enviado</span>';
+        let badge = i.pagado ? 'Pagado' : (i.cobrado ? 'Cobrado' : 'Enviado');
+        let badgeColor = i.pagado ? 'bg-green-100 text-green-700' : (i.cobrado ? 'bg-teal-100 text-teal-700' : 'bg-orange-100 text-orange-700');
 
         const row = `
             <tr class="hover:bg-slate-50 border-b border-slate-100 transition-colors group">
                 <td class="px-4 py-4 font-black text-slate-900">${i.numero_albaran}</td>
                 <td class="px-4 py-4 text-slate-500 font-bold">${i.fecha ? i.fecha.substring(0,10) : "-"}</td>
-                <td class="px-4 py-4 text-blue-600 font-black">${i.licencia || i.licencia_ref}</td>
+                <td class="px-4 py-4 text-blue-600 font-black">${SearchEngine.getLicenciaNumero(i)}</td>
                 <td class="px-4 py-4 font-bold text-slate-700 uppercase truncate max-w-[150px]">${SearchEngine.getEmpresaNombre(i)}</td>
                 <td class="px-4 py-4 text-slate-400 italic">${i.referencia || '-'}</td>
                 <td class="px-4 py-4 text-slate-600 font-semibold uppercase">${i.asalariado || 'TITULAR'}</td>
                 <td class="px-4 py-4 text-right font-black text-slate-900 tracking-tight">€${imp.toFixed(2)}</td>
-                <td class="px-4 py-4 text-center">${badge}</td>
+                <td class="px-4 py-4 text-center"><span class="px-2.5 py-0.5 ${badgeColor} rounded-full text-[9px] font-black uppercase border">${badge}</span></td>
                 <td class="px-4 py-4 text-center">
-                    <a href="/titulares/view/${i.id}" class="text-slate-400 hover:text-blue-600 transition-transform hover:scale-125 inline-block">
-                        <i data-lucide="eye" class="w-5 h-5"></i>
-                    </a>
+                    <a href="/titulares/view/${i.id}" class="text-slate-400 hover:text-blue-600 transition-transform hover:scale-125 inline-block"><i data-lucide="eye" class="w-5 h-5"></i></a>
                 </td>
             </tr>`;
         resultsBody.insertAdjacentHTML('beforeend', row);
     });
 
-    activeCount.textContent = `${APP_ENVIADOS.state.filteredAlbaranes.length} REGISTROS FILTRADOS`;
-    
-    const totalPages = Math.ceil(APP_ENVIADOS.state.filteredAlbaranes.length / APP_ENVIADOS.state.pageSize) || 1;
-    pageInfo.textContent = `${APP_ENVIADOS.state.currentPage} / ${totalPages}`;
-    
+    activeCount.textContent = `${APP_ENVIADOS.state.filteredAlbaranes.length} REGISTROS`;
+    pageInfo.textContent = `${APP_ENVIADOS.state.currentPage} / ${Math.ceil(APP_ENVIADOS.state.filteredAlbaranes.length / APP_ENVIADOS.state.pageSize) || 1}`;
     if (window.lucide) lucide.createIcons();
     updateSortIcons();
 }
 
 /**
- * 4. ORDENACIÓN Y EVENTOS
+ * EXPORTACIÓN
  */
+window.handleGeneratePDF = () => {
+    const data = APP_ENVIADOS.state.filteredAlbaranes;
+    if (data.length === 0) return alert("Sin datos");
+    const clean = data.map(i => ({
+        "Nº ALBARAN": i.numero_albaran,
+        "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
+        "EMPRESA": SearchEngine.getEmpresaNombre(i),
+        "EXPEDIENTE": i.referencia || "-",
+        "ESTADO": i.pagado ? 'PAGADO' : (i.cobrado ? 'COBRADO' : 'ENVIADO'),
+        "TOTAL": `€${parseFloat(i.importe_total || 0).toFixed(2)}`
+    }));
+    Oficina.generarPDF("HISTORICO_ENVIADOS", clean);
+};
+
+window.handleGenerateXLSX = () => {
+    const data = APP_ENVIADOS.state.filteredAlbaranes;
+    if (data.length === 0) return alert("Sin datos");
+    const clean = data.map(i => ({
+        "Nº ALBARAN": i.numero_albaran,
+        "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
+        "LICENCIA": SearchEngine.getLicenciaNumero(i),
+        "EMPRESA": SearchEngine.getEmpresaNombre(i),
+        "EXPEDIENTE": i.referencia,
+        "IMPORTE": parseFloat(i.importe_total || 0)
+    }));
+    Oficina.generarExcel("HISTORICO_ENVIADOS", clean);
+};
+
+// ... (Resto de funciones sortTable, updateSortIcons, setupEvents, UI) se mantienen igual que tu archivo original ...
 function sortTable(key, isInitial = false) {
     if (!isInitial) {
         APP_ENVIADOS.state.currentSort.direction = (APP_ENVIADOS.state.currentSort.key === key && APP_ENVIADOS.state.currentSort.direction === 'asc') ? 'desc' : 'asc';
         APP_ENVIADOS.state.currentSort.key = key;
     }
-
     APP_ENVIADOS.state.filteredAlbaranes.sort((a, b) => {
         let vA, vB;
         if (key === 'estado') {
@@ -187,21 +193,14 @@ function setupEvents() {
     };
 }
 
-// Interfaz global
 window.UI = {
     setSearchModeManual(mode) {
         APP_ENVIADOS.state.searchMode = mode;
         document.getElementById('searchForm').classList.toggle('hidden', mode === 'palabra');
         document.getElementById('palabraSection').classList.toggle('hidden', mode === 'campos');
-        
         const btnC = document.getElementById('btn-mode-campos'), btnP = document.getElementById('btn-mode-palabra');
-        if (mode === 'campos') {
-            btnC.className = "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md";
-            btnP.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
-        } else {
-            btnP.className = "px-4 py-2 rounded-lg bg-primary-pastel text-black-pure font-bold text-[10px] uppercase shadow-md";
-            btnC.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border";
-        }
+        btnC.className = mode === 'campos' ? "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] border";
+        btnP.className = mode === 'palabra' ? "px-4 py-2 rounded-lg bg-primary-pastel text-black-pure font-bold text-[10px] uppercase shadow-md" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] border";
     },
     handleClearAllFilters() {
         document.getElementById('searchForm').reset();
