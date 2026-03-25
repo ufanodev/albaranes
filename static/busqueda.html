@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚕 Búsqueda de Albaranes de Servicio</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/js/security.js"></script>    
-    <script src="/js/busqueda.js" defer></script>
     
+    <script src="/js/security.js"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -22,8 +22,8 @@
             }
         }
     </script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -76,6 +76,11 @@
                 <div class="flex flex-wrap gap-3 mb-4 items-center">
                     <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg transition shadow-md bg-secondary-blue text-white font-bold text-[10px] uppercase">📝 Búsqueda por Campos</button>
                     <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg transition shadow-md bg-primary-pastel text-black-pure font-bold text-[10px] uppercase">💬 Búsqueda por Palabra</button>
+                    
+                    <button type="button" id="btn-buscar-campos" onclick="handleSearch(event)" class="px-6 py-2 rounded-lg bg-primary-link text-white text-[10px] font-black uppercase hover:bg-orange-600 transition shadow-lg flex items-center gap-2">
+                        <i data-lucide="search" class="w-3 h-3"></i> Buscar ahora
+                    </button>
+
                     <button type="button" onclick="handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-blue-500 text-white text-[10px] font-bold uppercase hover:bg-blue-600 ml-auto transition">Limpiar Filtros</button>
                 </div>
 
@@ -87,11 +92,11 @@
                     </div>
                     <div>
                         <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Empresa</label>
-                        <select id="empresa" name="empresa_ref" class="input-field py-1.5"></select>
+                        <select id="empresa" name="empresa_ref" class="input-field py-1.5 font-bold"></select>
                     </div>
                     <div>
                         <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Estado</label>
-                        <select id="state" name="state" class="input-field py-1.5">
+                        <select id="state" name="state" class="input-field py-1.5 font-bold">
                             <option value="">🎯 Todos</option>
                             <option value="creado">🆕 Creado</option>
                             <option value="enviado">📧 Enviado</option>
@@ -100,7 +105,7 @@
                     </div>
                     <div>
                         <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Referencia</label>
-                        <input type="text" id="referencia" name="referencia" class="input-field py-1.5" placeholder="Ref...">
+                        <input type="text" id="referencia" name="referencia" class="input-field py-1.5 uppercase font-bold" placeholder="Ref...">
                     </div>
                     <div>
                         <label class="block text-[10px] text-gray-400 font-black uppercase mb-1">Desde</label>
@@ -114,7 +119,7 @@
 
                 <div id="palabraSection" class="bg-blue-50 p-4 rounded-lg hidden border border-blue-100 mt-4">
                     <div class="flex gap-2">
-                        <input type="text" id="palabra" name="palabra" placeholder="Ej: RACE Madrid, Cliente 123..." class="input-field flex-1 py-1.5">
+                        <input type="text" id="palabra" name="palabra" placeholder="Ej: RACE Madrid, Cliente 123..." class="input-field flex-1 py-1.5 font-bold">
                         <button onclick="handleSearch(event)" class="bg-primary-link text-white px-8 py-1.5 rounded-lg font-black text-xs uppercase shadow hover:bg-orange-600 transition">BUSCAR</button>
                     </div>
                 </div>
@@ -132,7 +137,7 @@
 
                 <div class="flex flex-wrap items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 shadow-sm">
                     <div class="flex items-center gap-2 px-2 border-r border-gray-200">
-                        <span class="text-[10px] font-black text-gray-400 uppercase">Mostrar:</span>
+                        <span class="text-[10px] font-black text-gray-400 uppercase">Ver:</span>
                         <select id="recordsPerPage" class="bg-transparent text-xs font-bold text-gray-700 focus:outline-none cursor-pointer">
                             <option value="10">10</option>
                             <option value="25" selected>25</option>
@@ -140,19 +145,12 @@
                             <option value="todos">Todos</option>
                         </select>
                     </div>
-                    
                     <div class="flex items-center gap-1">
-                        <button id="prevPageBtn" class="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition disabled:opacity-20" title="Anterior">
-                            <i data-lucide="chevron-left" class="h-4 w-4 text-gray-600"></i>
-                        </button>
-                        
+                        <button id="prevPageBtn" class="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition disabled:opacity-20"><i data-lucide="chevron-left" class="h-4 w-4 text-gray-600"></i></button>
                         <div class="bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-inner min-w-[60px] text-center">
                             <span id="pageInfo" class="text-xs font-black text-primary-link">1 / 1</span>
                         </div>
-
-                        <button id="nextPageBtn" class="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition disabled:opacity-20" title="Siguiente">
-                            <i data-lucide="chevron-right" class="h-4 w-4 text-gray-600"></i>
-                        </button>
+                        <button id="nextPageBtn" class="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition disabled:opacity-20"><i data-lucide="chevron-right" class="h-4 w-4 text-gray-600"></i></button>
                     </div>
                 </div>
             </div>
@@ -177,15 +175,12 @@
                             <th class="px-4 py-4 text-right cursor-pointer group" onclick="sortTable('importe_total')">
                                 <div class="sortable justify-end">Importe <i id="sort-importe_total" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-50 ml-1"></i></div>
                             </th>
-                            <th class="px-4 py-4 text-center cursor-pointer group" onclick="sortTable('estado')">
-                                <div class="sortable justify-center">Estado <i id="sort-estado" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-50 ml-1"></i></div>
-                            </th>
+                            <th class="px-4 py-4 text-center">Estado</th>
                             <th class="px-4 py-4 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="albaranResults" class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="8" class="text-center py-20 text-gray-400 italic">Cargando datos...</td></tr>
-                    </tbody>
+                        </tbody>
                     <tfoot id="tableFooter" class="bg-gray-50 border-t-2 border-gray-200 hidden">
                         <tr class="font-black text-gray-900">
                             <td colspan="5" class="px-4 py-4 text-right uppercase tracking-tighter text-[10px] text-gray-500">Total acumulado en vista:</td>
@@ -197,22 +192,31 @@
             </div>
             
             <div id="statusMessage" class="hidden mt-4 status-message"></div>
-            <div id="activeFiltersCount" class="hidden"></div> 
         </div>
     </div>
 
+    <script src="/js/search.js"></script>
+
+    <script src="/js/busqueda.js"></script>
+
     <script>
+        // Inicialización final de iconos Lucide
         document.addEventListener('DOMContentLoaded', () => { 
             if (window.lucide) lucide.createIcons(); 
         });
-        function handleActionModal(show, title = '', body = '') {
+
+        // Handler global para modales
+        window.handleActionModal = function(show, title = '', body = '') {
             const modal = document.getElementById('actionModal');
-            const titleEl = document.getElementById('modalTitle');
-            const bodyEl = document.getElementById('modalBody');
-            if(titleEl) titleEl.textContent = title;
-            if(bodyEl) bodyEl.textContent = body;
-            if(modal) modal.classList.toggle('hidden', !show);
-        }
+            if(!modal) return;
+            if(show) {
+                document.getElementById('modalTitle').textContent = title;
+                document.getElementById('modalBody').textContent = body;
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        };
     </script>
 </body>
 </html>

@@ -1,340 +1,283 @@
 /**
  * ARCHIVO: static/js/busqueda.js
- * DESCRIPCIÓN: Lógica completa de búsqueda, paginación y exportación.
- * FIX: Visualización de Empresa y Referencia + Orden Descendente.
+ * IMPORTANCIA: Media (Controlador de Interfaz Específico)
+ * FUNCIÓN: Gestión de UI, Paginación, API y Renderizado de la tabla de búsqueda.
+ * DEPENDE DE: search.js (Debe cargarse antes)
  */
 
 const APP = {
     elements: {
         resultsBody: document.getElementById('albaranResults'),
-        tableFooter: document.getElementById('tableFooter'),
         totalImporte: document.getElementById('totalImporte'),
+        pageInfo: document.getElementById('pageInfo'),
         numLicenciaHeader: document.getElementById('num_licencia_header'),
         licenciaDisplay: document.getElementById('licencia_display'),
-        licenciaInput: document.getElementById('licencia_ref'), 
         searchForm: document.getElementById('searchForm'),
+        palabraInput: document.getElementById('palabra'),
         recordsSelect: document.getElementById('recordsPerPage'),
-        pageInfo: document.getElementById('pageInfo'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
-        empresaSelect: document.getElementById('empresa'),
-        palabraInput: document.getElementById('palabra')
+        tableFooter: document.getElementById('tableFooter')
     },
     state: {
-        filteredAlbaranes: [],
-        totalRecords: 0,      
-        currentPage: 1,       
-        pageSize: 25,         
-        totalPages: 1,        
-        userLicenciaId: null,
-        userLicenciaNumero: null,
-        currentSort: { key: 'fecha', direction: 'desc' },
-        searchMode: 'campos' 
+        rawAlbaranes: [],       // Datos brutos de la API
+        filteredAlbaranes: [], // Datos después de pasar por SearchEngine
+        currentPage: 1,
+        pageSize: 25,
+        searchMode: 'campos',
+        licId: null,
+        currentSort: { key: 'fecha', direction: 'desc' }
     }
 };
 
-// =================================================================================
-// 🎨 UI HELPERS
-// =================================================================================
-const UI = {
-    formatDate(isoString) { return isoString ? isoString.substring(0, 10) : '-'; },
-
-    setSearchModeManual(mode) {
-        console.log(`%c[BUSCADOR] Modo: ${mode}`, "color: #3B82F6; font-weight: bold;");
-        APP.state.searchMode = mode;
-        
-        const btnCampos = document.getElementById('btn-mode-campos');
-        const btnPalabra = document.getElementById('btn-mode-palabra');
-        const palabraSection = document.getElementById('palabraSection');
-        const searchForm = document.getElementById('searchForm');
-
-        if (mode === 'campos') {
-            if(btnCampos) btnCampos.className = "px-4 py-2 rounded-lg transition shadow-md bg-secondary-blue text-white font-bold text-[10px] uppercase";
-            if(btnPalabra) btnPalabra.className = "px-4 py-2 rounded-lg transition shadow-md bg-gray-200 text-gray-700 text-[10px] uppercase";
-            if(palabraSection) palabraSection.classList.add('hidden');
-            if(searchForm) searchForm.classList.remove('hidden');
-        } else {
-            if(btnPalabra) btnPalabra.className = "px-4 py-2 rounded-lg transition shadow-md bg-primary-pastel text-black-pure font-bold text-[10px] uppercase";
-            if(btnCampos) btnCampos.className = "px-4 py-2 rounded-lg transition shadow-md bg-gray-200 text-gray-700 text-[10px] uppercase";
-            if(palabraSection) {
-                palabraSection.classList.remove('hidden');
-                if(APP.elements.palabraInput) APP.elements.palabraInput.focus();
-            }
-            if(searchForm) searchForm.classList.add('hidden');
-        }
-    },
-
-    updatePageInfo() {
-        APP.state.totalPages = Math.ceil(APP.state.totalRecords / APP.state.pageSize) || 1;
-        if (APP.elements.pageInfo) {
-            APP.elements.pageInfo.textContent = `${APP.state.currentPage} / ${APP.state.totalPages}`;
-        }
-        const countDisplay = document.getElementById('resultsCount');
-        if (countDisplay) countDisplay.textContent = `${APP.state.totalRecords} REGISTROS`;
-        this.updatePaginationButtons();
-    },
-
-    updatePaginationButtons() {
-        const { prevBtn, nextBtn } = APP.elements;
-        if(prevBtn) prevBtn.disabled = APP.state.currentPage <= 1;
-        if(nextBtn) nextBtn.disabled = APP.state.currentPage >= APP.state.totalPages;
-    },
-
-    updateSortIcons() {
-        const { key, direction } = APP.state.currentSort;
-        const sortKeys = ['numero_albaran', 'fecha', 'empresa', 'referencia', 'importe_total', 'estado'];
-        sortKeys.forEach(k => {
-            const icon = document.getElementById(`sort-${k}`);
-            if (icon) {
-                if (k === key) {
-                    icon.setAttribute('data-lucide', direction === 'asc' ? 'chevron-up' : 'chevron-down');
-                    icon.className = "w-3 h-3 ml-1 text-primary-link opacity-100";
-                } else {
-                    icon.setAttribute('data-lucide', 'chevrons-up-down');
-                    icon.className = "w-3 h-3 ml-1 text-gray-400 opacity-30 group-hover:opacity-100";
-                }
-            }
+/**
+ * 1. INICIALIZACIÓN
+ */
+async function startApp() {
+    console.log("🚀 [BUSQUEDA] Iniciando controlador de vista...");
+    try {
+        // Obtener identidad del usuario
+        const resp = await fetch('/api/v1/user/licencia_info', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        if (window.lucide) lucide.createIcons();
-    }
-};
-
-// =================================================================================
-// 📡 API SERVICES
-// =================================================================================
-const API = {
-    async fetchMyLicencia() {
-        try {
-            const response = await fetch('/api/v1/user/licencia_info', { credentials: 'include' });
-            const data = await response.json();
-            if (data && data.licencia_id !== undefined) {
-                APP.state.userLicenciaId = data.licencia_id;
-                APP.state.userLicenciaNumero = data.licencia_numero || "S/N";
-                if (APP.elements.licenciaDisplay) APP.elements.licenciaDisplay.value = APP.state.userLicenciaNumero;
-                if (APP.elements.licenciaInput) APP.elements.licenciaInput.value = data.licencia_id;
-                if (APP.elements.numLicenciaHeader) APP.elements.numLicenciaHeader.textContent = APP.state.userLicenciaNumero;
-                return true;
-            }
-            return false;
-        } catch (e) { return false; }
-    },
-
-    async loadEmpresas() {
-        try {
-            const r = await fetch('/api/v1/empresas', { credentials: 'include' });
-            const d = await r.json();
-            const list = d.data || d;
-            if(APP.elements.empresaSelect && Array.isArray(list)) {
-                let html = '<option value="">🎯 Todas las empresas</option>';
-                list.sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(e => { 
-                    html += `<option value="${e.id}">${e.nombre.toUpperCase()}</option>`; 
-                });
-                APP.elements.empresaSelect.innerHTML = html;
-            }
-        } catch (e) { console.error("Error empresas:", e); }
-    },
-
-    async searchAlbaranes() {
-        if (APP.state.userLicenciaId === null) return;
-        DOM.showLoading();
+        const identity = await resp.json();
+        APP.state.licId = identity.licencia_id;
         
-        const params = new URLSearchParams();
-        params.append('licencia_ref', APP.state.userLicenciaId);
-        
-        if (APP.state.searchMode === 'campos') {
-            const empresa = document.getElementById('empresa').value;
-            const estado = document.getElementById('state').value;
-            const referencia = document.getElementById('referencia').value;
-            const fDesde = document.getElementById('fecha_desde').value;
-            const fHasta = document.getElementById('fecha_hasta').value;
+        // Actualizar UI con datos de licencia
+        if (APP.elements.numLicenciaHeader) APP.elements.numLicenciaHeader.textContent = identity.licencia_numero;
+        if (APP.elements.licenciaDisplay) APP.elements.licenciaDisplay.value = identity.licencia_numero;
 
-            if (empresa) params.append('empresa_ref', empresa);
-            if (referencia) params.append('referencia', referencia);
-            if (fDesde) params.append('fecha_desde', fDesde);
-            if (fHasta) params.append('fecha_hasta', fHasta);
-
-            if (estado === 'pagado') params.append('pagado', 'true');
-            if (estado === 'enviado') params.append('enviado', 'true');
-            if (estado === 'creado') {
-                params.append('enviado', 'false');
-                params.append('pagado', 'false');
-            }
+        // Iniciar el motor común (Cargar empresas en el select y diccionario)
+        if (window.SearchEngine) {
+            await SearchEngine.initCatalog();
         } else {
-            const palabra = document.getElementById('palabra').value;
-            if (palabra) params.append('palabra', palabra);
+            console.error("❌ No se encontró SearchEngine. Revisa el orden de carga de scripts.");
         }
 
-        try {
-            const url = `/api/v1/albaranes/search-user?${params.toString()}`;
-            const response = await fetch(url, { credentials: 'include' });
-            const res = await response.json();
-            
-            APP.state.filteredAlbaranes = res.data || [];
-            APP.state.totalRecords = res.total || 0;
-            
-            this.applyLocalSort();
-            DOM.renderResults();
-        } catch (e) { 
-            console.error("❌ Error en búsqueda:", e);
-            DOM.showNoResults(); 
-        }
-    },
+        // Cargar datos y configurar eventos
+        await loadAlbaranes();
+        setupEventListeners();
 
-    applyLocalSort() {
-        const { key, direction } = APP.state.currentSort;
-        APP.state.filteredAlbaranes.sort((a, b) => {
-            let valA, valB;
-            switch(key) {
-                case 'fecha':
-                    valA = new Date(a.fecha || 0).getTime();
-                    valB = new Date(b.fecha || 0).getTime();
-                    break;
-                case 'importe_total':
-                    valA = parseFloat(a.importe_total || 0);
-                    valB = parseFloat(b.importe_total || 0);
-                    break;
-                case 'empresa':
-                    // Prioridad: nombre desnormalizado > objeto empresa_data > guion
-                    valA = (a.empresa_nombre || (a.empresa_data ? a.empresa_data.nombre : '')).toLowerCase();
-                    valB = (b.empresa_nombre || (b.empresa_data ? b.empresa_data.nombre : '')).toLowerCase();
-                    break;
-                case 'referencia':
-                    valA = (a.referencia || '').toLowerCase();
-                    valB = (b.referencia || '').toLowerCase();
-                    break;
-                default:
-                    valA = (a[key] || '').toString().toLowerCase();
-                    valB = (b[key] || '').toString().toLowerCase();
-            }
-            if (valA < valB) return direction === 'asc' ? -1 : 1;
-            if (valA > valB) return direction === 'asc' ? 1 : -1;
-            return 0;
-        });
+    } catch (e) {
+        console.error("Fallo crítico en startApp:", e);
     }
-};
+}
 
-// =================================================================================
-// 🖼️ DOM RENDERING
-// =================================================================================
-const DOM = {
-    showLoading() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Consultando albaranes...</td></tr>'; 
-    },
-    showNoResults() { 
-        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-orange-500 font-bold">No se encontraron resultados.</td></tr>'; 
-    },
+/**
+ * 2. LLAMADA A API
+ */
+async function loadAlbaranes() {
+    APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 italic text-gray-400">Sincronizando registros...</td></tr>';
     
-    renderResults() {
-        if (!APP.elements.resultsBody) return;
-        APP.elements.resultsBody.innerHTML = '';
+    try {
+        const response = await fetch(`/api/v1/albaranes/search-user?licencia_ref=${APP.state.licId}&pageSize=5000`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const json = await response.json();
+        APP.state.rawAlbaranes = json.data || [];
         
-        if (APP.state.filteredAlbaranes.length === 0) { 
-            this.showNoResults(); 
-            if(APP.elements.tableFooter) APP.elements.tableFooter.classList.add('hidden');
-            return; 
-        }
+        // Una vez cargados, aplicamos el filtrado inicial (que por defecto es "todos")
+        executeFiltering(); 
 
-        let sumatorio = 0;
-        APP.state.filteredAlbaranes.forEach(a => {
-            const importe = parseFloat(a.importe_total || 0);
-            sumatorio += importe;
+    } catch (e) {
+        APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-red-500 font-bold">Error al conectar con el servidor.</td></tr>';
+    }
+}
 
-            // ✅ LOGICA DE EXTRACCION DE DATOS CORREGIDA
-            const nombreEmpresa = a.empresa_nombre || (a.empresa_data ? a.empresa_data.nombre : '---');
-            const valorReferencia = a.referencia || '---';
+/**
+ * 3. LÓGICA DE FILTRADO (DELEGADA)
+ */
+function executeFiltering(e) {
+    if (e) e.preventDefault();
+    
+    const params = {
+        mode: APP.state.searchMode,
+        empresa: document.getElementById('empresa').value,
+        estado: document.getElementById('state').value,
+        ref: document.getElementById('referencia').value,
+        desde: document.getElementById('fecha_desde').value,
+        hasta: document.getElementById('fecha_hasta').value,
+        palabra: APP.elements.palabraInput.value
+    };
 
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm group';
-            tr.innerHTML = `
+    // Llamamos al motor común para que procese el array
+    if (window.SearchEngine) {
+        APP.state.filteredAlbaranes = SearchEngine.applyFilters(APP.state.rawAlbaranes, params);
+    }
+    
+    // Aplicar ordenación actual
+    sortData(APP.state.currentSort.key, true);
+    
+    APP.state.currentPage = 1;
+    renderTable();
+}
+
+/**
+ * 4. RENDERIZADO DE TABLA
+ */
+function renderTable() {
+    const { resultsBody, totalImporte, pageInfo, tableFooter } = APP.elements;
+    if (!resultsBody) return;
+
+    resultsBody.innerHTML = '';
+    
+    const start = (APP.state.currentPage - 1) * APP.state.pageSize;
+    const pageItems = APP.state.filteredAlbaranes.slice(start, start + APP.state.pageSize);
+
+    if (pageItems.length === 0) {
+        resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-slate-400 italic font-medium border-b">No se han encontrado albaranes con estos criterios.</td></tr>';
+        if (tableFooter) tableFooter.classList.add('hidden');
+        return;
+    }
+
+    let sumTotal = 0;
+    pageItems.forEach(a => {
+        const imp = parseFloat(a.importe_total || 0);
+        sumTotal += imp;
+        
+        const row = `
+            <tr class="hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm group">
                 <td class="px-4 py-4 font-black text-gray-900">${a.numero_albaran || 'N/A'}</td>
-                <td class="px-4 py-4 text-gray-500 font-bold">${UI.formatDate(a.fecha)}</td>
-                <td class="px-4 py-4 font-medium text-gray-700 uppercase">${nombreEmpresa}</td>
-                <td class="px-4 py-4 text-gray-400 italic text-xs uppercase">${valorReferencia}</td>
+                <td class="px-4 py-4 text-gray-500 font-bold">${a.fecha ? a.fecha.substring(0,10) : '-'}</td>
+                <td class="px-4 py-4 font-bold uppercase text-blue-600">${SearchEngine.getEmpresaNombre(a)}</td>
+                <td class="px-4 py-4 text-gray-400 italic text-xs uppercase">${a.referencia || '---'}</td>
                 <td class="px-4 py-4 text-gray-600 font-medium uppercase">${a.asalariado || 'TITULAR'}</td>
-                <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${importe.toFixed(2)}</td>
-                <td class="px-4 py-4 text-center">${this.getBadge(a)}</td>
+                <td class="px-4 py-4 text-right font-black text-primary-link text-sm">€${imp.toFixed(2)}</td>
+                <td class="px-4 py-4 text-center">${getBadge(a)}</td>
                 <td class="px-4 py-4 text-center">
-                    <div class="flex justify-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-2 text-secondary-blue hover:bg-blue-100 rounded-xl transition-all" title="Ver detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                    <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-2 text-secondary-blue hover:bg-blue-100 rounded-xl transition-all" title="Ver Detalle"><i data-lucide="eye" class="w-4 h-4"></i></button>
                         <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-2 text-orange-600 hover:bg-orange-100 rounded-xl transition-all" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                     </div>
-                </td>`;
-            APP.elements.resultsBody.appendChild(tr);
-        });
+                </td>
+            </tr>`;
+        resultsBody.insertAdjacentHTML('beforeend', row);
+    });
 
-        APP.elements.totalImporte.textContent = `€${sumatorio.toLocaleString('es-ES', { minimumFractionDigits: 2 })}`;
-        if(APP.elements.tableFooter) APP.elements.tableFooter.classList.remove('hidden');
-        UI.updatePageInfo();
-        UI.updateSortIcons();
-    },
+    // Actualizar Totales y Contadores
+    totalImporte.textContent = `€${sumTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}`;
+    if (tableFooter) tableFooter.classList.remove('hidden');
+    
+    document.getElementById('resultsCount').textContent = `${APP.state.filteredAlbaranes.length} REGISTROS`;
+    
+    const totalPages = Math.ceil(APP.state.filteredAlbaranes.length / APP.state.pageSize) || 1;
+    pageInfo.textContent = `${APP.state.currentPage} / ${totalPages}`;
+    
+    // Refrescar iconos y flechas de sort
+    if (window.lucide) lucide.createIcons();
+    updateSortIcons();
+}
 
-    getBadge(a) {
-        if (a.pagado) return '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black border border-green-200">PAGADO</span>';
-        if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black border border-blue-200">ENVIADO</span>';
-        return '<span class="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[9px] font-black border border-gray-200">CREADO</span>';
-    }
-};
+function getBadge(a) {
+    if (a.pagado) return '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black border border-green-200 uppercase">PAGADO</span>';
+    if (a.enviado) return '<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black border border-blue-200 uppercase">ENVIADO</span>';
+    return '<span class="bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-[9px] font-black border border-gray-200 uppercase">CREADO</span>';
+}
 
-// =================================================================================
-// 🚀 EVENTOS GLOBALES
-// =================================================================================
-window.sortTable = (key) => {
-    if (APP.state.currentSort.key === key) {
-        APP.state.currentSort.direction = APP.state.currentSort.direction === 'asc' ? 'desc' : 'asc';
-    } else {
+/**
+ * 5. ORDENACIÓN
+ */
+function sortData(key, isInitial = false) {
+    if (!isInitial) {
+        APP.state.currentSort.direction = (APP.state.currentSort.key === key && APP.state.currentSort.direction === 'asc') ? 'desc' : 'asc';
         APP.state.currentSort.key = key;
-        APP.state.currentSort.direction = 'asc';
     }
-    API.applyLocalSort();
-    DOM.renderResults();
+    
+    APP.state.filteredAlbaranes.sort((a, b) => {
+        let vA = a[key], vB = b[key];
+        if (key === 'empresa') { 
+            vA = SearchEngine.getEmpresaNombre(a); 
+            vB = SearchEngine.getEmpresaNombre(b); 
+        }
+        if (key === 'importe_total') { vA = parseFloat(vA || 0); vB = parseFloat(vB || 0); }
+        if (key === 'fecha') { vA = new Date(vA).getTime(); vB = new Date(vB).getTime(); }
+        
+        return (vA < vB ? -1 : 1) * (APP.state.currentSort.direction === 'asc' ? 1 : -1);
+    });
+    if (!isInitial) renderTable();
+}
+
+function updateSortIcons() {
+    ['numero_albaran', 'fecha', 'empresa', 'referencia', 'importe_total'].forEach(k => {
+        const icon = document.getElementById(`sort-${k}`);
+        if (!icon) return;
+        const isCurrent = k === APP.state.currentSort.key;
+        icon.setAttribute('data-lucide', isCurrent ? (APP.state.currentSort.direction === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down');
+        icon.className = `w-3 h-3 ml-1 transition-all ${isCurrent ? 'text-primary-link opacity-100' : 'text-gray-400 opacity-30'}`;
+    });
+    if (window.lucide) lucide.createIcons();
+}
+
+/**
+ * 6. EVENTOS DE INTERFAZ
+ */
+function setupEventListeners() {
+    // Submit del formulario (Modo campos)
+    APP.elements.searchForm.onsubmit = executeFiltering;
+
+    // Filtros automáticos al cambiar valores
+    ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.onchange = () => executeFiltering();
+    });
+
+    // Paginación
+    APP.elements.recordsSelect.onchange = (e) => {
+        const val = e.target.value;
+        APP.state.pageSize = val === 'todos' ? 9999 : parseInt(val);
+        APP.state.currentPage = 1;
+        renderTable();
+    };
+
+    APP.elements.prevBtn.onclick = () => { 
+        if(APP.state.currentPage > 1) { APP.state.currentPage--; renderTable(); } 
+    };
+
+    APP.elements.nextBtn.onclick = () => { 
+        const total = Math.ceil(APP.state.filteredAlbaranes.length/APP.state.pageSize);
+        if(APP.state.currentPage < total) { APP.state.currentPage++; renderTable(); } 
+    };
+}
+
+/**
+ * 7. HELPERS GLOBALES (Llamados desde botones del HTML)
+ */
+window.UI = {
+    setSearchModeManual(mode) {
+        APP.state.searchMode = mode;
+        document.getElementById('palabraSection').classList.toggle('hidden', mode === 'campos');
+        document.getElementById('searchForm').classList.toggle('hidden', mode === 'palabra');
+        
+        // Botón condicional de búsqueda por campos
+        const btnBuscar = document.getElementById('btn-buscar-campos');
+        if(btnBuscar) btnBuscar.classList.toggle('hidden', mode === 'palabra');
+        
+        const btnC = document.getElementById('btn-mode-campos'), 
+              btnP = document.getElementById('btn-mode-palabra');
+
+        if (mode === 'campos') {
+            btnC.className = "px-4 py-2 rounded-lg bg-secondary-blue text-white font-bold text-[10px] uppercase shadow-md";
+            btnP.className = "px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-[10px] uppercase";
+        } else {
+            btnP.className = "px-4 py-2 rounded-lg bg-primary-pastel text-black-pure font-bold text-[10px] uppercase shadow-md";
+            btnC.className = "px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-[10px] uppercase";
+        }
+    }
 };
 
-window.handleSearch = (e) => { 
-    if(e) e.preventDefault(); 
-    APP.state.currentPage = 1; 
-    API.searchAlbaranes(); 
-};
+window.sortTable = sortData;
+window.handleSearch = executeFiltering;
 
 window.handleClearAllFilters = () => {
-    if(APP.elements.searchForm) APP.elements.searchForm.reset();
-    if(APP.elements.palabraInput) APP.elements.palabraInput.value = '';
-    APP.state.currentPage = 1;
-    APP.state.currentSort = { key: 'fecha', direction: 'desc' };
-    API.searchAlbaranes();
+    APP.elements.searchForm.reset();
+    APP.elements.palabraInput.value = '';
+    executeFiltering();
 };
 
-// =================================================================================
-// 🏁 INICIALIZACIÓN SECUENCIAL
-// =================================================================================
-document.addEventListener('DOMContentLoaded', async () => {
-    const hasLicencia = await API.fetchMyLicencia();
-    
-    if (hasLicencia) {
-        await API.loadEmpresas();
-        
-        ['empresa', 'state', 'referencia', 'fecha_desde', 'fecha_hasta'].forEach(id => {
-            const el = document.getElementById(id);
-            if(el) {
-                const eventType = (el.tagName === 'SELECT' || el.type === 'date') ? 'change' : 'input';
-                el.addEventListener(eventType, () => { 
-                    APP.state.currentPage = 1; 
-                    API.searchAlbaranes(); 
-                });
-            }
-        });
+window.handleLogout = () => { 
+    localStorage.removeItem('token'); 
+    window.location.href = '/login'; 
+};
 
-        if(APP.elements.recordsSelect) {
-            APP.elements.recordsSelect.onchange = (e) => {
-                const val = e.target.value;
-                APP.state.pageSize = val === 'todos' ? 99999 : parseInt(val);
-                APP.state.currentPage = 1;
-                API.searchAlbaranes();
-            };
-        }
-
-        if(APP.elements.prevBtn) APP.elements.prevBtn.onclick = () => { if (APP.state.currentPage > 1) { APP.state.currentPage--; API.searchAlbaranes(); } };
-        if(APP.elements.nextBtn) APP.elements.nextBtn.onclick = () => { if (APP.state.currentPage < APP.state.totalPages) { APP.state.currentPage++; API.searchAlbaranes(); } };
-        
-        API.searchAlbaranes();
-    }
-});
+// Arrancar al cargar el DOM
+document.addEventListener('DOMContentLoaded', startApp);
