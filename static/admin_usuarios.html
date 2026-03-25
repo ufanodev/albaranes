@@ -4,21 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>👤 Usuarios - Administrador</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="/js/security.js"></script>
-    <script src="/js/utils.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script src="/js/oficina.js"></script>
     <script src="/js/admin_usuarios.js" defer></script> 
+    
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
+            theme: { 
+                extend: { 
+                    colors: { 
                         'primary-pastel': '#FFDAB9', 
-                        'primary-link': '#FF8C00',  
-                        'black-pure': '#000000',
-                    }
-                }
+                        'primary-link': '#FF8C00' 
+                    } 
+                } 
             }
         }
     </script>
@@ -26,180 +31,144 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; }
         .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
-        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link transition duration-150 text-sm bg-slate-50; }
-        .dropdown-content { display: none; position: absolute; background-color: white; min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1); z-index: 1000; border-radius: 0.5rem; margin-top: 0.5rem; border: 1px solid #fed7aa; right: 0; }
-        .dropdown.active .dropdown-content { display: block; }
-        .dropdown-content a { color: #374151; padding: 12px 16px; text-decoration: none; display: block; border-bottom: 1px solid #fff7ed; transition: all 0.2s; font-size: 0.875rem; }
-        .dropdown-content a:hover { background-color: #FFDAB9; color: #000; }
-        .compact-table th { @apply px-4 py-3 text-left text-[10px] font-black uppercase tracking-wider bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition; }
+        .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link text-sm bg-slate-50 font-bold; }
+        
+        .compact-table th { @apply px-4 py-3 text-left text-[10px] font-black uppercase bg-slate-800 text-white cursor-pointer hover:bg-slate-700 transition-colors; }
         .compact-table td { @apply px-4 py-3 text-xs border-b border-gray-100; }
+        
+        /* Notificación flotante */
+        #statusMessage.fixed-alert { 
+            @apply fixed bottom-4 right-4 z-[100] shadow-2xl transition-all duration-300 translate-y-0 opacity-100; 
+        }
     </style>
 </head>
 <body class="bg-slate-50">
     <header class="bg-primary-link text-white shadow-xl sticky top-0 z-50">
-        <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center py-4">
-                <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location.href='/admin/'">
-                    <span class="text-3xl">🏢</span>
-                    <h1 class="text-xl font-black uppercase tracking-tighter">Administrador</h1>
-                </div>
-
-                <nav class="hidden md:flex items-center space-x-4">
-                    <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
-                            <span>Titulares</span>
-                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
-                        </button>
-                        <div class="dropdown-content">
-                            <a href="/admin/titulares">Gestión de Titulares</a>
-                            <a href="/admin/pago_tit">Pagos a Titulares</a>
-                        </div>
-                    </div>
-
-                    <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
-                            <span>Albaranes</span>
-                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
-                        </button>
-                        <div class="dropdown-content">
-                            <a href="/admin/">Listado Principal</a> 
-                            <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
-                        </div>
-                    </div>
-
-                    <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
-                            <span>Empresas</span>
-                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
-                        </button>
-                        <div class="dropdown-content">
-                            <a href="/admin/empresas">Gestión de Empresas</a>
-                            <a href="/admin/pago_emp">Cobros a Empresas</a>
-                        </div>
-                    </div>
-
-                    <div class="dropdown relative">
-                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
-                            <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
-                            <span>Sistema</span>
-                        </button>
-                        <div class="dropdown-content">
-                            <a href="/admin/usuarios">Usuarios del Sistema</a>
-                            <a href="/admin/conductor">Base de Conductores</a>
-                            <a href="/admin/backup">Copias de Seguridad</a>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-2 border-l border-orange-400 pl-4 ml-2">
-                        <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-white/20 hover:bg-white/40 p-2 rounded-xl shadow-md transition active:scale-95">
-                            <i data-lucide="printer" class="h-5 w-5"></i>
-                        </button>
-                        <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
-                            <i data-lucide="file-spreadsheet" class="h-5 w-5"></i>
-                        </button>
-                        <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl shadow-lg transition active:scale-95" title="Cerrar Sesión">
-                            <i data-lucide="log-out" class="h-5 w-5"></i>
-                        </button>
-                    </div>
-                </nav>
+        <div class="max-w-[1800px] mx-auto px-4 flex justify-between items-center py-4">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location.href='/admin/'">
+                <span class="text-3xl">🏢</span>
+                <h1 class="text-xl font-black uppercase tracking-tighter">Administrador</h1>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="handleGeneratePDF()" title="Imprimir PDF" class="bg-white/20 hover:bg-white/40 p-2 rounded-xl transition active:scale-95">
+                    <i data-lucide="printer" class="w-5 h-5"></i>
+                </button>
+                <button onclick="handleGenerateXLSX()" title="Exportar a Excel" class="bg-emerald-500 hover:bg-emerald-600 p-2 rounded-xl transition active:scale-95">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                </button>
+                <button onclick="handleLogout()" title="Cerrar Sesión" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl transition active:scale-95">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
             </div>
         </div>
     </header>
 
-    <main class="p-4 sm:p-6 lg:p-8">
+    <main class="p-4 md:p-8">
         <div class="max-w-[1800px] mx-auto space-y-6">
             <div class="card bg-gradient-to-r from-white to-orange-50">
-                <h1 class="text-2xl font-black text-slate-800 flex items-center tracking-tight">
-                    <span class="bg-primary-link p-2 rounded-lg mr-4 shadow-lg text-white"><i data-lucide="users" class="w-6 h-6"></i></span>
-                    GESTIÓN DE USUARIOS
+                <h1 class="text-2xl font-black text-slate-800 flex items-center tracking-tight uppercase">
+                    <span class="bg-primary-link p-2 rounded-lg mr-4 shadow-lg text-white">
+                        <i data-lucide="users" class="w-6 h-6"></i>
+                    </span>
+                    Gestión de Usuarios
                 </h1>
             </div>
 
             <div class="card">
-                <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Usuario</label>
-                            <input type="text" id="usuario_filtro" name="usuario" placeholder="Nombre..." class="input-field">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Email</label>
-                            <input type="email" id="email_filtro" name="email" placeholder="email@..." class="input-field">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Rol</label>
-                            <select id="role_filtro" name="role" class="input-field font-bold">
-                                <option value="">-- Todos --</option>
-                                <option value="admin">Administrador</option>
-                                <option value="user">Usuario</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Estado</label>
-                            <select id="activo_filtro" name="activo" class="input-field font-bold">
-                                <option value="">Cualquiera</option>
-                                <option value="true">Activo</option>
-                                <option value="false">Inactivo</option>
-                            </select>
-                        </div>
-                        <div class="flex items-end gap-2">
-                            <button type="submit" class="bg-primary-link text-white font-black py-2 px-6 rounded-lg hover:bg-orange-600 transition flex-1 text-xs uppercase">Filtrar</button>
-                            <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 p-2 rounded-lg hover:bg-slate-300 transition"><i data-lucide="rotate-ccw" class="h-4 w-4"></i></button>
-                        </div>
+                <form id="searchForm" onsubmit="handleSearch(event)" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Buscar Usuario</label>
+                        <input type="text" name="usuario" placeholder="Nombre de usuario..." class="input-field">
                     </div>
-                    <div class="text-[10px] text-gray-400 font-bold uppercase"><span id="activeFiltersCount">0 filtro(s) activo(s)</span></div>
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-500 uppercase mb-1">Filtrar por Rol</label>
+                        <select name="role" class="input-field">
+                            <option value="">-- Todos los Roles --</option>
+                            <option value="admin">Administrador</option>
+                            <option value="user">Usuario</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end gap-2 md:col-span-2">
+                        <button type="submit" class="bg-primary-link text-white font-black py-2 px-6 rounded-lg hover:bg-orange-600 transition flex-1 text-xs uppercase shadow-md">
+                            Filtrar Listado
+                        </button>
+                        <button type="button" onclick="handleClearAllFilters()" class="bg-slate-200 text-slate-600 p-2 rounded-lg hover:bg-slate-300 transition shadow-sm">
+                            <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
+                        </button>
+                    </div>
                 </form>
             </div>
 
             <div class="card overflow-hidden">
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
-                    <h2 class="font-black text-slate-800 uppercase text-sm">
-                        <i data-lucide="list" class="inline mr-2 text-primary-link"></i> 
-                        Listado: <span id="resultsCount" class="bg-primary-link text-white px-2 py-0.5 rounded-full">0</span>
-                    </h2>
-                    <button onclick="handleCreateUser()" class="bg-green-600 text-white font-black py-2 px-4 rounded-lg text-xs uppercase shadow-md hover:bg-green-700 transition">
-                        <i data-lucide="user-plus" class="inline h-4 w-4 mr-2"></i> Nuevo Usuario
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                    <div class="flex items-center gap-4">
+                        <h2 class="font-black uppercase text-sm text-slate-800 flex items-center">
+                            <i data-lucide="list" class="mr-2 text-primary-link"></i>
+                            Usuarios: <span id="resultsCount" class="ml-2 bg-primary-link text-white px-2 py-0.5 rounded-full font-mono text-xs">0</span>
+                        </h2>
+                        
+                        <div class="flex items-center gap-2 border-l pl-4 border-slate-200">
+                            <label class="text-[10px] font-black text-gray-400 uppercase">Ver:</label>
+                            <select id="pageSizeSelector" onchange="handlePageSizeChange(this.value)" class="bg-slate-50 border border-gray-200 rounded text-xs font-bold px-1 py-0.5 focus:ring-1 focus:ring-primary-link outline-none cursor-pointer">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button onclick="handleCreateUser()" class="w-full sm:w-auto bg-green-600 text-white font-black py-2 px-4 rounded-lg text-xs uppercase shadow-md hover:bg-green-700 transition active:scale-95 flex items-center justify-center">
+                        <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i> Nuevo Usuario
                     </button>
                 </div>
 
-                <div class="overflow-x-auto rounded-xl border border-slate-200">
-                    <table class="min-w-full divide-y divide-gray-200 compact-table">
+                <div class="overflow-x-auto border border-slate-200 rounded-xl shadow-inner">
+                    <table class="min-w-full compact-table">
                         <thead>
                             <tr>
                                 <th onclick="sortTable('id')">ID ↕</th>
                                 <th onclick="sortTable('usuario')">Usuario ↕</th>
                                 <th onclick="sortTable('email')">Email ↕</th>
-                                <th onclick="sortTable('role')">Rol ↕</th>
+                                <th>Rol</th>
                                 <th class="text-center">Estado</th>
-                                <th onclick="sortTable('created_at')">Creado ↕</th>
                                 <th>Licencia Ref</th>
                                 <th class="text-center">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="userResults" class="bg-white">
-                            <tr><td colspan="8" class="text-center py-10 font-bold italic text-blue-500 animate-pulse">Sincronizando con el servidor...</td></tr>
+                            <tr>
+                                <td colspan="7" class="text-center py-20 animate-pulse font-bold text-blue-500 uppercase tracking-widest">
+                                    Sincronizando con el servidor...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
-                <div id="statusMessage" class="hidden mt-4 p-4 rounded-xl text-center font-bold border"></div>
-                
+
                 <div class="flex justify-between items-center mt-6">
-                    <span id="pageInfo" class="text-[10px] font-black text-primary-link uppercase">Página 1</span>
+                    <span id="pageInfo" class="text-[10px] font-black text-primary-link uppercase tracking-widest">Página 1 de 1</span>
                     <div class="flex gap-2">
-                        <button id="prevPageBtn" class="p-2 bg-slate-100 rounded-lg disabled:opacity-30 hover:bg-white transition border"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                        <button id="nextPageBtn" class="p-2 bg-slate-100 rounded-lg disabled:opacity-30 hover:bg-white transition border"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                        <button id="prevPageBtn" class="p-2 bg-white rounded-lg disabled:opacity-30 hover:bg-slate-50 transition border shadow-sm">
+                            <i data-lucide="chevron-left" class="w-4 h-4 text-slate-600"></i>
+                        </button>
+                        <button id="nextPageBtn" class="p-2 bg-white rounded-lg disabled:opacity-30 hover:bg-slate-50 transition border shadow-sm">
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-600"></i>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </main>
+
+    <div id="statusMessage" class="hidden fixed-alert p-4 rounded-xl border-2 bg-white"></div>
+
     <script>
-        function toggleDropdown(button) {
-            const dropdown = button.parentElement;
-            document.querySelectorAll('.dropdown').forEach(d => { if (d !== dropdown) d.classList.remove('active'); });
-            dropdown.classList.toggle('active');
-        }
-        window.addEventListener('load', () => lucide.createIcons());
+        // Inicializar iconos al cargar
+        window.addEventListener('load', () => { 
+            if (window.lucide) lucide.createIcons(); 
+        });
     </script>
 </body>
 </html>

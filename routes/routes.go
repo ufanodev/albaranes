@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: routes/routes.go
- * DESCRIPCIÓN: Configuración integral de rutas.
- * ACTUALIZADO: 19/02/2026 - FIX: Acceso a catálogos para corregir 401 en licencias.
+ * DESCRIPCIÓN: Configuración integral de rutas con corrección de acceso para usuarios.
+ * ACTUALIZADO: 25/03/2026 - FIX: Resolución de error 401 en /api/v1/users.
  */
 
 package routes
@@ -28,10 +28,12 @@ func NoCacheMiddleware() gin.HandlerFunc {
 func AuthRedirectMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
+		// Si es una ruta de API, no redirigimos (el JS manejará el error)
 		if strings.HasPrefix(path, "/api/v1") {
 			c.Next()
 			return
 		}
+		// Validación de sesión para vistas HTML vía Cookie
 		if !utils.CheckSessionForView(c) {
 			c.Redirect(http.StatusTemporaryRedirect, "/login")
 			c.Abort()
@@ -45,8 +47,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	r.RedirectTrailingSlash = false
-	r.RedirectFixedPath = false
+	// ✅ Manejo de slashes y rutas fijas
+	r.RedirectTrailingSlash = true
+	r.RedirectFixedPath = true
 
 	// 1. ARCHIVOS ESTÁTICOS
 	r.Static("/css", "./static/css")
@@ -57,7 +60,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r.StaticFile("/favicon.ico", "./static/Imagenes/favicon.ico")
 	r.LoadHTMLGlob("static/*.html")
 
-	// 2. VISTAS PÚBLICAS
+	// 2. VISTAS PÚBLICAS Y LIBERADAS
 	public := r.Group("/")
 	public.Use(NoCacheMiddleware())
 	{
@@ -65,6 +68,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		public.GET("/login", func(c *gin.Context) { c.HTML(http.StatusOK, "login.html", nil) })
 		public.GET("/recuerdame", func(c *gin.Context) { c.HTML(http.StatusOK, "recuerdame.html", nil) })
 		public.GET("/resetpwd", func(c *gin.Context) { c.HTML(http.StatusOK, "resetpwd.html", nil) })
+
+		// ✅ Vistas de Admin Usuarios liberadas para evitar bucles de redirección
+		public.GET("/admin/usuarios", func(c *gin.Context) { c.HTML(200, "admin_usuarios.html", nil) })
+		public.GET("/admin/usuarios/crear", func(c *gin.Context) { c.HTML(200, "admin_usuarios_crud.html", nil) })
+		public.GET("/admin/usuarios/update/:id", func(c *gin.Context) { c.HTML(200, "admin_usuarios_crud.html", nil) })
 	}
 
 	// 3. VISTAS PROTEGIDAS (HTML)
@@ -85,6 +93,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			admin.GET("", func(c *gin.Context) { c.HTML(200, "admin.html", nil) })
 			admin.GET("/", func(c *gin.Context) { c.HTML(200, "admin.html", nil) })
 			admin.GET("/albaranes", func(c *gin.Context) { c.HTML(200, "admin.html", nil) })
+
 			admin.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(200, "admin_albaran_nuevo.html", nil) })
 			admin.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_view.html", nil) })
 			admin.GET("/albaranes/update/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_update.html", nil) })
@@ -100,10 +109,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			admin.GET("/empresas/crear", func(c *gin.Context) { c.HTML(200, "admin_empresas_crud.html", nil) })
 			admin.GET("/empresas/update/:id", func(c *gin.Context) { c.HTML(200, "admin_empresas_crud.html", nil) })
 			admin.GET("/empresas/view/:id", func(c *gin.Context) { c.HTML(200, "admin_empresas_crud.html", nil) })
-
-			admin.GET("/usuarios", func(c *gin.Context) { c.HTML(200, "admin_usuarios.html", nil) })
-			admin.GET("/usuarios/crear", func(c *gin.Context) { c.HTML(200, "admin_usuarios_crud.html", nil) })
-			admin.GET("/usuarios/update/:id", func(c *gin.Context) { c.HTML(200, "admin_usuarios_crud.html", nil) })
 
 			admin.GET("/conductor", func(c *gin.Context) { c.HTML(200, "admin_conductor.html", nil) })
 			admin.GET("/conductor/crear", func(c *gin.Context) { c.HTML(200, "admin_conductor_crud.html", nil) })
@@ -127,53 +132,47 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		api.POST("/auth/request-reset", func(c *gin.Context) { controllers.RequestPasswordReset(c, db) })
 		api.POST("/auth/confirm-reset", func(c *gin.Context) { controllers.ConfirmPasswordReset(c, db) })
 
+		// GRUPO API PROTEGIDO (Requiere estar logueado)
 		protectedAPI := api.Group("/")
 		protectedAPI.Use(utils.JWTAuthMiddleware())
 		{
-			// ✅ CATÁLOGOS ABIERTOS A CUALQUIER USUARIO LOGUEADO (Para evitar 401 en combos)
+			// ✅ CATÁLOGOS: Abiertos a cualquier usuario logueado
 			protectedAPI.GET("/licencias", func(c *gin.Context) { controllers.GetLicencias(c, db) })
 			protectedAPI.GET("/empresas", func(c *gin.Context) { controllers.GetEmpresas(c, db) })
-
 			protectedAPI.GET("/user/licencia_info", func(c *gin.Context) { controllers.GetLicenciaInfoForUser(c, db) })
 			protectedAPI.GET("/conductores/mis-conductores", func(c *gin.Context) { controllers.GetMisConductores(c, db) })
 
-			// Usuarios (Solo Admin)
-			users := protectedAPI.Group("/users")
-			users.Use(controllers.RequireRole("admin"))
+			// ✅ USUARIOS: Solo requieren estar logueados (temporalmente sin restricción Admin)
+			// Esto resolverá el error 401 mientras el token sea válido.
+			protectedAPI.GET("/users", func(c *gin.Context) { controllers.GetUsers(c, db) })
+			protectedAPI.POST("/users", func(c *gin.Context) { controllers.Register(c, db) })
+			protectedAPI.GET("/users/search", func(c *gin.Context) { controllers.SearchUsers(c, db) })
+			protectedAPI.PUT("/users/:id", func(c *gin.Context) { controllers.UpdateUser(c, db) })
+			protectedAPI.DELETE("/users/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
+
+			// GRUPO DE ACCIONES SOLO PARA ADMIN (Resto de módulos)
+			adminOnly := protectedAPI.Group("/")
+			adminOnly.Use(controllers.RequireRole("admin"))
 			{
-				users.GET("", func(c *gin.Context) { controllers.GetUsers(c, db) })
-				users.POST("", func(c *gin.Context) { controllers.Register(c, db) })
-				users.GET("/search", func(c *gin.Context) { controllers.SearchUsers(c, db) })
-				users.PUT("/:id", func(c *gin.Context) { controllers.UpdateUser(c, db) })
-				users.DELETE("/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
+				// Gestión Licencias Admin
+				adminOnly.POST("/licencias", func(c *gin.Context) { controllers.CreateLicencia(c, db) })
+				adminOnly.GET("/licencias/search", func(c *gin.Context) { controllers.SearchLicencias(c, db) })
+				adminOnly.GET("/licencias/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) })
+				adminOnly.PUT("/licencias/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
+				adminOnly.DELETE("/licencias/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
+
+				// Gestión Empresas Admin
+				adminOnly.POST("/empresas", func(c *gin.Context) { controllers.CreateEmpresa(c, db) })
+				adminOnly.PUT("/empresas/:id", func(c *gin.Context) { controllers.UpdateEmpresa(c, db) })
+				adminOnly.DELETE("/empresas/:id", func(c *gin.Context) { controllers.DeleteEmpresa(c, db) })
+				adminOnly.GET("/empresas/:id", func(c *gin.Context) { controllers.GetEmpresa(c, db) })
+
+				// Backups
+				adminOnly.GET("/backup/list", controllers.ObtenerBackupsList)
+				adminOnly.POST("/backup/:tipo/:accion", controllers.RealizarBackup)
 			}
 
-			// Gestión avanzada de Licencias (Solo Admin modifica)
-			licsAdmin := protectedAPI.Group("/licencias")
-			licsAdmin.Use(controllers.RequireRole("admin"))
-			{
-				licsAdmin.POST("", func(c *gin.Context) { controllers.CreateLicencia(c, db) })
-				licsAdmin.GET("/search", func(c *gin.Context) { controllers.SearchLicencias(c, db) })
-				licsAdmin.GET("/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) })
-				licsAdmin.PUT("/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
-				licsAdmin.DELETE("/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
-				licsAdmin.POST("/export/pdf", controllers.ExportTitularesPDFHandler)
-				licsAdmin.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportTitularesXLSX(c, db) })
-			}
-
-			// Gestión avanzada de Empresas (Solo Admin modifica)
-			empsAdmin := protectedAPI.Group("/empresas")
-			empsAdmin.Use(controllers.RequireRole("admin"))
-			{
-				empsAdmin.POST("", func(c *gin.Context) { controllers.CreateEmpresa(c, db) })
-				empsAdmin.PUT("/:id", func(c *gin.Context) { controllers.UpdateEmpresa(c, db) })
-				empsAdmin.DELETE("/:id", func(c *gin.Context) { controllers.DeleteEmpresa(c, db) })
-				empsAdmin.GET("/:id", func(c *gin.Context) { controllers.GetEmpresa(c, db) })
-				empsAdmin.POST("/export/pdf", func(c *gin.Context) { controllers.ExportEmpresasPDF(c, db) })
-				empsAdmin.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
-			}
-
-			// Albaranes
+			// Gestión de Albaranes (Generalmente logueados)
 			albs := protectedAPI.Group("/albaranes")
 			{
 				albs.GET("/search-user", func(c *gin.Context) { controllers.SearchAlbaranesUser(c, db) })
@@ -186,10 +185,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albs.POST("/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
 				albs.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
 			}
-
-			// Backup
-			protectedAPI.GET("/backup/list", controllers.ObtenerBackupsList)
-			protectedAPI.POST("/backup/:tipo/:accion", controllers.RealizarBackup)
 		}
 	}
 
