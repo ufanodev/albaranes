@@ -43,34 +43,84 @@
             .compact-table th { @apply px-4 py-4 bg-slate-900 text-white text-[9px] font-black uppercase tracking-[0.15em] cursor-pointer hover:bg-slate-800 transition-colors border-r border-slate-800; }
             .compact-table td { @apply px-4 py-3 text-[11px] border-b border-slate-50 font-medium text-slate-600 overflow-hidden text-ellipsis whitespace-nowrap; }
             
-            /* ACCIONES AL PASAR EL RATÓN */
+            .dropdown-content { @apply hidden absolute bg-white min-w-[220px] shadow-2xl z-[1000] rounded-2xl mt-2 border border-orange-100 overflow-hidden text-slate-700 text-sm font-bold; }
+            .dropdown-content a { @apply block px-5 py-3 hover:bg-orange-50 hover:text-primary-link transition-colors border-b border-slate-50 last:border-0; }
+            .dropdown.active .dropdown-content { @apply block; }
+
+            .action-btn { @apply opacity-0 transition-opacity duration-200; }
             .group:hover .action-btn { @apply opacity-100; }
         }
     </style>
 </head>
 <body class="bg-slate-50">
 
-    <header class="bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-2xl sticky top-0 z-50 border-b border-slate-700">
+    <header class="bg-primary-link text-white shadow-xl sticky top-0 z-50">
         <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-4">
-                <div class="flex items-center space-x-3 cursor-pointer group" onclick="window.location.href='/admin/'">
-                    <div class="bg-primary-link p-2 rounded-xl shadow-lg transform group-hover:rotate-12 transition text-white">
-                        <i data-lucide="users" class="w-6 h-6"></i>
-                    </div>
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location.href='/admin/'">
+                    <span class="text-3xl">🏢</span>
                     <div>
-                        <h1 class="text-lg font-black uppercase tracking-tighter leading-none text-white">Gestión Titulares</h1>
-                        <span class="text-[9px] font-bold text-orange-400 uppercase tracking-widest opacity-80">Administración Maestra</span>
+                        <h1 class="text-xl font-black uppercase tracking-tighter leading-none">Administrador</h1>
+                        <span class="text-[9px] font-bold uppercase tracking-widest opacity-80">Gestión de Licencias</span>
                     </div>
                 </div>
 
-                <nav class="hidden md:flex items-center space-x-2">
-                    <button onclick="handleCreateActionTitular()" class="bg-primary-link text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition shadow-lg flex items-center gap-2">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> Nuevo Titular
-                    </button>
-                    <div class="flex items-center gap-2 border-l border-slate-700 pl-4 ml-4">
-                        <button onclick="handleGeneratePDF()" title="Imprimir Listado" class="bg-white/5 hover:bg-white/10 p-2.5 rounded-xl transition text-orange-400"><i data-lucide="printer" class="h-4 w-4"></i></button>
-                        <button onclick="handleGenerateXLSX()" title="Exportar Excel" class="bg-emerald-500/20 hover:bg-emerald-500/40 p-2.5 rounded-xl transition text-emerald-400"><i data-lucide="file-spreadsheet" class="h-4 w-4"></i></button>
-                        <button onclick="handleLogout()" title="Cerrar Sesión" class="bg-red-500/20 hover:bg-red-500 p-2.5 rounded-xl transition text-red-400 hover:text-white"><i data-lucide="log-out" class="h-4 w-4"></i></button>
+                <nav class="hidden md:flex items-center space-x-4">
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Titulares</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/titulares">Gestión de Titulares</a>
+                            <a href="/admin/pago_tit">Pagos a Titulares</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Albaranes</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/">Listado Principal</a> 
+                            <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Empresas</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/empresas">Gestión de Empresas</a>
+                            <a href="/admin/pago_emp">Cobros a Empresas</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
+                            <span>Sistema</span>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/usuarios">Usuarios del Sistema</a>
+                            <a href="/admin/conductor">Base de Conductores</a>
+                            <a href="/admin/backup">Copias de Seguridad</a>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 border-l border-orange-400 pl-4 ml-2">
+                        <button onclick="handleGeneratePDF()" title="Imprimir Listado" class="bg-white/20 hover:bg-white/40 p-2 rounded-xl shadow-md transition active:scale-95">
+                            <i data-lucide="printer" class="h-5 w-5 text-white"></i>
+                        </button>
+                        <button onclick="handleGenerateXLSX()" title="Exportar Excel" class="bg-emerald-500/20 hover:bg-emerald-600 p-2 rounded-xl shadow-md transition active:scale-95">
+                            <i data-lucide="file-spreadsheet" class="h-5 w-5 text-white"></i>
+                        </button>
+                        <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl shadow-lg transition active:scale-95" title="Cerrar Sesión">
+                            <i data-lucide="log-out" class="h-5 w-5 text-white"></i>
+                        </button>
                     </div>
                 </nav>
             </div>
@@ -80,19 +130,27 @@
     <main class="p-4 sm:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-6">
         
         <div class="card bg-slate-900 border-none shadow-2xl">
+            <div class="flex justify-between items-center mb-4 px-1">
+                <h3 class="text-white font-black uppercase tracking-widest text-xs flex items-center gap-2">
+                    <i data-lucide="search" class="w-4 h-4 text-primary-link"></i> Filtros de búsqueda
+                </h3>
+                <button onclick="handleCreateActionTitular()" class="bg-primary-link text-white px-4 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition shadow-lg flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Nuevo Titular
+                </button>
+            </div>
             <form id="searchForm" onsubmit="Events.handleSearch(event)" class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase mb-1.5 ml-1 tracking-widest">Licencia</label>
-                        <input type="text" name="licencia" id="licencia" placeholder="Buscar Nº..." class="input-search-dark h-11 uppercase">
+                        <label class="block text-[9px] font-black text-slate-500 uppercase mb-1.5 ml-1 tracking-widest">Nº Licencia</label>
+                        <input type="text" name="licencia" id="licencia" placeholder="Licencia..." class="input-search-dark h-11 uppercase">
                     </div>
                     <div>
                         <label class="block text-[9px] font-black text-slate-500 uppercase mb-1.5 ml-1 tracking-widest">DNI / CIF</label>
                         <input type="text" name="dni" id="dni" placeholder="Documento..." class="input-search-dark h-11 uppercase">
                     </div>
                     <div>
-                        <label class="block text-[9px] font-black text-slate-500 uppercase mb-1.5 ml-1 tracking-widest">Titular</label>
-                        <input type="text" name="nombre" id="nombre" placeholder="Nombre completo..." class="input-search-dark h-11 uppercase">
+                        <label class="block text-[9px] font-black text-slate-500 uppercase mb-1.5 ml-1 tracking-widest">Nombre Completo</label>
+                        <input type="text" name="nombre" id="nombre" placeholder="Nombre..." class="input-search-dark h-11 uppercase">
                     </div>
                     <div>
                         <label class="block text-[9px] font-black text-slate-500 uppercase mb-1.5 ml-1 tracking-widest">Categoría</label>
@@ -103,8 +161,8 @@
                         </select>
                     </div>
                     <div class="flex items-end gap-2">
-                        <button type="submit" class="flex-1 bg-primary-link text-white h-11 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-orange-600 transition active:scale-95">Aplicar Filtros</button>
-                        <button type="button" onclick="handleClearAllFilters()" title="Limpiar" class="px-4 bg-slate-700 text-slate-300 h-11 rounded-xl font-black text-[10px] uppercase hover:bg-slate-600 transition"><i data-lucide="refresh-ccw" class="w-4 h-4"></i></button>
+                        <button type="submit" class="flex-1 bg-primary-link text-white h-11 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-orange-600 transition active:scale-95">Filtrar</button>
+                        <button type="button" onclick="handleClearAllFilters()" title="Limpiar Filtros" class="px-4 bg-slate-700 text-slate-300 h-11 rounded-xl font-black text-[10px] uppercase hover:bg-slate-600 transition"><i data-lucide="refresh-ccw" class="w-4 h-4"></i></button>
                     </div>
                 </div>
             </form>
@@ -164,8 +222,7 @@
                             <th class="w-[8%] text-center">Gestión</th>
                         </tr>
                     </thead>
-                    <tbody id="titularResults" class="bg-white divide-y divide-slate-100">
-                        </tbody>
+                    <tbody id="titularResults" class="bg-white divide-y divide-slate-100"></tbody>
                 </table>
             </div>
             <div id="totalLabel" class="text-[9px] text-slate-400 mt-6 text-center font-bold uppercase tracking-[0.3em]"></div>
@@ -175,8 +232,17 @@
     <div id="statusMessage" class="hidden"></div>
 
     <script>
-        // Inicializar iconos de Lucide al cargar
-        document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
+        function toggleDropdown(button) {
+            const dropdown = button.parentElement;
+            document.querySelectorAll('.dropdown').forEach(d => { if (d !== dropdown) d.classList.remove('active'); });
+            dropdown.classList.toggle('active');
+        }
+        document.addEventListener('click', (e) => { 
+            if (!e.target.closest('.dropdown')) { 
+                document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active')); 
+            } 
+        });
+        window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); });
     </script>
 </body>
 </html>
