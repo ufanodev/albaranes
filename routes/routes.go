@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: routes/routes.go
- * DESCRIPCIÓN: Configuración integral de rutas.
- * ACTUALIZADO: 26/03/2026 - FIX: Rutas de exportación de empresas y liberación de API.
+ * DESCRIPCIÓN: Configuración integral y definitiva de rutas.
+ * ACTUALIZADO: 26/03/2026 - FIX: Integración total de rutas y liberación de APIs de exportación/pagos.
  */
 
 package routes
@@ -57,7 +57,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	r.StaticFile("/favicon.ico", "./static/Imagenes/favicon.ico")
 	r.LoadHTMLGlob("static/*.html")
 
-	// 2. VISTAS PÚBLICAS Y LIBERADAS
+	// 2. VISTAS PÚBLICAS Y LIBERADAS (HTML)
 	public := r.Group("/")
 	public.Use(NoCacheMiddleware())
 	{
@@ -66,6 +66,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		public.GET("/recuerdame", func(c *gin.Context) { c.HTML(http.StatusOK, "recuerdame.html", nil) })
 		public.GET("/resetpwd", func(c *gin.Context) { c.HTML(http.StatusOK, "resetpwd.html", nil) })
 
+		// Vistas de Usuarios liberadas
 		public.GET("/admin/usuarios", func(c *gin.Context) { c.HTML(200, "admin_usuarios.html", nil) })
 		public.GET("/admin/usuarios/crear", func(c *gin.Context) { c.HTML(200, "admin_usuarios_crud.html", nil) })
 		public.GET("/admin/usuarios/update/:id", func(c *gin.Context) { c.HTML(200, "admin_usuarios_crud.html", nil) })
@@ -75,6 +76,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		public.GET("/admin/empresas/crear", func(c *gin.Context) { c.HTML(200, "admin_empresas_crud.html", nil) })
 		public.GET("/admin/empresas/update/:id", func(c *gin.Context) { c.HTML(200, "admin_empresas_crud.html", nil) })
 		public.GET("/admin/empresas/view/:id", func(c *gin.Context) { c.HTML(200, "admin_empresas_crud.html", nil) })
+
+		// Vistas de Pagos liberadas
+		public.GET("/admin/pago_tit", func(c *gin.Context) { c.HTML(200, "admin_pago_tit.html", nil) })
+		public.GET("/admin/pago_emp", func(c *gin.Context) { c.HTML(200, "admin_pago_emp.html", nil) })
 	}
 
 	// 3. VISTAS PROTEGIDAS (HTML)
@@ -100,18 +105,21 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			admin.GET("/albaranes/update/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_update.html", nil) })
 			admin.GET("/albaranes/borrar/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_borrar.html", nil) })
 			admin.GET("/albaranes/copiar/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_copiar.html", nil) })
+
+			// Titulares Admin
 			admin.GET("/titulares", func(c *gin.Context) { c.HTML(200, "admin_titular.html", nil) })
 			admin.GET("/titulares/crear", func(c *gin.Context) { c.HTML(200, "admin_titular_crud.html", nil) })
 			admin.GET("/titulares/update/:id", func(c *gin.Context) { c.HTML(200, "admin_titular_crud.html", nil) })
 			admin.GET("/titulares/view/:id", func(c *gin.Context) { c.HTML(200, "admin_titular_crud.html", nil) })
 
+			// Conductores Admin
 			admin.GET("/conductor", func(c *gin.Context) { c.HTML(200, "admin_conductor.html", nil) })
 			admin.GET("/conductor/crear", func(c *gin.Context) { c.HTML(200, "admin_conductor_crud.html", nil) })
 			admin.GET("/conductor/update/:licencia/:nconductor", func(c *gin.Context) { c.HTML(200, "admin_conductor_crud.html", nil) })
 			admin.GET("/conductor/view/:licencia/:nconductor", func(c *gin.Context) { c.HTML(200, "admin_conductor_crud.html", nil) })
+
+			// Backup Admin
 			admin.GET("/backup", func(c *gin.Context) { c.HTML(200, "admin_backup.html", nil) })
-			admin.GET("/pago_emp", func(c *gin.Context) { c.HTML(200, "admin_pago_emp.html", nil) })
-			admin.GET("/pago_tit", func(c *gin.Context) { c.HTML(200, "admin_pago_tit.html", nil) })
 		}
 	}
 
@@ -126,21 +134,28 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		api.POST("/auth/request-reset", func(c *gin.Context) { controllers.RequestPasswordReset(c, db) })
 		api.POST("/auth/confirm-reset", func(c *gin.Context) { controllers.ConfirmPasswordReset(c, db) })
 
-		// ✅ API EMPRESAS LIBERADA (Sin JWT)
+		// ✅ API EMPRESAS LIBERADA
 		api.GET("/empresas", func(c *gin.Context) { controllers.GetEmpresas(c, db) })
 		api.POST("/empresas", func(c *gin.Context) { controllers.CreateEmpresa(c, db) })
 		api.GET("/empresas/:id", func(c *gin.Context) { controllers.GetEmpresa(c, db) })
 		api.PUT("/empresas/:id", func(c *gin.Context) { controllers.UpdateEmpresa(c, db) })
 		api.DELETE("/empresas/:id", func(c *gin.Context) { controllers.DeleteEmpresa(c, db) })
-
-		// ✅ RUTAS DE EXPORTACIÓN EMPRESAS (Fuera de JWT para evitar 401 en descarga)
 		api.POST("/empresas/export/pdf", func(c *gin.Context) { controllers.ExportEmpresasPDF(c, db) })
 		api.POST("/empresas/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
+
+		// ✅ API LICENCIAS LIBERADA (Para combos de selección)
+		api.GET("/licencias", func(c *gin.Context) { controllers.GetLicencias(c, db) })
+
+		// ✅ API ALBARANES LIBERADA (Búsqueda, Detalle y Exportación de Liquidaciones)
+		api.GET("/albaranes/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
+		api.GET("/albaranes/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
+		api.PUT("/albaranes/id/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
+		api.POST("/albaranes/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
+		api.POST("/albaranes/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
 
 		protectedAPI := api.Group("/")
 		protectedAPI.Use(utils.JWTAuthMiddleware())
 		{
-			protectedAPI.GET("/licencias", func(c *gin.Context) { controllers.GetLicencias(c, db) })
 			protectedAPI.GET("/user/licencia_info", func(c *gin.Context) { controllers.GetLicenciaInfoForUser(c, db) })
 			protectedAPI.GET("/conductores/mis-conductores", func(c *gin.Context) { controllers.GetMisConductores(c, db) })
 
@@ -166,14 +181,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			albs := protectedAPI.Group("/albaranes")
 			{
 				albs.GET("/search-user", func(c *gin.Context) { controllers.SearchAlbaranesUser(c, db) })
-				albs.GET("/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
-				albs.GET("/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 				albs.POST("", func(c *gin.Context) { controllers.CreateAlbaran(c, db) })
 				albs.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 				albs.PUT("/user/:id", func(c *gin.Context) { controllers.UpdateAlbaranUser(c, db) })
 				albs.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
-				albs.POST("/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
-				albs.POST("/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
 			}
 		}
 	}
