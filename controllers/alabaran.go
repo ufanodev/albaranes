@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
- * DESCRIPCIÓN: Gestión integral de albaranes con soporte robusto para SQL directo y tipos de tiempo.
- * ACTUALIZADO: 23/03/2026 - FIX: Soporte para estados (enviado, cobrado, pagado) en SQL directo.
+ * DESCRIPCIÓN: Gestión integral de albaranes.
+ * ACTUALIZADO: 26/03/2026 - FIX: Update parcial para evitar borrado de horas/fechas.
  */
 
 package controllers
@@ -27,7 +27,6 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	if strings.TrimSpace(dateStr) == "" {
 		return nil, nil
 	}
-	// ✅ Usar zona horaria local para evitar saltos de día/hora
 	loc, _ := time.LoadLocation("Europe/Madrid")
 	t, err := time.ParseInLocation(dateFormat, dateStr, loc)
 	if err != nil {
@@ -44,16 +43,11 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 		timeStr += ":00"
 	}
 	full := fmt.Sprintf("%s %s", dateBase, timeStr)
-
-	// ✅ Forzar interpretación en hora local (Madrid) para que coincida con MySQL
 	loc, _ := time.LoadLocation("Europe/Madrid")
 	t, err := time.ParseInLocation("2006-01-02 15:04:05", full, loc)
-
 	if err != nil {
-		fmt.Printf("❌ [parseTimePtr] FALLO: base=%s time=%s → %v\n", dateBase, timeStr, err)
 		return nil, err
 	}
-	fmt.Printf("✅ [parseTimePtr] OK: %s → %v\n", full, t)
 	return &t, nil
 }
 
@@ -78,6 +72,7 @@ func getUintFromContext(c *gin.Context, key string) uint {
 	}
 }
 
+// cleanAlbaranMap mapea el JSON a campos del Struct para GORM Updates
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 	fechaBase := time.Now().Format(dateFormat)
@@ -122,7 +117,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "TlfPasajero"
 		case "matricula":
 			structKey = "Matricula"
-		case "nombre_pasajero", "cliente":
+		case "cliente":
 			structKey = "Cliente"
 		case "noct_fest":
 			structKey = "NoctFest"
@@ -150,9 +145,9 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "AutorizadoPor"
 		case "num_plazas":
 			structKey = "NumPlazas"
-		case "adjuntos_bool":
-			structKey = "Adjuntos"
 		case "adjuntos":
+			structKey = "Adjuntos"
+		case "adjuntos_ref":
 			structKey = "AdjuntosRef"
 		case "enviado":
 			structKey = "Enviado"
@@ -219,6 +214,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado"})
 }
 
+// UpdateAlbaran decide si es Admin o User
 func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 	role, _ := c.Get("role")
 	if role == "admin" {
@@ -228,6 +224,7 @@ func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 }
 
+// UpdateAlbaranAdmin: Actualización desde panel de control
 func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
@@ -235,32 +232,34 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Albarán no encontrado"})
 		return
 	}
+
 	var input map[string]interface{}
 	c.ShouldBindJSON(&input)
-	cleanInput := cleanAlbaranMap(input, albaran)
 
-	if val := intOrZero(cleanInput, "EmpresaRef"); val > 0 {
-		var emp models.Empresa
-		if err := db.First(&emp, val).Error; err == nil {
-			cleanInput["EmpresaNombre"] = emp.Nombre
-		}
-	}
-
-	err := execUpdateSQL(db, cleanInput, albaran.ID, 0, true)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error SQL: " + err.Error()})
+	// ✅ FIX: Si el input solo trae estados (como enviado), usamos UpdateDirecto
+	if len(input) <= 3 && (input["enviado"] != nil || input["pagado"] != nil || input["cobrado"] != nil) {
+		db.Model(&albaran).Updates(input)
+		c.JSON(http.StatusOK, gin.H{"message": "✅ Estado actualizado"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado por Administrador"})
+
+	cleanInput := cleanAlbaranMap(input, albaran)
+	err := execUpdateSQL(db, cleanInput, albaran.ID, 0, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado por Admin"})
 }
 
+// UpdateAlbaranUser: UPDATE especial para pendientes y edición de usuario
 func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
-	var albaran models.Albaran
 	licID := getUintFromContext(c, "licencia_id")
+	var albaran models.Albaran
 
 	if err := db.Where("id = ? AND licencia_ref = ?", id, licID).First(&albaran).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Permiso denegado"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Sin permiso"})
 		return
 	}
 
@@ -270,95 +269,68 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
+	// ✅ UPDATE ESPECIAL: Si es un envío masivo de pendientes (solo viene 'enviado' y 'finalizado')
+	// GORM Updates(map) solo actualiza las columnas presentes en el mapa.
+	if len(input) <= 3 && input["enviado"] != nil {
+		if err := db.Model(&albaran).Updates(input).Error; err != nil {
+			c.JSON(500, gin.H{"error": "Error al marcar enviado"})
+			return
+		}
+		c.JSON(200, gin.H{"message": "✅ Albarán enviado correctamente"})
+		return
+	}
+
+	// Actualización normal de formulario
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
-
 	cleanInput := cleanAlbaranMap(input, albaran)
-
-	if val := intOrZero(cleanInput, "EmpresaRef"); val > 0 {
-		var emp models.Empresa
-		if err := db.First(&emp, val).Error; err == nil {
-			cleanInput["EmpresaNombre"] = emp.Nombre
-		}
-	}
 
 	err := execUpdateSQL(db, cleanInput, albaran.ID, licID, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado correctamente"})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
 }
 
 // ---------------------------------------------------------------------
-// SECCIÓN: EJECUCIÓN SQL DIRECTA
+// SECCIÓN: EJECUCIÓN SQL DIRECTA (PARA FORMULARIOS COMPLETOS)
 // ---------------------------------------------------------------------
 
 func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licID uint, isAdmin bool) error {
-	// ✅ DEPUREACIÓN DE VALORES ANTES DE SQL
-	fmt.Printf("\n🔍 [execUpdateSQL] id=%d | licID=%d | isAdmin=%v\n", id, licID, isAdmin)
-	fmt.Printf("   HoraIni=%v | HoraFin=%v | Fecha=%v\n\n",
-		timePtrOrNil(cleanInput, "HoraIni"),
-		timePtrOrNil(cleanInput, "HoraFin"),
-		timePtrOrNil(cleanInput, "Fecha"))
-
 	query := `
-        UPDATE albaranes SET
-            fecha              = ?, hora_ini           = ?, hora_fin           = ?,
-            espera_ini         = ?, espera_fin         = ?, referencia         = ?,
-            asalariado         = ?, dni_pasajero       = ?, tlf_pasajero       = ?,
-            matricula          = ?, cliente            = ?, origen             = ?,
-            parada             = ?, destino            = ?, empresa_ref        = ?,
-            empresa_nombre     = ?, km_totales         = ?, km_nacionales      = ?,
-            km_internacionales = ?, importe_total      = ?, importe_suplidos   = ?,
-            hora_total         = ?, num_plazas         = ?, urbano             = ?,
-            diurno             = ?, noct_fest          = ?, remolque           = ?,
-            adjuntos           = ?, adjuntos_ref       = ?, autorizado_por     = ?,
-            observaciones      = ?, enviado            = ?, cobrado            = ?,
-            pagado             = ?, num_factura        = ?, finalizado         = ?,
-            fecha_cobro        = ?, updated_at         = NOW()
-        WHERE id = ?`
+		UPDATE albaranes SET
+			fecha = ?, hora_ini = ?, hora_fin = ?, espera_ini = ?, espera_fin = ?, 
+			referencia = ?, asalariado = ?, dni_pasajero = ?, tlf_pasajero = ?,
+			matricula = ?, cliente = ?, origen = ?, parada = ?, destino = ?, 
+			empresa_ref = ?, empresa_nombre = ?, km_totales = ?, km_nacionales = ?,
+			km_internacionales = ?, importe_total = ?, importe_suplidos = ?,
+			hora_total = ?, num_plazas = ?, urbano = ?, diurno = ?, noct_fest = ?, 
+			remolque = ?, adjuntos = ?, adjuntos_ref = ?, autorizado_por = ?,
+			observaciones = ?, enviado = ?, cobrado = ?, pagado = ?, 
+			num_factura = ?, finalizado = ?, fecha_cobro = ?, updated_at = NOW()
+		WHERE id = ?`
 
 	params := []interface{}{
-		timePtrOrNil(cleanInput, "Fecha"),
-		timePtrOrNil(cleanInput, "HoraIni"),
-		timePtrOrNil(cleanInput, "HoraFin"),
-		timePtrOrNil(cleanInput, "EsperaIni"),
-		timePtrOrNil(cleanInput, "EsperaFin"),
-		strPtrOrNil(cleanInput, "Referencia"),
-		strPtrOrNil(cleanInput, "Asalariado"),
-		strPtrOrNil(cleanInput, "DNIPasajero"),
-		strOrEmpty(cleanInput, "TlfPasajero"),
-		strPtrOrNil(cleanInput, "Matricula"),
-		strPtrOrNil(cleanInput, "Cliente"),
-		strPtrOrNil(cleanInput, "Origen"),
-		strPtrOrNil(cleanInput, "Parada"),
-		strPtrOrNil(cleanInput, "Destino"),
-		intOrZero(cleanInput, "EmpresaRef"),
-		strOrEmpty(cleanInput, "EmpresaNombre"),
-		floatOrZero(cleanInput, "KmTotales"),
-		floatOrZero(cleanInput, "KmNacionales"),
-		floatOrZero(cleanInput, "KmInternacionales"),
-		floatOrZero(cleanInput, "ImporteTotal"),
-		floatOrZero(cleanInput, "ImporteSuplidos"),
-		floatOrZero(cleanInput, "HoraTotal"),
-		intOrZero(cleanInput, "NumPlazas"),
-		boolOrFalse(cleanInput, "Urbano"),
-		boolOrFalse(cleanInput, "Diurno"),
-		boolOrFalse(cleanInput, "NoctFest"),
-		boolOrFalse(cleanInput, "Remolque"),
-		boolOrFalse(cleanInput, "Adjuntos"),
-		strOrEmpty(cleanInput, "AdjuntosRef"),
-		strPtrOrNil(cleanInput, "AutorizadoPor"),
-		strPtrOrNil(cleanInput, "Observaciones"),
-		boolOrFalse(cleanInput, "Enviado"),   // ✅ AÑADIDO
-		boolOrFalse(cleanInput, "Cobrado"),   // ✅ AÑADIDO
-		boolOrFalse(cleanInput, "Pagado"),    // ✅ AÑADIDO
-		strOrEmpty(cleanInput, "NumFactura"), // ✅ AÑADIDO
-		boolOrFalse(cleanInput, "Finalizado"),
-		timePtrOrNil(cleanInput, "FechaCobro"),
-		id,
+		timePtrOrNil(cleanInput, "Fecha"), timePtrOrNil(cleanInput, "HoraIni"),
+		timePtrOrNil(cleanInput, "HoraFin"), timePtrOrNil(cleanInput, "EsperaIni"),
+		timePtrOrNil(cleanInput, "EsperaFin"), strPtrOrNil(cleanInput, "Referencia"),
+		strPtrOrNil(cleanInput, "Asalariado"), strPtrOrNil(cleanInput, "DNIPasajero"),
+		strOrEmpty(cleanInput, "TlfPasajero"), strPtrOrNil(cleanInput, "Matricula"),
+		strPtrOrNil(cleanInput, "Cliente"), strPtrOrNil(cleanInput, "Origen"),
+		strPtrOrNil(cleanInput, "Parada"), strPtrOrNil(cleanInput, "Destino"),
+		intOrZero(cleanInput, "EmpresaRef"), strOrEmpty(cleanInput, "EmpresaNombre"),
+		floatOrZero(cleanInput, "KmTotales"), floatOrZero(cleanInput, "KmNacionales"),
+		floatOrZero(cleanInput, "KmInternacionales"), floatOrZero(cleanInput, "ImporteTotal"),
+		floatOrZero(cleanInput, "ImporteSuplidos"), floatOrZero(cleanInput, "HoraTotal"),
+		intOrZero(cleanInput, "NumPlazas"), boolOrFalse(cleanInput, "Urbano"),
+		boolOrFalse(cleanInput, "Diurno"), boolOrFalse(cleanInput, "NoctFest"),
+		boolOrFalse(cleanInput, "Remolque"), boolOrFalse(cleanInput, "Adjuntos"),
+		strOrEmpty(cleanInput, "AdjuntosRef"), strPtrOrNil(cleanInput, "AutorizadoPor"),
+		strPtrOrNil(cleanInput, "Observaciones"), boolOrFalse(cleanInput, "Enviado"),
+		boolOrFalse(cleanInput, "Cobrado"), boolOrFalse(cleanInput, "Pagado"),
+		strOrEmpty(cleanInput, "NumFactura"), boolOrFalse(cleanInput, "Finalizado"),
+		timePtrOrNil(cleanInput, "FechaCobro"), id,
 	}
 
 	if !isAdmin {
@@ -366,133 +338,81 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		params = append(params, licID)
 	}
 
-	// ✅ Debug habilitado para ver el SQL generado
-	result := db.Debug().Exec(query, params...)
-
-	fmt.Printf("🔍 [SQL] RowsAffected=%d | Error=%v\n\n", result.RowsAffected, result.Error)
-
-	return result.Error
+	return db.Exec(query, params...).Error
 }
+
+// ---------------------------------------------------------------------
+// SECCIÓN: BÚSQUEDAS Y OTROS
+// ---------------------------------------------------------------------
 
 func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	licID := getUintFromContext(c, "licencia_id")
 	var albaranes []models.Albaran
-	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("licencia_ref = ? AND estado = ?", licID, 0)
-	query.Order("fecha DESC, id DESC").Find(&albaranes)
-	c.JSON(http.StatusOK, gin.H{"data": albaranes})
+	db.Preload("LicenciaData").Preload("EmpresaData").
+		Where("licencia_ref = ? AND estado = ?", licID, 0).
+		Order("fecha DESC, id DESC").Find(&albaranes)
+	c.JSON(200, gin.H{"data": albaranes})
 }
 
 func SearchAlbaranes(c *gin.Context, db *gorm.DB) {
 	var albaranes []models.Albaran
-	query := preloadAlbaran(db.Model(&models.Albaran{})).Where("estado = ?", 0)
-	query.Order("fecha DESC, id DESC").Find(&albaranes)
-	c.JSON(http.StatusOK, gin.H{"data": albaranes})
+	db.Preload("LicenciaData").Preload("EmpresaData").
+		Where("estado = ?", 0).Order("fecha DESC, id DESC").Find(&albaranes)
+	c.JSON(200, gin.H{"data": albaranes})
 }
 
 func DeleteAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	db.Model(&models.Albaran{}).Where("id = ?", id).Update("estado", 1)
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Borrado"})
+	c.JSON(200, gin.H{"message": "✅ Borrado"})
 }
 
 func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 	licID := getUintFromContext(c, "licencia_id")
 	var lic models.Licencia
 	if err := db.First(&lic, licID).Error; err == nil {
-		c.JSON(http.StatusOK, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
+		c.JSON(200, gin.H{"licencia_id": lic.ID, "licencia_numero": lic.Licencia})
 	} else {
-		c.JSON(http.StatusNotFound, gin.H{"error": "No hallada"})
+		c.JSON(404, gin.H{"error": "No hallada"})
 	}
 }
 
-// ---------------------------------------------------------------------
-// SECCIÓN: HELPERS TIPADOS PARA SQL DIRECTO
-// ---------------------------------------------------------------------
-
+// Helpers tipados
 func timePtrOrNil(m map[string]interface{}, key string) interface{} {
-	if v, ok := m[key]; ok {
-		if v == nil {
-			return nil
-		}
-		switch t := v.(type) {
-		case *time.Time:
-			if t == nil {
-				return nil
-			}
-			return *t
-		case time.Time:
-			return t
-		}
-	}
-	return nil
-}
-
-func strOrEmpty(m map[string]interface{}, key string) string {
-	if v, ok := m[key]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-func strPtrOrNil(m map[string]interface{}, key string) interface{} {
-	if v, ok := m[key]; ok {
-		if s, ok := v.(string); ok {
-			if strings.TrimSpace(s) == "" {
-				return nil
-			}
-			return s
-		}
-		if v == nil {
-			return nil
-		}
-	}
-	return nil
-}
-
-func floatOrZero(m map[string]interface{}, key string) float64 {
-	if v, ok := m[key]; ok {
-		switch n := v.(type) {
-		case float64:
-			return n
-		case float32:
-			return float64(n)
-		case int:
-			return float64(n)
-		}
-	}
-	return 0
-}
-
-func intOrZero(m map[string]interface{}, key string) int {
-	if v, ok := m[key]; ok {
-		switch n := v.(type) {
-		case float64:
-			return int(n)
-		case int:
-			return n
-		case uint:
-			return int(n)
-		}
-	}
-	return 0
-}
-
-func boolOrFalse(m map[string]interface{}, key string) bool {
-	if v, ok := m[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return false
-}
-
-func nilOrVal(m map[string]interface{}, key string) interface{} {
-	if v, ok := m[key]; ok {
+	if v, ok := m[key]; ok && v != nil {
 		return v
 	}
 	return nil
+}
+func strOrEmpty(m map[string]interface{}, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+func strPtrOrNil(m map[string]interface{}, key string) interface{} {
+	if v, ok := m[key].(string); ok && strings.TrimSpace(v) != "" {
+		return v
+	}
+	return nil
+}
+func floatOrZero(m map[string]interface{}, key string) float64 {
+	if v, ok := m[key].(float64); ok {
+		return v
+	}
+	return 0
+}
+func intOrZero(m map[string]interface{}, key string) int {
+	if v, ok := m[key].(float64); ok {
+		return int(v)
+	}
+	return 0
+}
+func boolOrFalse(m map[string]interface{}, key string) bool {
+	if v, ok := m[key].(bool); ok {
+		return v
+	}
+	return false
 }
 
 func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB)  {}

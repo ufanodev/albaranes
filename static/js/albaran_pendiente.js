@@ -1,6 +1,7 @@
 /**
  * ARCHIVO: static/js/albaran_pendiente.js
- * FUNCIÓN: Controlador de Pendientes con Exportación.
+ * FUNCIÓN: Controlador de Pendientes con FIX definitivo en envío masivo.
+ * ACTUALIZADO: 26/03/2026 - FIX: Envío quirúrgico para preservar horas y fechas.
  */
 
 const APP_PENDIENTES = {
@@ -35,9 +36,8 @@ async function startApp() {
         await loadData();
         setupEvents();
 
-        // Exponer estado para oficina.js
         window.APP_STATE = APP_PENDIENTES.state;
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error al iniciar App:", e); }
 }
 
 async function loadData() {
@@ -50,6 +50,7 @@ async function loadData() {
         const json = await response.json();
         const items = json.data || json || [];
 
+        // Filtro: Solo pendientes (No enviados, No cobrados, No pagados)
         APP_PENDIENTES.state.rawAlbaranes = items.filter(i => !i.enviado && !i.cobrado && !i.pagado);
         handleSearch(); 
     } catch (e) {
@@ -94,7 +95,9 @@ function render() {
         
         const row = `
             <tr class="hover:bg-orange-50/30 border-b border-slate-100 transition-colors group">
-                <td class="px-4 py-3 text-center"><input type="checkbox" value="${i.id}" class="select-albaran w-4 h-4 rounded accent-orange-500 cursor-pointer"></td>
+                <td class="px-4 py-3 text-center">
+                    <input type="checkbox" value="${i.id}" class="select-albaran w-4 h-4 rounded accent-orange-500 cursor-pointer">
+                </td>
                 <td class="px-4 py-3 font-black text-slate-900">${i.numero_albaran || "N/A"}</td>
                 <td class="px-4 py-3 text-slate-500 font-bold">${i.fecha ? i.fecha.substring(0, 10) : "-"}</td>
                 <td class="px-4 py-3 text-secondary-blue font-black">${SearchEngine.getLicenciaNumero(i)}</td>
@@ -102,7 +105,9 @@ function render() {
                 <td class="px-4 py-3 text-gray-400 italic">${i.referencia || "-"}</td>
                 <td class="px-4 py-3 text-slate-600 font-semibold uppercase">${i.asalariado || "TITULAR"}</td>
                 <td class="px-4 py-3 text-right font-black text-primary-link text-sm">€${imp.toFixed(2)}</td>
-                <td class="px-4 py-3 text-center"><span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">Pendiente</span></td>
+                <td class="px-4 py-3 text-center">
+                    <span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">Pendiente</span>
+                </td>
                 <td class="px-4 py-3 text-center">
                     <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onclick="window.location.href='/titulares/view/${i.id}'" class="p-1.5 border rounded-lg hover:bg-blue-50 text-blue-600 transition"><i data-lucide="eye" class="w-4 h-4"></i></button>
@@ -118,10 +123,64 @@ function render() {
     }
 
     if (activeCount) activeCount.textContent = `${APP_PENDIENTES.state.filteredAlbaranes.length} REGISTROS`;
-    if (pageInfo) pageInfo.textContent = `${APP_PENDIENTES.state.currentPage} / ${Math.ceil(APP_PENDIENTES.state.filteredAlbaranes.length / APP_PENDIENTES.state.pageSize) || 1}`;
+    if (pageInfo) {
+        const totalP = Math.ceil(APP_PENDIENTES.state.filteredAlbaranes.length / APP_PENDIENTES.state.pageSize) || 1;
+        pageInfo.textContent = `${APP_PENDIENTES.state.currentPage} / ${totalP}`;
+    }
     if (window.lucide) lucide.createIcons();
     updateSortIcons();
 }
+
+/**
+ * ✅ FUNCIÓN CORREGIDA: ENVÍO QUIRÚRGICO
+ * Se envía un payload minimalista. El controlador de Go (albaran.go) 
+ * detectará que solo viene 'enviado' y no tocará el resto de columnas (fechas/horas).
+ */
+window.handleEnviarSeleccionados = async () => {
+    const checkboxes = document.querySelectorAll('.select-albaran:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ids.length === 0) return alert("Por favor, selecciona al menos un albarán.");
+    
+    if (!confirm(`¿Confirmas el envío de ${ids.length} albaranes?`)) return;
+
+    const btn = document.getElementById('btnEnviarMasivo');
+    const originalText = btn.innerHTML;
+    btn.disabled = true; 
+    btn.innerHTML = '<span class="animate-pulse">Enviando...</span>';
+
+    try {
+        const token = localStorage.getItem('token');
+        
+        for (const id of ids) {
+            // NOTA CRÍTICA: NO enviamos el objeto 'item'. 
+            // Enviamos solo llaves de estado para que el Update de GORM sea parcial.
+            const patchPayload = { 
+                enviado: true,
+                finalizado: true 
+            };
+
+            await fetch(`/api/v1/albaranes/user/${id}`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify(patchPayload)
+            });
+        }
+
+        alert(`✅ ${ids.length} albaranes enviados correctamente.`);
+        await loadData(); 
+    } catch (error) {
+        console.error("Error en envío masivo:", error);
+        alert("Hubo un error al procesar el envío.");
+    } finally {
+        btn.disabled = false; 
+        btn.innerHTML = originalText;
+        if (window.lucide) lucide.createIcons();
+    }
+};
 
 /**
  * EXPORTACIÓN
@@ -151,33 +210,6 @@ window.handleGenerateXLSX = () => {
         "TOTAL": parseFloat(i.importe_total || 0)
     }));
     Oficina.generarExcel("ALBARANES_PENDIENTES", clean);
-};
-
-// ... (Resto de funciones: handleEnviarSeleccionados, sortTable, updateSortIcons, setupEvents, UI) se mantienen igual ...
-window.handleEnviarSeleccionados = async () => {
-    const checkboxes = document.querySelectorAll('.select-albaran:checked');
-    const ids = Array.from(checkboxes).map(cb => cb.value);
-    if (ids.length === 0) return;
-    
-    if (!confirm(`¿Marcar ${ids.length} albaranes como enviados?`)) return;
-
-    const btn = document.getElementById('btnEnviarMasivo');
-    btn.disabled = true; btn.innerHTML = 'Enviando...';
-
-    for (const id of ids) {
-        const item = APP_PENDIENTES.state.rawAlbaranes.find(i => i.id == id);
-        if (!item) continue;
-        const payload = { ...item, enviado: true, finalizado: true, fecha: item.fecha ? item.fecha.substring(0, 10) : null };
-        delete payload.LicenciaData; delete payload.EmpresaData;
-
-        await fetch(`/api/v1/albaranes/user/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-            body: JSON.stringify(payload)
-        });
-    }
-    btn.disabled = false; btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Enviar seleccionados';
-    await loadData(); 
 };
 
 function sortTable(key, isInitial = false) {
