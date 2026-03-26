@@ -1,11 +1,11 @@
 /**
  * ARCHIVO: static/js/admin_empresas_crud.js
- * DESCRIPCIÓN: Gestión Maestra de Empresas (CRUD) con alta robustez.
- * ACTUALIZADO: 28/01/2026 - Manejo de errores no-JSON y trazabilidad completa.
+ * DESCRIPCIÓN: Gestión Maestra de Empresas (CRUD) compatible con acceso libre.
+ * ACTUALIZADO: 26/03/2026 - FIX: Soporte para envío sin token JWT.
  */
 
 (function() {
-    console.log("🏢 [EMPRESAS] Inicializando script CRUD v2.0 (Robustez)...");
+    console.log("🏢 [EMPRESAS] Inicializando script CRUD v2.1 (Acceso Flexible)...");
 
     const CRUD = {
         elements: {
@@ -38,17 +38,20 @@
     }
 
     /**
-     * Carga datos de la empresa
+     * Carga datos de la empresa (Solo modo UPDATE/VIEW)
      */
     async function loadEmpresa(id) {
         console.log(`📡 [API] Solicitando datos ID: ${id}...`);
+        
+        // Preparar headers (el GET individual suele requerir token en admin)
+        const headers = {};
+        const token = localStorage.getItem('token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         try {
-            const res = await fetch(`/api/v1/empresas/${id}`);
+            const res = await fetch(`/api/v1/empresas/${id}`, { headers });
             
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Servidor respondió con status ${res.status}`);
-            }
+            if (!res.ok) throw new Error(`Status ${res.status}`);
 
             const result = await res.json();
             const data = result.data || result;
@@ -64,16 +67,12 @@
                 CRUD.elements.estadoToggle.checked = (data.estado !== false && data.estado !== 0);
                 updateEstadoVisual();
             }
-            console.log("✅ [UI] Datos cargados correctamente.");
         } catch (e) {
             console.error("❌ [ERROR] Fallo al cargar empresa:", e);
-            showStatus("No se pudo recuperar la ficha de la empresa.", "error");
+            showStatus("No se pudo recuperar la ficha. Verifica tus permisos.", "error");
         }
     }
 
-    /**
-     * Actualiza el texto del switch
-     */
     function updateEstadoVisual() {
         if (!CRUD.elements.estadoTexto || !CRUD.elements.estadoToggle) return;
         const isActive = CRUD.elements.estadoToggle.checked;
@@ -82,11 +81,11 @@
     }
 
     /**
-     * HANDLER PRINCIPAL: Guardado de datos con validación de respuesta
+     * HANDLER PRINCIPAL: Guardado de datos
      */
     window.handleFormSubmit = async function(e) {
         if (e) e.preventDefault();
-        console.log("💾 [SAVE] Preparando envío...");
+        console.log("💾 [SAVE] Iniciando proceso de guardado...");
 
         if (CRUD.elements.submitBtn) {
             CRUD.elements.submitBtn.disabled = true;
@@ -95,47 +94,40 @@
 
         const formData = new FormData(CRUD.elements.form);
         const payload = Object.fromEntries(formData.entries());
-        
-        // Forzamos el booleano del estado
         payload.estado = CRUD.elements.estadoToggle ? CRUD.elements.estadoToggle.checked : true;
-
-        console.log("📝 [SAVE] Datos a enviar:", payload);
 
         const isEdit = CRUD.state.mode === 'update';
         const url = isEdit ? `/api/v1/empresas/${CRUD.state.empresaId}` : '/api/v1/empresas';
         const method = isEdit ? 'PUT' : 'POST';
 
+        // 🛡️ CONFIGURACIÓN DE HEADERS FLEXIBLE
+        const headers = { 'Content-Type': 'application/json' };
+        const token = localStorage.getItem('token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         try {
             const res = await fetch(url, {
                 method: method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(payload)
             });
 
-            console.log(`📡 [API] HTTP Status: ${res.status}`);
-
-            // 🛡️ VERIFICACIÓN DE TIPO DE CONTENIDO
             const contentType = res.headers.get("content-type");
             
             if (res.ok) {
-                const result = await res.json();
                 showStatus("✅ Empresa guardada correctamente", "success");
                 setTimeout(() => window.location.href = '/admin/empresas', 1500);
             } else {
-                // Si el servidor mandó un JSON de error (400, 409, etc)
                 if (contentType && contentType.includes("application/json")) {
                     const errJson = await res.json();
                     showStatus(`Error: ${errJson.error || 'Operación fallida'}`, "error");
                 } else {
-                    // Si el servidor mandó un 404 o 500 en formato HTML/Texto
-                    const rawText = await res.text();
-                    console.error("❌ [API] Respuesta no-JSON detectada:", rawText);
-                    showStatus(`Error crítico (${res.status}): Ruta no encontrada o fallo de servidor`, "error");
+                    showStatus(`Error crítico (${res.status}): No autorizado o fallo de servidor`, "error");
                 }
                 resetSubmitButton();
             }
         } catch (error) {
-            console.error("❌ [NETWORK] Error de comunicación:", error);
+            console.error("❌ [NETWORK] Error:", error);
             showStatus("Fallo de red: No se pudo contactar con el servidor.", "error");
             resetSubmitButton();
         }
@@ -181,6 +173,7 @@
             updateEstadoVisual(); 
         }
         
+        if (window.lucide) lucide.createIcons();
         console.log(`🚀 [INIT] Modo activo: ${CRUD.state.mode.toUpperCase()}`);
     });
 })();

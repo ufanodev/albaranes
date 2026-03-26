@@ -6,9 +6,8 @@
     <title>🏢 Administración - Gestión de Empresas</title>
     
     <script src="/js/security.js"></script>    
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/js/admin_empresas.js" defer></script> 
-
     <script>
         tailwind.config = {
             theme: {
@@ -22,7 +21,11 @@
             }
         }
     </script>
+    
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <style type="text/tailwindcss">
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         @layer components {
@@ -40,6 +43,7 @@
             
             .dropdown-content { @apply hidden absolute bg-white min-w-[220px] shadow-2xl z-[1000] rounded-2xl mt-2 border border-orange-100 overflow-hidden; }
             .dropdown.active .dropdown-content { @apply block; }
+            .dropdown-content a { @apply block px-6 py-3 text-slate-600 text-xs font-bold border-b border-slate-50 hover:bg-orange-50 hover:text-orange-600 transition-all; }
         }
     </style>
 </head>
@@ -58,14 +62,41 @@
                     </div>
                 </div>
 
-                <nav class="hidden md:flex items-center space-x-2">
+                <nav class="hidden md:flex items-center space-x-4">
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-slate-700 transition font-bold text-xs uppercase" onclick="toggleDropdown(this)">
+                            <span>Titulares</span><i data-lucide="chevron-down" class="h-3 w-3"></i>
+                        </button>
+                        <div class="dropdown-content shadow-orange-900/20">
+                            <a href="/admin/titulares">Gestión de Titulares</a>
+                            <a href="/admin/pago_tit">Pagos a Titulares</a>
+                        </div>
+                    </div>
+
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-slate-700 transition font-bold text-xs uppercase" onclick="toggleDropdown(this)">
+                            <span>Albaranes</span><i data-lucide="chevron-down" class="h-3 w-3"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/">Listado Principal</a> 
+                            <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
+                        </div>
+                    </div>
+
                     <button onclick="handleCreateActionEmpresa()" class="bg-primary-link text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition shadow-lg flex items-center gap-2">
                         <i data-lucide="plus-circle" class="w-4 h-4"></i> Nueva Empresa
                     </button>
+                    
                     <div class="flex items-center gap-2 border-l border-slate-700 pl-4 ml-4">
-                        <button onclick="handleGeneratePDF()" class="bg-white/5 hover:bg-white/10 p-2.5 rounded-xl transition text-orange-400"><i data-lucide="printer" class="h-4 w-4"></i></button>
-                        <button onclick="handleGenerateXLSX()" class="bg-emerald-500/20 hover:bg-emerald-500/40 p-2.5 rounded-xl transition text-emerald-400"><i data-lucide="file-spreadsheet" class="h-4 w-4"></i></button>
-                        <button onclick="handleLogout()" class="bg-red-500/20 hover:bg-red-500 p-2.5 rounded-xl transition text-red-400 hover:text-white"><i data-lucide="log-out" class="h-4 w-4"></i></button>
+                        <button onclick="handleGeneratePDF()" title="Reporte PDF" class="bg-white/5 hover:bg-white/10 p-2.5 rounded-xl transition text-orange-400">
+                            <i data-lucide="printer" class="h-4 w-4"></i>
+                        </button>
+                        <button onclick="handleGenerateXLSX()" title="Exportar Excel" class="bg-emerald-500/20 hover:bg-emerald-500/40 p-2.5 rounded-xl transition text-emerald-400">
+                            <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
+                        </button>
+                        <button onclick="handleLogout()" title="Cerrar Sesión" class="bg-red-500/20 hover:bg-red-500 p-2.5 rounded-xl transition text-red-400 hover:text-white">
+                            <i data-lucide="log-out" class="h-4 w-4"></i>
+                        </button>
                     </div>
                 </nav>
             </div>
@@ -99,7 +130,9 @@
                     </div>
                     <div class="flex items-end gap-2">
                         <button type="submit" class="flex-1 bg-primary-link text-white h-11 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-orange-600 transition active:scale-95">Filtrar</button>
-                        <button type="button" onclick="handleClearAllFilters()" class="px-4 bg-slate-700 text-slate-300 h-11 rounded-xl font-black text-[10px] uppercase hover:bg-slate-600 transition"><i data-lucide="refresh-ccw" class="w-4 h-4"></i></button>
+                        <button type="button" onclick="handleClearAllFilters()" class="px-4 bg-slate-700 text-slate-300 h-11 rounded-xl font-black text-[10px] uppercase hover:bg-slate-600 transition">
+                            <i data-lucide="refresh-ccw" class="w-4 h-4"></i>
+                        </button>
                     </div>
                 </div>
             </form>
@@ -134,19 +167,19 @@
                     <thead>
                         <tr>
                             <th class="w-[8%]" onclick="sortTable('id')">
-                                <div class="flex items-center justify-between">ID <i id="sort-id" class="sort-icon opacity-30 group-hover:opacity-100 transition"></i></div>
+                                <div class="flex items-center justify-between">ID <span id="sort-id" class="sort-icon"></span></div>
                             </th>
                             <th class="w-[12%]" onclick="sortTable('nif')">
-                                <div class="flex items-center justify-between">NIF/CIF <i id="sort-nif" class="sort-icon opacity-30 group-hover:opacity-100 transition"></i></div>
+                                <div class="flex items-center justify-between">NIF/CIF <span id="sort-nif" class="sort-icon"></span></div>
                             </th>
                             <th class="w-[22%]" onclick="sortTable('nombre')">
-                                <div class="flex items-center justify-between">Razón Social <i id="sort-nombre" class="sort-icon opacity-30 group-hover:opacity-100 transition"></i></div>
+                                <div class="flex items-center justify-between">Razón Social <span id="sort-nombre" class="sort-icon"></span></div>
                             </th>
                             <th class="w-[18%] text-left">Dirección</th>
                             <th class="w-[12%] text-left">Teléfono</th>
                             <th class="w-[13%] text-left">Email</th>
                             <th class="w-[5%] text-center">Est.</th>
-                            <th class="w-[10%] text-center">Gestión</th>
+                            <th class="w-[12%] text-center">Gestión</th>
                         </tr>
                     </thead>
                     <tbody id="empresaResults" class="bg-white divide-y divide-slate-100">
@@ -159,6 +192,9 @@
     </main>
 
     <div id="statusMessage" class="hidden fixed bottom-5 right-5 z-[2000] p-4 rounded-xl shadow-2xl border-2 bg-white font-black text-xs uppercase tracking-widest transition-all duration-300"></div>
+
+    <script src="/js/oficina.js"></script>
+    <script src="/js/admin_empresas.js"></script>
 
     <script>
         function toggleDropdown(button) {
