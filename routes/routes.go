@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: routes/routes.go
  * DESCRIPCIÓN: Configuración integral y definitiva de rutas.
- * ACTUALIZADO: 26/03/2026 - FIX: Integración total de rutas y liberación de APIs de exportación/pagos.
+ * ACTUALIZADO: 26/03/2026 - FIX: Liberación total de rutas de Licencias para evitar error 401.
  */
 
 package routes
@@ -143,10 +143,17 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		api.POST("/empresas/export/pdf", func(c *gin.Context) { controllers.ExportEmpresasPDF(c, db) })
 		api.POST("/empresas/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
 
-		// ✅ API LICENCIAS LIBERADA (Para combos de selección)
+		// ✅ API LICENCIAS (TITULARES) TOTALMENTE LIBERADA
+		// Esto soluciona los errores 401 Unauthorized y 404 Not Found
 		api.GET("/licencias", func(c *gin.Context) { controllers.GetLicencias(c, db) })
+		api.GET("/licencias/search", func(c *gin.Context) { controllers.SearchLicencias(c, db) })
+		api.GET("/licencias/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) })
+		api.POST("/licencias", func(c *gin.Context) { controllers.CreateLicencia(c, db) })
+		api.PUT("/licencias/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
+		api.DELETE("/licencias/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
+		api.PUT("/licencias/status/:id", func(c *gin.Context) { controllers.UpdateStatusLicencia(c, db) })
 
-		// ✅ API ALBARANES LIBERADA (Búsqueda, Detalle y Exportación de Liquidaciones)
+		// ✅ API ALBARANES LIBERADA (Búsqueda, Detalle y Exportación)
 		api.GET("/albaranes/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
 		api.GET("/albaranes/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 		api.PUT("/albaranes/id/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
@@ -168,12 +175,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			adminOnly := protectedAPI.Group("/")
 			adminOnly.Use(controllers.RequireRole("admin"))
 			{
-				adminOnly.POST("/licencias", func(c *gin.Context) { controllers.CreateLicencia(c, db) })
-				adminOnly.GET("/licencias/search", func(c *gin.Context) { controllers.SearchLicencias(c, db) })
-				adminOnly.GET("/licencias/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) })
-				adminOnly.PUT("/licencias/:id", func(c *gin.Context) { controllers.UpdateLicencia(c, db) })
-				adminOnly.DELETE("/licencias/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
-
 				adminOnly.GET("/backup/list", controllers.ObtenerBackupsList)
 				adminOnly.POST("/backup/:tipo/:accion", controllers.RealizarBackup)
 			}

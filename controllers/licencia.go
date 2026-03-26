@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"albaranes/models"
-	"albaranes/utils" // Asume que 'albaranes' es el nombre de tu módulo Go
+	"albaranes/utils"
 	"log"
 	"net/http"
 	"strconv"
@@ -51,7 +51,6 @@ func CreateLicencia(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Inicializar el estado en true por defecto
 	initialState := true
 	if input.Estado != nil {
 		initialState = *input.Estado
@@ -79,18 +78,13 @@ func CreateLicencia(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Licencia creada exitosamente", "data": licencia})
 }
 
-// GetLicencias obtiene la lista completa de licencias para el administrador.
-// Se ha eliminado el filtro de 'estado = true' para permitir que el frontend gestione la visualización de inactivos.
+// GetLicencias obtiene la lista completa de licencias.
 func GetLicencias(c *gin.Context, db *gorm.DB) {
 	var licencias []models.Licencia
-
-	// Obtenemos todos los registros y ordenamos ascendentemente por el campo texto 'licencia'
-	// Nota: Si tus licencias son números con ceros (001), este orden funcionará perfectamente.
 	if err := db.Model(&models.Licencia{}).Order("licencia ASC").Find(&licencias).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al obtener la lista de licencias"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": licencias})
 }
 
@@ -108,11 +102,10 @@ func GetLicencia(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Licencia no encontrada"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"data": licencia})
 }
 
-// UpdateLicencia actualiza los campos de una licencia por ID (PUT).
+// UpdateLicencia actualiza los campos de una licencia por ID.
 func UpdateLicencia(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -141,8 +134,8 @@ func UpdateLicencia(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Licencia actualizada exitosamente", "data": licencia})
 }
 
-// SoftDeleteLicencia: Cambia el campo Estado a FALSE (Borrado Lógico)
-func SoftDeleteLicencia(c *gin.Context, db *gorm.DB) {
+// ✅ UPDATE ESPECIAL: UpdateStatusLicencia (Borrado Lógico / Estatus)
+func UpdateStatusLicencia(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
@@ -150,22 +143,38 @@ func SoftDeleteLicencia(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	var licencia models.Licencia
-	if err := db.First(&licencia, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "❌ Licencia no encontrada para desactivar"})
+	var input struct {
+		Estado bool `json:"estado"`
+	}
+
+	// Si no se envía JSON, ShouldBindJSON fallará pero por defecto Estado es false
+	if err := c.ShouldBindJSON(&input); err != nil {
+		input.Estado = false
+	}
+
+	// Realizamos el UPDATE quirúrgico de la columna 'estado'
+	if result := db.Model(&models.Licencia{}).Where("id = ?", id).Update("estado", input.Estado); result.Error != nil {
+		log.Printf("ERROR al actualizar estado: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al cambiar el estado de la licencia"})
 		return
 	}
 
-	if result := db.Model(&licencia).Update("Estado", false); result.Error != nil {
-		log.Printf("ERROR GORM al desactivar licencia: %v", result.Error)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al desactivar la licencia"})
-		return
+	msg := "desactivada"
+	if input.Estado {
+		msg = "activada"
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Licencia desactivada (estado = false) con éxito", "id": id})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Licencia " + msg + " con éxito", "id": id})
 }
 
-// DeleteLicencia elimina una licencia por ID (Eliminación física de la DB).
+// SoftDeleteLicencia: Legacy Helper que redirige a desactivación total.
+func SoftDeleteLicencia(c *gin.Context, db *gorm.DB) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseUint(idStr, 10, 32)
+	db.Model(&models.Licencia{}).Where("id = ?", id).Update("estado", false)
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Licencia desactivada", "id": id})
+}
+
+// DeleteLicencia elimina una licencia físicamente de la DB.
 func DeleteLicencia(c *gin.Context, db *gorm.DB) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -182,7 +191,7 @@ func DeleteLicencia(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Licencia eliminada exitosamente", "id": id})
 }
 
-// SearchLicencias busca licencias por el número de licencia.
+// SearchLicencias busca licencias por el número.
 func SearchLicencias(c *gin.Context, db *gorm.DB) {
 	searchTerm := c.Query("q")
 	if searchTerm == "" {
@@ -191,9 +200,7 @@ func SearchLicencias(c *gin.Context, db *gorm.DB) {
 	}
 
 	var licencias []models.Licencia
-	searchPattern := "%" + searchTerm + "%"
-
-	if err := db.Where("licencia LIKE ?", searchPattern).Find(&licencias).Error; err != nil {
+	if err := db.Where("licencia LIKE ?", "%"+searchTerm+"%").Find(&licencias).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "❌ Error al buscar licencias."})
 		return
 	}
@@ -206,7 +213,7 @@ func SearchLicencias(c *gin.Context, db *gorm.DB) {
 func ExportTitularesPDFHandler(c *gin.Context) {
 	var req ExportRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Solicitud JSON inválida.", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Solicitud JSON inválida."})
 		return
 	}
 
@@ -224,7 +231,7 @@ func ExportTitularesPDFHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":     true,
-		"message":     "✅ PDF generado correctamente en el servidor.",
+		"message":     "✅ PDF generado correctamente.",
 		"downloadURL": downloadURL,
 	})
 }
@@ -234,7 +241,7 @@ func ExportTitularesPDFHandler(c *gin.Context) {
 func ExportTitularesXLSX(c *gin.Context, db *gorm.DB) {
 	var req ExportRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Solicitud JSON inválida.", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Solicitud JSON inválida."})
 		return
 	}
 
@@ -252,7 +259,7 @@ func ExportTitularesXLSX(c *gin.Context, db *gorm.DB) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":     true,
-		"message":     "✅ XLSX generado correctamente en el servidor.",
+		"message":     "✅ XLSX generado correctamente.",
 		"downloadURL": downloadURL,
 	})
 }
