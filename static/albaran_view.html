@@ -26,32 +26,27 @@
         }
     </style>
 </head>
-
 <body class="p-4 sm:p-8">
-
     <div class="max-w-7xl mx-auto bg-white shadow-2xl rounded-[2rem] overflow-hidden border border-slate-100">
-
         <div class="bg-gradient-to-r from-slate-700 to-slate-900 p-6 flex justify-between items-center border-b border-slate-800">
             <h1 class="text-2xl font-black text-white flex items-center uppercase">
                 <i data-lucide="eye" class="mr-3 text-primary-link"></i> DETALLE ALBARÁN 
                 <span id="header_num" class="ml-3 text-primary-link opacity-50 text-lg"></span>
             </h1>
-            <button onclick="window.history.back()"
-                class="bg-white/10 text-white px-5 py-2 rounded-xl font-bold hover:bg-white/20 transition flex items-center shadow-lg text-sm backdrop-blur-md">
+            <button onclick="window.history.back()" class="bg-white/10 text-white px-5 py-2 rounded-xl font-bold hover:bg-white/20 transition flex items-center shadow-lg text-sm backdrop-blur-md">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> VOLVER
             </button>
         </div>
 
         <div id="albaranForm" class="p-6 md:p-10 space-y-8">
-            
-            <p id="loadingIndicator" class="text-center font-bold text-primary-link animate-pulse uppercase text-xs">Recuperando datos del servidor...</p>
+            <p id="loadingIndicator" class="text-center font-bold text-primary-link animate-pulse uppercase text-xs">Recuperando datos...</p>
 
             <div class="space-y-4">
                 <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">1. Identificación del Servicio</h2>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                     <div class="md:col-span-1">
                         <label class="label-style">Licencia</label>
-                        <div id="licencia_ref" class="view-field bg-slate-200 justify-center"></div>
+                        <div id="licencia" class="view-field bg-slate-200 justify-center"></div>
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Nº Albarán</label>
@@ -85,7 +80,7 @@
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Nombre Pasajero</label>
-                        <div id="cliente" class="view-field"></div> 
+                        <div id="nombre_pasajero" class="view-field font-bold"></div> 
                     </div>
                     <div class="md:col-span-2">
                         <label class="label-style">Teléfono</label>
@@ -118,8 +113,8 @@
                         <div id="destino" class="view-field"></div>
                     </div>
                     <div class="md:col-span-4">
-                        <label class="label-style">Espera Total (Decimal)</label>
-                        <div id="hora_total" class="view-field font-bold text-orange-600"></div>
+                        <label class="label-style text-orange-600 font-black">Espera Total (Decimal)</label>
+                        <div id="hora_total" class="view-field font-black text-orange-600 text-lg"></div>
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Espera Inicio</label>
@@ -138,28 +133,28 @@
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="checkbox-inline">
                             <input type="checkbox" id="urbano" disabled class="w-4 h-4 text-orange-500">
-                            <span class="text-[10px] font-black uppercase ml-2">Servicio Urbano</span>
+                            <span class="text-[10px] font-black uppercase ml-2">Urbano</span>
                         </div>
                         <div class="checkbox-inline">
                             <input type="checkbox" id="diurno" disabled class="w-4 h-4 text-blue-500">
-                            <span class="text-[10px] font-black uppercase ml-2">Servicio Diurno</span>
+                            <span class="text-[10px] font-black uppercase ml-2">Diurno</span>
                         </div>
                         <div class="checkbox-inline">
                             <input type="checkbox" id="noct_fest" disabled class="w-4 h-4 text-purple-600">
                             <span class="text-[10px] font-black uppercase ml-2">Nocturno / Festivo</span>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                            <label class="label-style text-primary-link font-black">Kms Totales</label>
+                            <label class="label-style text-primary-link">Kms Totales</label>
                             <div id="km_totales" class="view-field bg-white border-primary-link font-black justify-end text-lg"></div>
                         </div>
                         <div>
-                            <label class="label-style text-slate-500">Kms Nacionales</label>
+                            <label class="label-style">Kms Nacionales</label>
                             <div id="km_nacionales" class="view-field justify-end"></div>
                         </div>
                         <div>
-                            <label class="label-style text-slate-500">Kms Internacionales</label>
+                            <label class="label-style">Kms Internacionales</label>
                             <div id="km_internacionales" class="view-field justify-end"></div>
                         </div>
                     </div>
@@ -169,7 +164,6 @@
             <div class="space-y-4">
                 <h2 class="text-xs font-black text-slate-300 uppercase tracking-[0.2em] border-b pb-1">5. Liquidación e Importes</h2>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-
                     <div class="md:col-span-9 space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                             <div class="md:col-span-2">
@@ -194,30 +188,30 @@
                                 </div>
                             </div>
                             <div class="md:col-span-3">
-                                <label class="label-style">Plazas Vehículo</label>
+                                <label class="label-style">Plazas</label>
                                 <div id="num_plazas" class="view-field justify-center font-bold"></div>
                             </div>
                             <div class="md:col-span-2">
                                 <div class="checkbox-inline w-full border-blue-200 bg-blue-50">
-                                    <input type="checkbox" id="adjuntos" disabled class="w-4 h-4 text-blue-600">
+                                    <input type="checkbox" id="adjuntos_bool" disabled class="w-4 h-4 text-blue-600">
                                     <span class="text-[9px] font-black uppercase ml-2">Adjuntos</span>
                                 </div>
                             </div>
                             <div class="md:col-span-4">
-                                <label class="label-style">Referencia / Nº Adjuntos</label>
-                                <div id="adjuntos_ref" class="view-field font-bold border-blue-100 italic"></div>
+                                <label class="label-style">Referencia Adjuntos</label>
+                                <div id="adjuntos" class="view-field font-bold border-blue-100 italic"></div>
                             </div>
                         </div>
 
                         <div>
-                            <label class="label-style tracking-widest text-slate-500 mb-1 block uppercase">Observaciones</label>
-                            <div id="observaciones" class="view-field italic w-full min-h-[80px] items-start py-2 overflow-y-auto block whitespace-pre-wrap"></div>
+                            <label class="label-style">Observaciones</label>
+                            <div id="observaciones" class="view-field italic w-full min-h-[80px] items-start py-2 block whitespace-pre-wrap overflow-y-auto"></div>
                         </div>
                     </div>
 
                     <div class="md:col-span-3 bg-slate-900 p-6 rounded-[2rem] border-4 border-primary-pastel shadow-2xl flex flex-col justify-center space-y-4 h-fit self-start mt-5">
                         <div class="flex flex-col items-center">
-                            <label class="text-[11px] font-black text-white uppercase tracking-tighter text-center mb-2">Importe Total</label>
+                            <label class="text-[11px] font-black text-white uppercase tracking-tighter mb-2">Importe Total</label>
                             <div class="flex items-center justify-center">
                                 <span class="text-2xl font-black text-white mr-2">€</span>
                                 <div id="importe_total" class="view-dark text-4xl"></div>
@@ -233,10 +227,5 @@
 
     <script src="/js/albaran_cargar.js"></script>
     <script src="/js/albaran_view.js" defer></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.lucide) lucide.createIcons();
-        });
-    </script>
 </body>
 </html>
