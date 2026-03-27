@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
- * DESCRIPCIÓN: Gestión integral de albaranes.
- * ACTUALIZADO: 26/03/2026 - FIX: Update parcial para evitar borrado de horas/fechas.
+ * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
+ * ACTUALIZADO: 27/03/2026 - FIX: Mapeo manual a Struct para evitar redondeos (0.35 -> 1).
  */
 
 package controllers
@@ -52,7 +52,7 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 }
 
 func preloadAlbaran(db *gorm.DB) *gorm.DB {
-	return db.Preload("LicenciaData").Preload("EmpresaData")
+	return db.Preload("LicenciaData").Preload("Preload", "EmpresaData")
 }
 
 func getUintFromContext(c *gin.Context, key string) uint {
@@ -72,7 +72,7 @@ func getUintFromContext(c *gin.Context, key string) uint {
 	}
 }
 
-// cleanAlbaranMap mapea el JSON a campos del Struct para GORM Updates
+// cleanAlbaranMap mapea el JSON a campos del Struct para lógica interna
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 	fechaBase := time.Now().Format(dateFormat)
@@ -193,7 +193,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 func GetAlbaran(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
-	if err := preloadAlbaran(db).First(&albaran, id).Error; err != nil {
+	if err := db.Preload("LicenciaData").Preload("EmpresaData").First(&albaran, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "❌ No encontrado"})
 		return
 	}
@@ -206,15 +206,105 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
 		return
 	}
-	cleanInput := cleanAlbaranMap(input, models.Albaran{Fecha: time.Now()})
-	if err := db.Model(&models.Albaran{}).Create(cleanInput).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar"})
+
+	// ✅ FIX: Bind al struct tipado para evitar que GORM redondee decimales
+	albaran := models.Albaran{}
+	cleanInput := cleanAlbaranMap(input, albaran)
+
+	// Mapeo manual estricto
+	albaran.NumeroAlbaran = strFromInterface(cleanInput["NumeroAlbaran"])
+	albaran.LicenciaRef = uint(intOrZero(cleanInput, "LicenciaRef"))
+	albaran.EmpresaRef = uint(intOrZero(cleanInput, "EmpresaRef"))
+	albaran.EmpresaNombre = strOrEmpty(cleanInput, "EmpresaNombre")
+	albaran.TlfPasajero = strOrEmpty(cleanInput, "TlfPasajero")
+	albaran.AdjuntosRef = strOrEmpty(cleanInput, "AdjuntosRef")
+	albaran.NumPlazas = intOrZero(cleanInput, "NumPlazas")
+
+	// Campos Decimales Críticos (Garantizar float64 puro)
+	albaran.KmTotales = floatOrZero(cleanInput, "KmTotales")
+	albaran.KmNacionales = floatOrZero(cleanInput, "KmNacionales")
+	albaran.KmInternacionales = floatOrZero(cleanInput, "KmInternacionales")
+	albaran.ImporteTotal = floatOrZero(cleanInput, "ImporteTotal")
+	albaran.ImporteSuplidos = floatOrZero(cleanInput, "ImporteSuplidos")
+	albaran.HoraTotal = floatOrZero(cleanInput, "HoraTotal") // <-- 0.35 se mantiene 0.35
+
+	albaran.Urbano = boolOrFalse(cleanInput, "Urbano")
+	albaran.Diurno = boolOrFalse(cleanInput, "Diurno")
+	albaran.NoctFest = boolOrFalse(cleanInput, "NoctFest")
+	albaran.Remolque = boolOrFalse(cleanInput, "Remolque")
+	albaran.Adjuntos = boolOrFalse(cleanInput, "Adjuntos")
+	albaran.Finalizado = boolOrFalse(cleanInput, "Finalizado")
+	albaran.Festivo = boolOrFalse(cleanInput, "Festivo")
+	albaran.Estado = false
+
+	// Punteros opcionales
+	if v := strPtrOrNil(cleanInput, "Referencia"); v != nil {
+		s := v.(string)
+		albaran.Referencia = &s
+	}
+	if v := strPtrOrNil(cleanInput, "Asalariado"); v != nil {
+		s := v.(string)
+		albaran.Asalariado = &s
+	}
+	if v := strPtrOrNil(cleanInput, "DNIPasajero"); v != nil {
+		s := v.(string)
+		albaran.DNIPasajero = &s
+	}
+	if v := strPtrOrNil(cleanInput, "Matricula"); v != nil {
+		s := v.(string)
+		albaran.Matricula = &s
+	}
+	if v := strPtrOrNil(cleanInput, "Cliente"); v != nil {
+		s := v.(string)
+		albaran.Cliente = &s
+	}
+	if v := strPtrOrNil(cleanInput, "Origen"); v != nil {
+		s := v.(string)
+		albaran.Origen = &s
+	}
+	if v := strPtrOrNil(cleanInput, "Parada"); v != nil {
+		s := v.(string)
+		albaran.Parada = &s
+	}
+	if v := strPtrOrNil(cleanInput, "Destino"); v != nil {
+		s := v.(string)
+		albaran.Destino = &s
+	}
+	if v := strPtrOrNil(cleanInput, "AutorizadoPor"); v != nil {
+		s := v.(string)
+		albaran.AutorizadoPor = &s
+	}
+	if v := strPtrOrNil(cleanInput, "Observaciones"); v != nil {
+		s := v.(string)
+		albaran.Observaciones = &s
+	}
+
+	// Fechas y tiempos
+	if v, ok := cleanInput["Fecha"].(time.Time); ok {
+		albaran.Fecha = v
+	} else {
+		albaran.Fecha = time.Now()
+	}
+	if v, ok := cleanInput["HoraIni"].(*time.Time); ok {
+		albaran.HoraIni = v
+	}
+	if v, ok := cleanInput["HoraFin"].(*time.Time); ok {
+		albaran.HoraFin = v
+	}
+	if v, ok := cleanInput["EsperaIni"].(*time.Time); ok {
+		albaran.EsperaIni = v
+	}
+	if v, ok := cleanInput["EsperaFin"].(*time.Time); ok {
+		albaran.EsperaFin = v
+	}
+
+	if err := db.Create(&albaran).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado"})
 }
 
-// UpdateAlbaran decide si es Admin o User
 func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 	role, _ := c.Get("role")
 	if role == "admin" {
@@ -224,7 +314,6 @@ func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
 	}
 }
 
-// UpdateAlbaranAdmin: Actualización desde panel de control
 func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	var albaran models.Albaran
@@ -236,7 +325,6 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	var input map[string]interface{}
 	c.ShouldBindJSON(&input)
 
-	// ✅ FIX: Si el input solo trae estados (como enviado), usamos UpdateDirecto
 	if len(input) <= 3 && (input["enviado"] != nil || input["pagado"] != nil || input["cobrado"] != nil) {
 		db.Model(&albaran).Updates(input)
 		c.JSON(http.StatusOK, gin.H{"message": "✅ Estado actualizado"})
@@ -252,7 +340,6 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado por Admin"})
 }
 
-// UpdateAlbaranUser: UPDATE especial para pendientes y edición de usuario
 func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	licID := getUintFromContext(c, "licencia_id")
@@ -269,8 +356,6 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// ✅ UPDATE ESPECIAL: Si es un envío masivo de pendientes (solo viene 'enviado' y 'finalizado')
-	// GORM Updates(map) solo actualiza las columnas presentes en el mapa.
 	if len(input) <= 3 && input["enviado"] != nil {
 		if err := db.Model(&albaran).Updates(input).Error; err != nil {
 			c.JSON(500, gin.H{"error": "Error al marcar enviado"})
@@ -280,7 +365,6 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Actualización normal de formulario
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
 	cleanInput := cleanAlbaranMap(input, albaran)
@@ -292,10 +376,6 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
 }
-
-// ---------------------------------------------------------------------
-// SECCIÓN: EJECUCIÓN SQL DIRECTA (PARA FORMULARIOS COMPLETOS)
-// ---------------------------------------------------------------------
 
 func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licID uint, isAdmin bool) error {
 	query := `
@@ -341,10 +421,6 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 	return db.Exec(query, params...).Error
 }
 
-// ---------------------------------------------------------------------
-// SECCIÓN: BÚSQUEDAS Y OTROS
-// ---------------------------------------------------------------------
-
 func SearchAlbaranesUser(c *gin.Context, db *gorm.DB) {
 	licID := getUintFromContext(c, "licencia_id")
 	var albaranes []models.Albaran
@@ -377,7 +453,7 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 	}
 }
 
-// Helpers tipados
+// Helpers tipados robustos
 func timePtrOrNil(m map[string]interface{}, key string) interface{} {
 	if v, ok := m[key]; ok && v != nil {
 		return v
@@ -397,14 +473,35 @@ func strPtrOrNil(m map[string]interface{}, key string) interface{} {
 	return nil
 }
 func floatOrZero(m map[string]interface{}, key string) float64 {
-	if v, ok := m[key].(float64); ok {
-		return v
+	val, ok := m[key]
+	if !ok || val == nil {
+		return 0.0
 	}
-	return 0
+	switch v := val.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case string:
+		var f float64
+		v = strings.ReplaceAll(v, ",", ".")
+		fmt.Sscanf(v, "%f", &f)
+		return f
+	}
+	return 0.0
 }
 func intOrZero(m map[string]interface{}, key string) int {
-	if v, ok := m[key].(float64); ok {
+	val, ok := m[key]
+	if !ok || val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case float64:
 		return int(v)
+	case int:
+		return v
 	}
 	return 0
 }
@@ -413,6 +510,12 @@ func boolOrFalse(m map[string]interface{}, key string) bool {
 		return v
 	}
 	return false
+}
+func strFromInterface(v interface{}) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
 }
 
 func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB)  {}

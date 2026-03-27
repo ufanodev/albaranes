@@ -11,7 +11,7 @@ type Albaran struct {
 	NumeroAlbaran string    `gorm:"column:numero_albaran;size:50;uniqueIndex;not null" json:"numero_albaran"`
 	Fecha         time.Time `gorm:"column:fecha;type:date;not null;index:idx_albaranes_fecha" json:"fecha"`
 
-	// Relaciones (Foreign Keys) - Usamos uint64 para mapear bigint unsigned de MySQL
+	// Relaciones (Foreign Keys)
 	LicenciaRef uint `gorm:"column:licencia_ref;not null;type:bigint unsigned;index:idx_albaranes_licencia" json:"licencia_ref"`
 	EmpresaRef  uint `gorm:"column:empresa_ref;not null;type:bigint unsigned;index:idx_albaranes_empresa" json:"empresa_ref"`
 
@@ -29,7 +29,7 @@ type Albaran struct {
 	DNIPasajero *string `gorm:"column:dni_pasajero;size:15" json:"dni_pasajero"`
 	TlfPasajero string  `gorm:"column:tlf_pasajero;size:15;not null" json:"tlf_pasajero"`
 	Matricula   *string `gorm:"column:matricula;size:15" json:"matricula"`
-	Cliente     *string `gorm:"column:cliente;size:150" json:"cliente"` // Mapeado desde nombre_pasajero
+	Cliente     *string `gorm:"column:cliente;size:150" json:"cliente"` // Usado para nombre_pasajero
 
 	// Ruta del Servicio
 	Origen  *string `gorm:"column:origen;size:200" json:"origen"`
@@ -40,13 +40,12 @@ type Albaran struct {
 	Hora         *time.Time `gorm:"column:hora;type:datetime(3)" json:"hora"`
 	HoraIni      *time.Time `gorm:"column:hora_ini;type:datetime(3)" json:"hora_ini"`
 	HoraFin      *time.Time `gorm:"column:hora_fin;type:datetime(3)" json:"hora_fin"`
-	HoraTotal    float64    `gorm:"column:hora_total;type:decimal(3,2);not null;default:0.0" json:"hora_total"`
+	HoraTotal    float64    `gorm:"column:hora_total;type:decimal(10,2);not null;default:0.0" json:"hora_total"`
 	EsperaIni    *time.Time `gorm:"column:espera_ini;type:datetime(3)" json:"espera_ini"`
 	EsperaFin    *time.Time `gorm:"column:espera_fin;type:datetime(3)" json:"espera_fin"`
 	TiempoEspera *time.Time `gorm:"column:tiempo_espera;type:datetime(3)" json:"tiempo_espera"`
 
 	// --- DATOS NUMÉRICOS Y KILOMETRAJE ---
-	// Se añade default:0.0 para evitar Error 1364 de MySQL cuando no se envían
 	KmIni             float64 `gorm:"column:km_ini;type:decimal(10,2);not null;default:0.0" json:"km_ini"`
 	KmFin             float64 `gorm:"column:km_fin;type:decimal(10,2);not null;default:0.0" json:"km_fin"`
 	KmTotales         float64 `gorm:"column:km_totales;type:decimal(10,2);default:0.0" json:"km_totales"`
@@ -75,7 +74,7 @@ type Albaran struct {
 	Enviado    bool `gorm:"column:enviado;default:0" json:"enviado"`
 	Cobrado    bool `gorm:"column:cobrado;default:0" json:"cobrado"`
 	Pagado     bool `gorm:"column:pagado;default:0" json:"pagado"`
-	Estado     bool `gorm:"column:estado;default:0" json:"estado"` // 0=Activo, 1=Borrado
+	Estado     bool `gorm:"column:estado;default:0" json:"estado"` // 0=Activo, 1=Borrado Lógico
 
 	// Gestión Administrativa
 	NumFactura         *string    `gorm:"column:num_factura;size:50" json:"num_factura"`
