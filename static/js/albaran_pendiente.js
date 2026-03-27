@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/albaran_pendiente.js
- * FUNCIÓN: Controlador de Pendientes con FIX definitivo en envío masivo.
- * ACTUALIZADO: 26/03/2026 - FIX: Envío quirúrgico para preservar horas y fechas.
+ * FUNCIÓN: Controlador de Pendientes con FIX en visualización de Licencia y Envío Quirúrgico.
+ * ACTUALIZADO: 27/03/2026
  */
 
 const APP_PENDIENTES = {
@@ -32,16 +32,23 @@ async function startApp() {
         const identity = await resp.json();
         APP_PENDIENTES.state.licId = identity.licencia_id;
 
-        await SearchEngine.initCatalog();
+        // Inicializar motor de búsqueda y catálogos
+        if (window.SearchEngine) {
+            await SearchEngine.initCatalog();
+        }
+        
         await loadData();
         setupEvents();
 
         window.APP_STATE = APP_PENDIENTES.state;
-    } catch (e) { console.error("Error al iniciar App:", e); }
+    } catch (e) { 
+        console.error("Error al iniciar App:", e); 
+    }
 }
 
 async function loadData() {
-    APP_PENDIENTES.elements.resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 italic text-slate-400 font-medium">Sincronizando con el servidor...</td></tr>';
+    const { resultsBody } = APP_PENDIENTES.elements;
+    resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 italic text-slate-400 font-medium">Sincronizando con el servidor...</td></tr>';
     
     try {
         const response = await fetch(`/api/v1/albaranes/search-user?licencia_ref=${APP_PENDIENTES.state.licId}&pageSize=5000`, {
@@ -54,7 +61,7 @@ async function loadData() {
         APP_PENDIENTES.state.rawAlbaranes = items.filter(i => !i.enviado && !i.cobrado && !i.pagado);
         handleSearch(); 
     } catch (e) {
-        APP_PENDIENTES.elements.resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 text-red-500 font-bold">Error de conexión</td></tr>';
+        resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 text-red-500 font-bold">Error de conexión con el servidor</td></tr>';
     }
 }
 
@@ -68,7 +75,13 @@ function handleSearch(e) {
         hasta: document.getElementById('fecha_hasta').value,
         palabra: document.getElementById('palabra').value
     };
-    APP_PENDIENTES.state.filteredAlbaranes = SearchEngine.applyFilters(APP_PENDIENTES.state.rawAlbaranes, params);
+
+    if (window.SearchEngine) {
+        APP_PENDIENTES.state.filteredAlbaranes = SearchEngine.applyFilters(APP_PENDIENTES.state.rawAlbaranes, params);
+    } else {
+        APP_PENDIENTES.state.filteredAlbaranes = APP_PENDIENTES.state.rawAlbaranes;
+    }
+
     sortTable(APP_PENDIENTES.state.currentSort.key, true);
     APP_PENDIENTES.state.currentPage = 1;
     render();
@@ -83,7 +96,7 @@ function render() {
     const pageItems = APP_PENDIENTES.state.filteredAlbaranes.slice(start, start + APP_PENDIENTES.state.pageSize);
 
     if (pageItems.length === 0) {
-        resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 text-slate-400 italic">No hay registros pendientes.</td></tr>';
+        resultsBody.innerHTML = '<tr><td colspan="11" class="text-center py-20 text-slate-400 italic">No hay registros pendientes que coincidan.</td></tr>';
         if (totalFooter) totalFooter.innerHTML = '';
         return;
     }
@@ -93,6 +106,17 @@ function render() {
         const imp = parseFloat(i.importe_total || 0);
         sumaTotal += imp;
         
+        // --- LÓGICA DE LICENCIA ---
+        // Intentamos sacar el número humano (ej: 001) del objeto relacionado o del motor
+        let numLicencia = "---";
+        if (i.licencia_data && i.licencia_data.licencia) {
+            numLicencia = i.licencia_data.licencia;
+        } else if (i.licencia) {
+            numLicencia = i.licencia;
+        } else if (window.SearchEngine) {
+            numLicencia = SearchEngine.getLicenciaNumero(i);
+        }
+
         const row = `
             <tr class="hover:bg-orange-50/30 border-b border-slate-100 transition-colors group">
                 <td class="px-4 py-3 text-center">
@@ -100,8 +124,10 @@ function render() {
                 </td>
                 <td class="px-4 py-3 font-black text-slate-900">${i.numero_albaran || "N/A"}</td>
                 <td class="px-4 py-3 text-slate-500 font-bold">${i.fecha ? i.fecha.substring(0, 10) : "-"}</td>
-                <td class="px-4 py-3 text-secondary-blue font-black">${SearchEngine.getLicenciaNumero(i)}</td>
-                <td class="px-4 py-4 font-bold text-slate-700 uppercase truncate max-w-[150px]">${SearchEngine.getEmpresaNombre(i)}</td>
+                <td class="px-4 py-3 text-secondary-blue font-black">${numLicencia}</td>
+                <td class="px-4 py-4 font-bold text-slate-700 uppercase truncate max-w-[150px]">
+                    ${window.SearchEngine ? SearchEngine.getEmpresaNombre(i) : (i.empresa_nombre || '---')}
+                </td>
                 <td class="px-4 py-3 text-gray-400 italic">${i.referencia || "-"}</td>
                 <td class="px-4 py-3 text-slate-600 font-semibold uppercase">${i.asalariado || "TITULAR"}</td>
                 <td class="px-4 py-3 text-right font-black text-primary-link text-sm">€${imp.toFixed(2)}</td>
@@ -110,8 +136,12 @@ function render() {
                 </td>
                 <td class="px-4 py-3 text-center">
                     <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="window.location.href='/titulares/view/${i.id}'" class="p-1.5 border rounded-lg hover:bg-blue-50 text-blue-600 transition"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${i.id}'" class="p-1.5 border rounded-lg hover:bg-orange-50 text-orange-600 transition"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                        <button onclick="window.location.href='/titulares/view/${i.id}'" class="p-1.5 border rounded-lg hover:bg-blue-50 text-blue-600 transition" title="Ver Detalle">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="window.location.href='/titulares/update/${i.id}'" class="p-1.5 border rounded-lg hover:bg-orange-50 text-orange-600 transition" title="Editar">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
                     </div>
                 </td>
             </tr>`;
@@ -119,7 +149,12 @@ function render() {
     });
 
     if (totalFooter) {
-        totalFooter.innerHTML = `<tr><td colspan="7" class="px-4 py-4 text-right text-slate-400 text-[10px] font-black uppercase tracking-tighter">Subtotal Página:</td><td class="px-4 py-4 text-right text-base text-primary-link font-black bg-orange-50 border-l border-slate-200">€${sumaTotal.toFixed(2)}</td><td colspan="3"></td></tr>`;
+        totalFooter.innerHTML = `
+            <tr>
+                <td colspan="7" class="px-4 py-4 text-right text-slate-400 text-[10px] font-black uppercase tracking-tighter">Subtotal Página:</td>
+                <td class="px-4 py-4 text-right text-base text-primary-link font-black bg-orange-50 border-l border-slate-200">€${sumaTotal.toFixed(2)}</td>
+                <td colspan="3"></td>
+            </tr>`;
     }
 
     if (activeCount) activeCount.textContent = `${APP_PENDIENTES.state.filteredAlbaranes.length} REGISTROS`;
@@ -132,16 +167,14 @@ function render() {
 }
 
 /**
- * ✅ FUNCIÓN CORREGIDA: ENVÍO QUIRÚRGICO
- * Se envía un payload minimalista. El controlador de Go (albaran.go) 
- * detectará que solo viene 'enviado' y no tocará el resto de columnas (fechas/horas).
+ * ✅ ENVÍO QUIRÚRGICO (MASIVO)
+ * Enviamos solo 'enviado' y 'finalizado' para no corromper horas/fechas en el Backend.
  */
 window.handleEnviarSeleccionados = async () => {
     const checkboxes = document.querySelectorAll('.select-albaran:checked');
     const ids = Array.from(checkboxes).map(cb => cb.value);
     
     if (ids.length === 0) return alert("Por favor, selecciona al menos un albarán.");
-    
     if (!confirm(`¿Confirmas el envío de ${ids.length} albaranes?`)) return;
 
     const btn = document.getElementById('btnEnviarMasivo');
@@ -151,14 +184,9 @@ window.handleEnviarSeleccionados = async () => {
 
     try {
         const token = localStorage.getItem('token');
-        
         for (const id of ids) {
-            // NOTA CRÍTICA: NO enviamos el objeto 'item'. 
-            // Enviamos solo llaves de estado para que el Update de GORM sea parcial.
-            const patchPayload = { 
-                enviado: true,
-                finalizado: true 
-            };
+            // NOTA: No enviamos todo el objeto, solo el cambio de estado.
+            const patchPayload = { enviado: true, finalizado: true };
 
             await fetch(`/api/v1/albaranes/user/${id}`, {
                 method: 'PUT',
@@ -174,7 +202,7 @@ window.handleEnviarSeleccionados = async () => {
         await loadData(); 
     } catch (error) {
         console.error("Error en envío masivo:", error);
-        alert("Hubo un error al procesar el envío.");
+        alert("Hubo un error al procesar el envío masivo.");
     } finally {
         btn.disabled = false; 
         btn.innerHTML = originalText;
@@ -191,12 +219,12 @@ window.handleGeneratePDF = () => {
     const clean = data.map(i => ({
         "Nº ALBARAN": i.numero_albaran,
         "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
-        "EMPRESA": SearchEngine.getEmpresaNombre(i),
+        "EMPRESA": window.SearchEngine ? SearchEngine.getEmpresaNombre(i) : (i.empresa_nombre || '---'),
         "EXPEDIENTE": i.referencia || "-",
         "CONDUCTOR": i.asalariado || "TITULAR",
         "TOTAL": `€${parseFloat(i.importe_total || 0).toFixed(2)}`
     }));
-    Oficina.generarPDF("ALBARANES_PENDIENTES", clean);
+    if (window.Oficina) Oficina.generarPDF("ALBARANES_PENDIENTES", clean);
 };
 
 window.handleGenerateXLSX = () => {
@@ -205,13 +233,16 @@ window.handleGenerateXLSX = () => {
     const clean = data.map(i => ({
         "Nº ALBARAN": i.numero_albaran,
         "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
-        "EMPRESA": SearchEngine.getEmpresaNombre(i),
+        "EMPRESA": window.SearchEngine ? SearchEngine.getEmpresaNombre(i) : (i.empresa_nombre || '---'),
         "EXPEDIENTE": i.referencia || "-",
         "TOTAL": parseFloat(i.importe_total || 0)
     }));
-    Oficina.generarExcel("ALBARANES_PENDIENTES", clean);
+    if (window.Oficina) Oficina.generarExcel("ALBARANES_PENDIENTES", clean);
 };
 
+/**
+ * ORDENACIÓN Y UTILIDADES
+ */
 function sortTable(key, isInitial = false) {
     if (!isInitial) {
         APP_PENDIENTES.state.currentSort.direction = (APP_PENDIENTES.state.currentSort.key === key && APP_PENDIENTES.state.currentSort.direction === 'asc') ? 'desc' : 'asc';
@@ -219,7 +250,7 @@ function sortTable(key, isInitial = false) {
     }
     APP_PENDIENTES.state.filteredAlbaranes.sort((a, b) => {
         let vA = a[key], vB = b[key];
-        if (key === 'empresa') { vA = SearchEngine.getEmpresaNombre(a); vB = SearchEngine.getEmpresaNombre(b); }
+        if (key === 'empresa' && window.SearchEngine) { vA = SearchEngine.getEmpresaNombre(a); vB = SearchEngine.getEmpresaNombre(b); }
         if (key === 'importe_total') { vA = parseFloat(vA || 0); vB = parseFloat(vB || 0); }
         if (key === 'fecha') { vA = new Date(vA).getTime(); vB = new Date(vB).getTime(); }
         return (vA < vB ? -1 : 1) * (APP_PENDIENTES.state.currentSort.direction === 'asc' ? 1 : -1);
@@ -248,7 +279,8 @@ function setupEvents() {
     };
     document.getElementById('prevPageBtn').onclick = () => { if(APP_PENDIENTES.state.currentPage > 1) { APP_PENDIENTES.state.currentPage--; render(); } };
     document.getElementById('nextPageBtn').onclick = () => { 
-        if(APP_PENDIENTES.state.currentPage < Math.ceil(APP_PENDIENTES.state.filteredAlbaranes.length/APP_PENDIENTES.state.pageSize)) { 
+        const totalP = Math.ceil(APP_PENDIENTES.state.filteredAlbaranes.length / APP_PENDIENTES.state.pageSize);
+        if(APP_PENDIENTES.state.currentPage < totalP) { 
             APP_PENDIENTES.state.currentPage++; render(); 
         } 
     };
