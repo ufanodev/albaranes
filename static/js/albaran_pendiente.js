@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/albaran_pendiente.js
- * FUNCIÓN: Controlador de Pendientes con FIX en visualización de Licencia y Envío Quirúrgico.
- * ACTUALIZADO: 27/03/2026
+ * FUNCIÓN: Controlador de Pendientes con FIX en fechas literales y visualización de Licencia.
+ * ACTUALIZADO: 31/03/2026 - FIX: Gestión de fechas para evitar pérdida de días por zona horaria.
  */
 
 const APP_PENDIENTES = {
@@ -106,8 +106,10 @@ function render() {
         const imp = parseFloat(i.importe_total || 0);
         sumaTotal += imp;
         
+        // --- FIX FECHA: Tomar solo la parte literal para evitar error de día ---
+        const fechaMostrar = i.fecha ? i.fecha.split('T')[0] : "-";
+
         // --- LÓGICA DE LICENCIA ---
-        // Intentamos sacar el número humano (ej: 001) del objeto relacionado o del motor
         let numLicencia = "---";
         if (i.licencia_data && i.licencia_data.licencia) {
             numLicencia = i.licencia_data.licencia;
@@ -123,7 +125,7 @@ function render() {
                     <input type="checkbox" value="${i.id}" class="select-albaran w-4 h-4 rounded accent-orange-500 cursor-pointer">
                 </td>
                 <td class="px-4 py-3 font-black text-slate-900">${i.numero_albaran || "N/A"}</td>
-                <td class="px-4 py-3 text-slate-500 font-bold">${i.fecha ? i.fecha.substring(0, 10) : "-"}</td>
+                <td class="px-4 py-3 text-slate-500 font-bold">${fechaMostrar}</td>
                 <td class="px-4 py-3 text-secondary-blue font-black">${numLicencia}</td>
                 <td class="px-4 py-4 font-bold text-slate-700 uppercase truncate max-w-[150px]">
                     ${window.SearchEngine ? SearchEngine.getEmpresaNombre(i) : (i.empresa_nombre || '---')}
@@ -167,8 +169,7 @@ function render() {
 }
 
 /**
- * ✅ ENVÍO QUIRÚRGICO (MASIVO)
- * Enviamos solo 'enviado' y 'finalizado' para no corromper horas/fechas en el Backend.
+ * ENVÍO QUIRÚRGICO (MASIVO)
  */
 window.handleEnviarSeleccionados = async () => {
     const checkboxes = document.querySelectorAll('.select-albaran:checked');
@@ -185,7 +186,6 @@ window.handleEnviarSeleccionados = async () => {
     try {
         const token = localStorage.getItem('token');
         for (const id of ids) {
-            // NOTA: No enviamos todo el objeto, solo el cambio de estado.
             const patchPayload = { enviado: true, finalizado: true };
 
             await fetch(`/api/v1/albaranes/user/${id}`, {
@@ -218,7 +218,7 @@ window.handleGeneratePDF = () => {
     if (data.length === 0) return alert("Sin datos");
     const clean = data.map(i => ({
         "Nº ALBARAN": i.numero_albaran,
-        "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
+        "FECHA": i.fecha ? i.fecha.split('T')[0] : "-",
         "EMPRESA": window.SearchEngine ? SearchEngine.getEmpresaNombre(i) : (i.empresa_nombre || '---'),
         "EXPEDIENTE": i.referencia || "-",
         "CONDUCTOR": i.asalariado || "TITULAR",
@@ -232,7 +232,7 @@ window.handleGenerateXLSX = () => {
     if (data.length === 0) return alert("Sin datos");
     const clean = data.map(i => ({
         "Nº ALBARAN": i.numero_albaran,
-        "FECHA": i.fecha ? i.fecha.substring(0,10) : "-",
+        "FECHA": i.fecha ? i.fecha.split('T')[0] : "-",
         "EMPRESA": window.SearchEngine ? SearchEngine.getEmpresaNombre(i) : (i.empresa_nombre || '---'),
         "EXPEDIENTE": i.referencia || "-",
         "TOTAL": parseFloat(i.importe_total || 0)

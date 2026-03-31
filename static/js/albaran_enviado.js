@@ -7,7 +7,7 @@
 const APP_ENVIADOS = {
     elements: {
         resultsBody: document.getElementById('albaranResults'),
-        totalFooter: document.getElementById('albaranTotal'), // Añadido
+        totalFooter: document.getElementById('albaranTotal'), 
         pageInfo: document.getElementById('pageInfo'),
         activeCount: document.getElementById('activeFiltersCount'),
         recordsPerPage: document.getElementById('recordsPerPage')
@@ -55,6 +55,7 @@ async function loadData() {
         const json = await response.json();
         const items = json.data || json || [];
 
+        // Filtro Histórico: Registros que ya NO están en estado puramente pendiente
         APP_ENVIADOS.state.rawAlbaranes = items.filter(i => i.enviado || i.cobrado || i.pagado);
         handleSearch(); 
     } catch (e) {
@@ -98,10 +99,11 @@ function render() {
         return;
     }
 
-    let sumaTotal = 0; // Suma acumulada de la página actual
+    let sumaTotalPagina = 0; // Suma acumulada de la página actual
+
     pageItems.forEach(i => {
         const imp = parseFloat(i.importe_total || 0);
-        sumaTotal += imp;
+        sumaTotalPagina += imp;
         
         let numLicencia = "---";
         if (i.licencia_data && i.licencia_data.licencia) {
@@ -139,21 +141,18 @@ function render() {
         resultsBody.insertAdjacentHTML('beforeend', row);
     });
 
-    // Inyección del Subtotal en el tfoot
+    // Inyectar el Subtotal en el tfoot
     if (totalFooter) {
         totalFooter.innerHTML = `
             <tr>
                 <td colspan="6" class="px-4 py-4 text-right text-slate-400 text-[10px] font-black uppercase tracking-tighter">Subtotal Página:</td>
-                <td class="px-4 py-4 text-right text-base text-black-pure font-black bg-slate-100/50 border-l border-slate-200">€${sumaTotal.toFixed(2)}</td>
+                <td class="px-4 py-4 text-right text-base text-primary-link font-black bg-orange-50 border-l border-slate-200">€${sumaTotalPagina.toFixed(2)}</td>
                 <td colspan="2"></td>
             </tr>`;
     }
 
-    if (activeCount) activeCount.textContent = `${APP_ENVIADOS.state.filteredAlbaranes.length} REGISTROS`;
-    if (pageInfo) {
-        const totalP = Math.ceil(APP_ENVIADOS.state.filteredAlbaranes.length / APP_ENVIADOS.state.pageSize) || 1;
-        pageInfo.textContent = `${APP_ENVIADOS.state.currentPage} / ${totalP}`;
-    }
+    activeCount.textContent = `${APP_ENVIADOS.state.filteredAlbaranes.length} REGISTROS`;
+    pageInfo.textContent = `${APP_ENVIADOS.state.currentPage} / ${Math.ceil(APP_ENVIADOS.state.filteredAlbaranes.length / APP_ENVIADOS.state.pageSize) || 1}`;
     
     if (window.lucide) lucide.createIcons();
     updateSortIcons();
@@ -249,8 +248,8 @@ window.UI = {
         document.getElementById('searchForm').classList.toggle('hidden', mode === 'palabra');
         document.getElementById('palabraSection').classList.toggle('hidden', mode === 'campos');
         const btnC = document.getElementById('btn-mode-campos'), btnP = document.getElementById('btn-mode-palabra');
-        btnC.className = mode === 'campos' ? "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md transition-all" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border hover:bg-slate-50 transition-all";
-        btnP.className = mode === 'palabra' ? "px-4 py-2 rounded-lg bg-primary-pastel text-black-pure font-bold text-[10px] uppercase shadow-md transition-all" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border hover:bg-slate-50 transition-all";
+        btnC.className = mode === 'campos' ? "px-4 py-2 rounded-lg bg-secondary-blue text-white font-black text-[10px] uppercase shadow-md transition-all" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] border hover:bg-slate-50 transition-all";
+        btnP.className = mode === 'palabra' ? "px-4 py-2 rounded-lg bg-primary-pastel text-black-pure font-bold text-[10px] uppercase shadow-md transition-all" : "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] border hover:bg-slate-50 transition-all";
     },
     handleClearAllFilters() {
         const sForm = document.getElementById('searchForm');
