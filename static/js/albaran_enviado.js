@@ -1,12 +1,13 @@
 /**
  * ARCHIVO: static/js/albaran_enviado.js
- * FUNCIÓN: Controlador del Histórico (Enviados/Cobrados/Pagados) con FIX en Licencia.
+ * FUNCIÓN: Controlador del Histórico (Enviados/Cobrados/Pagados) con FIX en Licencia y Subtotal.
  * ACTUALIZADO: 27/03/2026
  */
 
 const APP_ENVIADOS = {
     elements: {
         resultsBody: document.getElementById('albaranResults'),
+        totalFooter: document.getElementById('albaranTotal'), // Añadido
         pageInfo: document.getElementById('pageInfo'),
         activeCount: document.getElementById('activeFiltersCount'),
         recordsPerPage: document.getElementById('recordsPerPage')
@@ -30,7 +31,6 @@ async function startApp() {
         const identity = await resp.json();
         APP_ENVIADOS.state.licId = identity.licencia_id;
 
-        // Inicializar motor de búsqueda (Catálogos de empresas, etc.)
         if (window.SearchEngine) {
             await SearchEngine.initCatalog();
         }
@@ -55,7 +55,6 @@ async function loadData() {
         const json = await response.json();
         const items = json.data || json || [];
 
-        // Filtro Histórico: Registros que ya NO están en estado puramente pendiente
         APP_ENVIADOS.state.rawAlbaranes = items.filter(i => i.enviado || i.cobrado || i.pagado);
         handleSearch(); 
     } catch (e) {
@@ -86,7 +85,7 @@ function handleSearch(e) {
 }
 
 function render() {
-    const { resultsBody, pageInfo, activeCount } = APP_ENVIADOS.elements;
+    const { resultsBody, totalFooter, pageInfo, activeCount } = APP_ENVIADOS.elements;
     if (!resultsBody) return;
     resultsBody.innerHTML = '';
 
@@ -95,13 +94,15 @@ function render() {
 
     if (pageItems.length === 0) {
         resultsBody.innerHTML = '<tr><td colspan="9" class="text-center py-24 text-slate-400 italic font-medium">Sin registros históricos coincidentes.</td></tr>';
+        if (totalFooter) totalFooter.innerHTML = '';
         return;
     }
 
+    let sumaTotal = 0; // Suma acumulada de la página actual
     pageItems.forEach(i => {
         const imp = parseFloat(i.importe_total || 0);
+        sumaTotal += imp;
         
-        // --- FIX DE LICENCIA ---
         let numLicencia = "---";
         if (i.licencia_data && i.licencia_data.licencia) {
             numLicencia = i.licencia_data.licencia;
@@ -111,7 +112,6 @@ function render() {
             numLicencia = SearchEngine.getLicenciaNumero(i);
         }
 
-        // Determinar estado y colores
         let badge = i.pagado ? 'Pagado' : (i.cobrado ? 'Cobrado' : 'Enviado');
         let badgeColor = i.pagado ? 'bg-green-100 text-green-700 border-green-200' : 
                          (i.cobrado ? 'bg-teal-100 text-teal-700 border-teal-200' : 'bg-orange-100 text-orange-700 border-orange-200');
@@ -139,6 +139,16 @@ function render() {
         resultsBody.insertAdjacentHTML('beforeend', row);
     });
 
+    // Inyección del Subtotal en el tfoot
+    if (totalFooter) {
+        totalFooter.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-4 py-4 text-right text-slate-400 text-[10px] font-black uppercase tracking-tighter">Subtotal Página:</td>
+                <td class="px-4 py-4 text-right text-base text-black-pure font-black bg-slate-100/50 border-l border-slate-200">€${sumaTotal.toFixed(2)}</td>
+                <td colspan="2"></td>
+            </tr>`;
+    }
+
     if (activeCount) activeCount.textContent = `${APP_ENVIADOS.state.filteredAlbaranes.length} REGISTROS`;
     if (pageInfo) {
         const totalP = Math.ceil(APP_ENVIADOS.state.filteredAlbaranes.length / APP_ENVIADOS.state.pageSize) || 1;
@@ -149,9 +159,6 @@ function render() {
     updateSortIcons();
 }
 
-/**
- * EXPORTACIÓN
- */
 window.handleGeneratePDF = () => {
     const data = APP_ENVIADOS.state.filteredAlbaranes;
     if (data.length === 0) return alert("Sin datos");
@@ -180,9 +187,6 @@ window.handleGenerateXLSX = () => {
     if (window.Oficina) Oficina.generarExcel("HISTORICO_ENVIADOS", clean);
 };
 
-/**
- * ORDENACIÓN Y UTILIDADES
- */
 function sortTable(key, isInitial = false) {
     if (!isInitial) {
         APP_ENVIADOS.state.currentSort.direction = (APP_ENVIADOS.state.currentSort.key === key && APP_ENVIADOS.state.currentSort.direction === 'asc') ? 'desc' : 'asc';

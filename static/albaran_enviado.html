@@ -6,7 +6,6 @@
     <title>🚕 Albaranes Enviados - Gestión</title>
     
     <script src="/js/security.js"></script>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -107,7 +106,7 @@
                 </div>
             </div>
 
-            <div class="overflow-x-auto rounded-xl border border-slate-100 shadow-inner">
+            <div class="overflow-x-auto rounded-xl border border-slate-100 shadow-inner bg-white">
                 <table class="min-w-full divide-y divide-slate-200">
                     <thead class="bg-slate-900 text-white text-[9px] uppercase font-black tracking-[0.15em]">
                         <tr>
@@ -131,10 +130,11 @@
                             <th class="px-4 py-5 text-center cursor-pointer group" onclick="sortTable('estado')">
                                 <div class="sortable justify-center">ESTADO <i id="sort-estado" data-lucide="chevrons-up-down" class="h-3 w-3 opacity-30"></i></div>
                             </th>
-                            <th class="px-4 py-5 text-center">Ver</th>
+                            <th class="px-4 py-5 text-center w-16">Ver</th>
                         </tr>
                     </thead>
                     <tbody id="albaranResults" class="bg-white divide-y divide-slate-100 text-xs font-medium"></tbody>
+                    <tfoot id="albaranTotal" class="bg-slate-50 font-bold border-t-2 border-slate-200"></tfoot>
                 </table>
             </div>
             
