@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 27/03/2026 - FIX: Mapeo manual a Struct para evitar redondeos (0.35 -> 1).
+ * ACTUALIZADO: 07/04/2026 - FIX DEFINITIVO: Fechas estáticas en UTC para evitar resta de días.
  */
 
 package controllers
@@ -27,8 +27,9 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	if strings.TrimSpace(dateStr) == "" {
 		return nil, nil
 	}
-	loc, _ := time.LoadLocation("Europe/Madrid")
-	t, err := time.ParseInLocation(dateFormat, dateStr, loc)
+	// Usamos time.Parse en lugar de ParseInLocation para que sea UTC puro.
+	// Esto evita que GORM reste horas al insertar en campos DATETIME/DATE.
+	t, err := time.Parse(dateFormat, dateStr)
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +43,9 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 	if len(timeStr) == 5 {
 		timeStr += ":00"
 	}
+	// Forzamos que la combinación de Fecha + Hora se trate como UTC absoluto
 	full := fmt.Sprintf("%s %s", dateBase, timeStr)
-	loc, _ := time.LoadLocation("Europe/Madrid")
-	t, err := time.ParseInLocation("2006-01-02 15:04:05", full, loc)
+	t, err := time.Parse("2006-01-02 15:04:05", full)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 }
 
 func preloadAlbaran(db *gorm.DB) *gorm.DB {
-	return db.Preload("LicenciaData").Preload("Preload", "EmpresaData")
+	return db.Preload("LicenciaData").Preload("EmpresaData")
 }
 
 func getUintFromContext(c *gin.Context, key string) uint {
@@ -80,7 +81,12 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		fechaBase = original.Fecha.Format(dateFormat)
 	}
 	if v, ok := input["fecha"].(string); ok && v != "" {
-		fechaBase = v
+		// Limpiamos string de fecha por si viene con T00:00:00Z
+		if len(v) > 10 {
+			fechaBase = v[:10]
+		} else {
+			fechaBase = v
+		}
 	}
 
 	timeFields := map[string]string{
@@ -117,7 +123,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "TlfPasajero"
 		case "matricula":
 			structKey = "Matricula"
-		case "cliente":
+		case "cliente", "nombre_pasajero": // Mapeo dual para cliente
 			structKey = "Cliente"
 		case "noct_fest":
 			structKey = "NoctFest"
@@ -171,7 +177,11 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 
 		if strings.Contains(strings.ToLower(key), "fecha") {
 			if str, ok := value.(string); ok && str != "" {
-				if t, err := parseDatePtr(str); err == nil {
+				soloFecha := str
+				if len(str) > 10 {
+					soloFecha = str[:10]
+				}
+				if t, err := parseDatePtr(soloFecha); err == nil {
 					if key == "fecha_pago" || key == "fecha_cobro" {
 						clean[structKey] = t
 					} else {
@@ -207,11 +217,9 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// ✅ FIX: Bind al struct tipado para evitar que GORM redondee decimales
 	albaran := models.Albaran{}
 	cleanInput := cleanAlbaranMap(input, albaran)
 
-	// Mapeo manual estricto
 	albaran.NumeroAlbaran = strFromInterface(cleanInput["NumeroAlbaran"])
 	albaran.LicenciaRef = uint(intOrZero(cleanInput, "LicenciaRef"))
 	albaran.EmpresaRef = uint(intOrZero(cleanInput, "EmpresaRef"))
@@ -220,13 +228,12 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	albaran.AdjuntosRef = strOrEmpty(cleanInput, "AdjuntosRef")
 	albaran.NumPlazas = intOrZero(cleanInput, "NumPlazas")
 
-	// Campos Decimales Críticos (Garantizar float64 puro)
 	albaran.KmTotales = floatOrZero(cleanInput, "KmTotales")
 	albaran.KmNacionales = floatOrZero(cleanInput, "KmNacionales")
 	albaran.KmInternacionales = floatOrZero(cleanInput, "KmInternacionales")
 	albaran.ImporteTotal = floatOrZero(cleanInput, "ImporteTotal")
 	albaran.ImporteSuplidos = floatOrZero(cleanInput, "ImporteSuplidos")
-	albaran.HoraTotal = floatOrZero(cleanInput, "HoraTotal") // <-- 0.35 se mantiene 0.35
+	albaran.HoraTotal = floatOrZero(cleanInput, "HoraTotal")
 
 	albaran.Urbano = boolOrFalse(cleanInput, "Urbano")
 	albaran.Diurno = boolOrFalse(cleanInput, "Diurno")
@@ -237,7 +244,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	albaran.Festivo = boolOrFalse(cleanInput, "Festivo")
 	albaran.Estado = false
 
-	// Punteros opcionales
 	if v := strPtrOrNil(cleanInput, "Referencia"); v != nil {
 		s := v.(string)
 		albaran.Referencia = &s
@@ -279,7 +285,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		albaran.Observaciones = &s
 	}
 
-	// Fechas y tiempos
 	if v, ok := cleanInput["Fecha"].(time.Time); ok {
 		albaran.Fecha = v
 	} else {
@@ -379,17 +384,17 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 
 func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licID uint, isAdmin bool) error {
 	query := `
-		UPDATE albaranes SET
-			fecha = ?, hora_ini = ?, hora_fin = ?, espera_ini = ?, espera_fin = ?, 
-			referencia = ?, asalariado = ?, dni_pasajero = ?, tlf_pasajero = ?,
-			matricula = ?, cliente = ?, origen = ?, parada = ?, destino = ?, 
-			empresa_ref = ?, empresa_nombre = ?, km_totales = ?, km_nacionales = ?,
-			km_internacionales = ?, importe_total = ?, importe_suplidos = ?,
-			hora_total = ?, num_plazas = ?, urbano = ?, diurno = ?, noct_fest = ?, 
-			remolque = ?, adjuntos = ?, adjuntos_ref = ?, autorizado_por = ?,
-			observaciones = ?, enviado = ?, cobrado = ?, pagado = ?, 
-			num_factura = ?, finalizado = ?, fecha_cobro = ?, updated_at = NOW()
-		WHERE id = ?`
+        UPDATE albaranes SET
+            fecha = ?, hora_ini = ?, hora_fin = ?, espera_ini = ?, espera_fin = ?, 
+            referencia = ?, asalariado = ?, dni_pasajero = ?, tlf_pasajero = ?,
+            matricula = ?, cliente = ?, origen = ?, parada = ?, destino = ?, 
+            empresa_ref = ?, empresa_nombre = ?, km_totales = ?, km_nacionales = ?,
+            km_internacionales = ?, importe_total = ?, importe_suplidos = ?,
+            hora_total = ?, num_plazas = ?, urbano = ?, diurno = ?, noct_fest = ?, 
+            remolque = ?, adjuntos = ?, adjuntos_ref = ?, autorizado_por = ?,
+            observaciones = ?, enviado = ?, cobrado = ?, pagado = ?, 
+            num_factura = ?, finalizado = ?, fecha_cobro = ?, updated_at = NOW()
+        WHERE id = ?`
 
 	params := []interface{}{
 		timePtrOrNil(cleanInput, "Fecha"), timePtrOrNil(cleanInput, "HoraIni"),
