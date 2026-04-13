@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 07/04/2026 - FIX DEFINITIVO: Fechas estáticas en UTC para evitar resta de días.
+ * ACTUALIZADO: 13/04/2026 - FIX FINAL: Horas como Strings literales para evitar desfase UTC+2.
  */
 
 package controllers
@@ -27,13 +27,26 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	if strings.TrimSpace(dateStr) == "" {
 		return nil, nil
 	}
-	// Usamos time.Parse en lugar de ParseInLocation para que sea UTC puro.
-	// Esto evita que GORM reste horas al insertar en campos DATETIME/DATE.
+	// Usamos Parse en lugar de ParseInLocation para que sea UTC "ingenuo".
 	t, err := time.Parse(dateFormat, dateStr)
 	if err != nil {
 		return nil, err
 	}
 	return &t, nil
+}
+
+// NUEVO HELPER: Convierte la combinación de fecha y hora en un string literal para MySQL.
+// Esto evita que el driver de Go aplique offsets de zona horaria (CEST/UTC).
+func formatDateTimeString(dateBase, timeStr string) interface{} {
+	if strings.TrimSpace(timeStr) == "" {
+		return nil
+	}
+	// Si viene HH:mm, añadimos segundos
+	if len(timeStr) == 5 {
+		timeStr += ":00"
+	}
+	// Retornamos formato estándar MySQL: YYYY-MM-DD HH:mm:ss
+	return fmt.Sprintf("%s %s", dateBase, timeStr)
 }
 
 func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
@@ -43,9 +56,9 @@ func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
 	if len(timeStr) == 5 {
 		timeStr += ":00"
 	}
-	// Forzamos que la combinación de Fecha + Hora se trate como UTC absoluto
 	full := fmt.Sprintf("%s %s", dateBase, timeStr)
-	t, err := time.Parse("2006-01-02 15:04:05", full)
+	loc, _ := time.LoadLocation("Europe/Madrid")
+	t, err := time.ParseInLocation("2006-01-02 15:04:05", full, loc)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +94,6 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		fechaBase = original.Fecha.Format(dateFormat)
 	}
 	if v, ok := input["fecha"].(string); ok && v != "" {
-		// Limpiamos string de fecha por si viene con T00:00:00Z
 		if len(v) > 10 {
 			fechaBase = v[:10]
 		} else {
@@ -89,9 +101,10 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		}
 	}
 
-	timeFields := map[string]string{
-		"hora": "Hora", "hora_ini": "HoraIni", "hora_fin": "HoraFin",
-		"espera_ini": "EsperaIni", "espera_fin": "EsperaFin", "tiempo_espera": "TiempoEspera",
+	// Campos que deben ser tratados como strings literales en la consulta SQL
+	timeFields := map[string]bool{
+		"hora": true, "hora_ini": true, "hora_fin": true,
+		"espera_ini": true, "espera_fin": true, "tiempo_espera": true,
 	}
 
 	for key, value := range input {
@@ -99,11 +112,22 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			continue
 		}
 
-		if structKey, ok := timeFields[key]; ok {
+		// TRATAMIENTO DE TIEMPOS (FIX 2 HORAS):
+		if timeFields[key] {
 			str, _ := value.(string)
-			if t, err := parseTimePtr(fechaBase, str); err == nil {
-				clean[structKey] = t
+			structKey := ""
+			// Mapeo manual de nombres para mantener compatibilidad con el switch inferior
+			parts := strings.Split(key, "_")
+			for i := range parts {
+				parts[i] = strings.Title(parts[i])
 			}
+			structKey = strings.Join(parts, "")
+			if key == "hora" {
+				structKey = "Hora"
+			}
+
+			// Guardamos el string literal "YYYY-MM-DD HH:mm:ss"
+			clean[structKey] = formatDateTimeString(fechaBase, str)
 			continue
 		}
 
@@ -123,7 +147,7 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "TlfPasajero"
 		case "matricula":
 			structKey = "Matricula"
-		case "cliente", "nombre_pasajero": // Mapeo dual para cliente
+		case "cliente", "nombre_pasajero":
 			structKey = "Cliente"
 		case "noct_fest":
 			structKey = "NoctFest"
@@ -220,90 +244,57 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	albaran := models.Albaran{}
 	cleanInput := cleanAlbaranMap(input, albaran)
 
-	albaran.NumeroAlbaran = strFromInterface(cleanInput["NumeroAlbaran"])
-	albaran.LicenciaRef = uint(intOrZero(cleanInput, "LicenciaRef"))
-	albaran.EmpresaRef = uint(intOrZero(cleanInput, "EmpresaRef"))
-	albaran.EmpresaNombre = strOrEmpty(cleanInput, "EmpresaNombre")
-	albaran.TlfPasajero = strOrEmpty(cleanInput, "TlfPasajero")
-	albaran.AdjuntosRef = strOrEmpty(cleanInput, "AdjuntosRef")
-	albaran.NumPlazas = intOrZero(cleanInput, "NumPlazas")
+	// Usamos SQL Directo para Create para asegurar que los strings de tiempo entren sin procesar
+	query := `INSERT INTO albaranes (
+        numero_albaran, fecha, licencia_ref, empresa_ref, licencia, empresa_nombre,
+        referencia, asalariado, hora, hora_ini, hora_fin, hora_total, espera_ini, 
+        espera_fin, dni_pasajero, tlf_pasajero, matricula, cliente, origen, parada, 
+        destino, urbano, diurno, noct_fest, km_totales, km_nacionales, km_internacionales,
+        importe_suplidos, importe_total, autorizado_por, remolque, num_plazas, 
+        observaciones, adjuntos, adjuntos_ref, finalizado, festivo, estado, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NOW())`
 
-	albaran.KmTotales = floatOrZero(cleanInput, "KmTotales")
-	albaran.KmNacionales = floatOrZero(cleanInput, "KmNacionales")
-	albaran.KmInternacionales = floatOrZero(cleanInput, "KmInternacionales")
-	albaran.ImporteTotal = floatOrZero(cleanInput, "ImporteTotal")
-	albaran.ImporteSuplidos = floatOrZero(cleanInput, "ImporteSuplidos")
-	albaran.HoraTotal = floatOrZero(cleanInput, "HoraTotal")
+	err := db.Exec(query,
+		strFromInterface(cleanInput["NumeroAlbaran"]),
+		timePtrOrNil(cleanInput, "Fecha"),
+		intOrZero(cleanInput, "LicenciaRef"),
+		intOrZero(cleanInput, "EmpresaRef"),
+		strOrEmpty(cleanInput, "Licencia"),
+		strOrEmpty(cleanInput, "EmpresaNombre"),
+		strPtrOrNil(cleanInput, "Referencia"),
+		strPtrOrNil(cleanInput, "Asalariado"),
+		cleanInput["Hora"],    // String literal o nil
+		cleanInput["HoraIni"], // String literal o nil
+		cleanInput["HoraFin"], // String literal o nil
+		floatOrZero(cleanInput, "HoraTotal"),
+		cleanInput["EsperaIni"], // String literal o nil
+		cleanInput["EsperaFin"], // String literal o nil
+		strPtrOrNil(cleanInput, "DNIPasajero"),
+		strOrEmpty(cleanInput, "TlfPasajero"),
+		strPtrOrNil(cleanInput, "Matricula"),
+		strPtrOrNil(cleanInput, "Cliente"),
+		strPtrOrNil(cleanInput, "Origen"),
+		strPtrOrNil(cleanInput, "Parada"),
+		strPtrOrNil(cleanInput, "Destino"),
+		boolOrFalse(cleanInput, "Urbano"),
+		boolOrFalse(cleanInput, "Diurno"),
+		boolOrFalse(cleanInput, "NoctFest"),
+		floatOrZero(cleanInput, "KmTotales"),
+		floatOrZero(cleanInput, "KmNacionales"),
+		floatOrZero(cleanInput, "KmInternacionales"),
+		floatOrZero(cleanInput, "ImporteSuplidos"),
+		floatOrZero(cleanInput, "ImporteTotal"),
+		strPtrOrNil(cleanInput, "AutorizadoPor"),
+		boolOrFalse(cleanInput, "Remolque"),
+		intOrZero(cleanInput, "NumPlazas"),
+		strPtrOrNil(cleanInput, "Observaciones"),
+		boolOrFalse(cleanInput, "Adjuntos"),
+		strOrEmpty(cleanInput, "AdjuntosRef"),
+		boolOrFalse(cleanInput, "Finalizado"),
+		boolOrFalse(cleanInput, "Festivo"),
+	).Error
 
-	albaran.Urbano = boolOrFalse(cleanInput, "Urbano")
-	albaran.Diurno = boolOrFalse(cleanInput, "Diurno")
-	albaran.NoctFest = boolOrFalse(cleanInput, "NoctFest")
-	albaran.Remolque = boolOrFalse(cleanInput, "Remolque")
-	albaran.Adjuntos = boolOrFalse(cleanInput, "Adjuntos")
-	albaran.Finalizado = boolOrFalse(cleanInput, "Finalizado")
-	albaran.Festivo = boolOrFalse(cleanInput, "Festivo")
-	albaran.Estado = false
-
-	if v := strPtrOrNil(cleanInput, "Referencia"); v != nil {
-		s := v.(string)
-		albaran.Referencia = &s
-	}
-	if v := strPtrOrNil(cleanInput, "Asalariado"); v != nil {
-		s := v.(string)
-		albaran.Asalariado = &s
-	}
-	if v := strPtrOrNil(cleanInput, "DNIPasajero"); v != nil {
-		s := v.(string)
-		albaran.DNIPasajero = &s
-	}
-	if v := strPtrOrNil(cleanInput, "Matricula"); v != nil {
-		s := v.(string)
-		albaran.Matricula = &s
-	}
-	if v := strPtrOrNil(cleanInput, "Cliente"); v != nil {
-		s := v.(string)
-		albaran.Cliente = &s
-	}
-	if v := strPtrOrNil(cleanInput, "Origen"); v != nil {
-		s := v.(string)
-		albaran.Origen = &s
-	}
-	if v := strPtrOrNil(cleanInput, "Parada"); v != nil {
-		s := v.(string)
-		albaran.Parada = &s
-	}
-	if v := strPtrOrNil(cleanInput, "Destino"); v != nil {
-		s := v.(string)
-		albaran.Destino = &s
-	}
-	if v := strPtrOrNil(cleanInput, "AutorizadoPor"); v != nil {
-		s := v.(string)
-		albaran.AutorizadoPor = &s
-	}
-	if v := strPtrOrNil(cleanInput, "Observaciones"); v != nil {
-		s := v.(string)
-		albaran.Observaciones = &s
-	}
-
-	if v, ok := cleanInput["Fecha"].(time.Time); ok {
-		albaran.Fecha = v
-	} else {
-		albaran.Fecha = time.Now()
-	}
-	if v, ok := cleanInput["HoraIni"].(*time.Time); ok {
-		albaran.HoraIni = v
-	}
-	if v, ok := cleanInput["HoraFin"].(*time.Time); ok {
-		albaran.HoraFin = v
-	}
-	if v, ok := cleanInput["EsperaIni"].(*time.Time); ok {
-		albaran.EsperaIni = v
-	}
-	if v, ok := cleanInput["EsperaFin"].(*time.Time); ok {
-		albaran.EsperaFin = v
-	}
-
-	if err := db.Create(&albaran).Error; err != nil {
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -361,6 +352,7 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
+	// Envío simplificado de estado
 	if len(input) <= 3 && input["enviado"] != nil {
 		if err := db.Model(&albaran).Updates(input).Error; err != nil {
 			c.JSON(500, gin.H{"error": "Error al marcar enviado"})
@@ -397,24 +389,42 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
         WHERE id = ?`
 
 	params := []interface{}{
-		timePtrOrNil(cleanInput, "Fecha"), timePtrOrNil(cleanInput, "HoraIni"),
-		timePtrOrNil(cleanInput, "HoraFin"), timePtrOrNil(cleanInput, "EsperaIni"),
-		timePtrOrNil(cleanInput, "EsperaFin"), strPtrOrNil(cleanInput, "Referencia"),
-		strPtrOrNil(cleanInput, "Asalariado"), strPtrOrNil(cleanInput, "DNIPasajero"),
-		strOrEmpty(cleanInput, "TlfPasajero"), strPtrOrNil(cleanInput, "Matricula"),
-		strPtrOrNil(cleanInput, "Cliente"), strPtrOrNil(cleanInput, "Origen"),
-		strPtrOrNil(cleanInput, "Parada"), strPtrOrNil(cleanInput, "Destino"),
-		intOrZero(cleanInput, "EmpresaRef"), strOrEmpty(cleanInput, "EmpresaNombre"),
-		floatOrZero(cleanInput, "KmTotales"), floatOrZero(cleanInput, "KmNacionales"),
-		floatOrZero(cleanInput, "KmInternacionales"), floatOrZero(cleanInput, "ImporteTotal"),
-		floatOrZero(cleanInput, "ImporteSuplidos"), floatOrZero(cleanInput, "HoraTotal"),
-		intOrZero(cleanInput, "NumPlazas"), boolOrFalse(cleanInput, "Urbano"),
-		boolOrFalse(cleanInput, "Diurno"), boolOrFalse(cleanInput, "NoctFest"),
-		boolOrFalse(cleanInput, "Remolque"), boolOrFalse(cleanInput, "Adjuntos"),
-		strOrEmpty(cleanInput, "AdjuntosRef"), strPtrOrNil(cleanInput, "AutorizadoPor"),
-		strPtrOrNil(cleanInput, "Observaciones"), boolOrFalse(cleanInput, "Enviado"),
-		boolOrFalse(cleanInput, "Cobrado"), boolOrFalse(cleanInput, "Pagado"),
-		strOrEmpty(cleanInput, "NumFactura"), boolOrFalse(cleanInput, "Finalizado"),
+		timePtrOrNil(cleanInput, "Fecha"),
+		cleanInput["HoraIni"],   // String literal
+		cleanInput["HoraFin"],   // String literal
+		cleanInput["EsperaIni"], // String literal
+		cleanInput["EsperaFin"], // String literal
+		strPtrOrNil(cleanInput, "Referencia"),
+		strPtrOrNil(cleanInput, "Asalariado"),
+		strPtrOrNil(cleanInput, "DNIPasajero"),
+		strOrEmpty(cleanInput, "TlfPasajero"),
+		strPtrOrNil(cleanInput, "Matricula"),
+		strPtrOrNil(cleanInput, "Cliente"),
+		strPtrOrNil(cleanInput, "Origen"),
+		strPtrOrNil(cleanInput, "Parada"),
+		strPtrOrNil(cleanInput, "Destino"),
+		intOrZero(cleanInput, "EmpresaRef"),
+		strOrEmpty(cleanInput, "EmpresaNombre"),
+		floatOrZero(cleanInput, "KmTotales"),
+		floatOrZero(cleanInput, "KmNacionales"),
+		floatOrZero(cleanInput, "KmInternacionales"),
+		floatOrZero(cleanInput, "ImporteTotal"),
+		floatOrZero(cleanInput, "ImporteSuplidos"),
+		floatOrZero(cleanInput, "HoraTotal"),
+		intOrZero(cleanInput, "NumPlazas"),
+		boolOrFalse(cleanInput, "Urbano"),
+		boolOrFalse(cleanInput, "Diurno"),
+		boolOrFalse(cleanInput, "NoctFest"),
+		boolOrFalse(cleanInput, "Remolque"),
+		boolOrFalse(cleanInput, "Adjuntos"),
+		strOrEmpty(cleanInput, "AdjuntosRef"),
+		strPtrOrNil(cleanInput, "AutorizadoPor"),
+		strPtrOrNil(cleanInput, "Observaciones"),
+		boolOrFalse(cleanInput, "Enviado"),
+		boolOrFalse(cleanInput, "Cobrado"),
+		boolOrFalse(cleanInput, "Pagado"),
+		strOrEmpty(cleanInput, "NumFactura"),
+		boolOrFalse(cleanInput, "Finalizado"),
 		timePtrOrNil(cleanInput, "FechaCobro"), id,
 	}
 
