@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/albaran_nuevo.js
  * DESCRIPCIÓN: Lógica maestra para la creación de albaranes.
- * ACTUALIZADO: 27/03/2026 - FIX FINAL: Protección parseFloat para 0.35 y Pop-up ERROR.
+ * ACTUALIZADO: 15/04/2026 - FIX: Fecha local y compatibilidad con corrección horaria Backend.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -13,10 +13,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         cargarEmpresas()
     ]);
 
-    // 2. Fecha de hoy por defecto
+    // 2. Fecha de hoy por defecto (Local, no UTC)
     const fechaInput = document.getElementById('fecha');
     if (fechaInput) {
-        fechaInput.value = new Date().toISOString().split('T')[0];
+        const hoy = new Date();
+        const offset = hoy.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(hoy - offset)).toISOString().split('T')[0];
+        fechaInput.value = localISOTime;
     }
     
     // 3. Inicializar formateadores visuales
@@ -150,7 +153,6 @@ async function handleAction(action, event) {
     // 2. MAPEOS OBLIGATORIOS PARA BACKEND GO
     plainData.cliente = plainData.nombre_pasajero || "";
     delete plainData.nombre_pasajero;
-    delete plainData.NombrePasajero;
 
     plainData.adjuntos_ref = plainData.adjuntos || "";
     plainData.adjuntos = plainData.adjuntos_bool || false;
@@ -161,21 +163,16 @@ async function handleAction(action, event) {
     plainData.empresa_ref = parseInt(plainData.empresa_ref) || 0;
     plainData.num_plazas = parseInt(plainData.num_plazas) || 4;
 
-    // 3. CONVERSIÓN SEGURA DE NÚMEROS (Protección 0.35)
-    
-    // Campos decimales estándar
+    // 3. CONVERSIÓN SEGURA DE NÚMEROS
     const decimalFields = ['km_totales', 'km_nacionales', 'km_internacionales', 'importe_suplidos', 'importe_total'];
     decimalFields.forEach(field => {
         let raw = String(plainData[field] ?? '').replace(',', '.');
         plainData[field] = parseFloat(raw) || 0.0;
     });
 
-    // Campo Sexagesimal Protegido (hora_total)
-    // Ya formateado por initFormatters como "0.35", solo limpiamos comas
     const horaRaw = String(plainData['hora_total'] ?? '0').replace(',', '.');
     plainData['hora_total'] = parseFloat(horaRaw) || 0.0;
 
-    // Prevención de errores NOT NULL
     plainData.km_ini = 0.0;
     plainData.km_fin = 0.0;
     plainData.importe_espera = 0.0;
@@ -214,7 +211,6 @@ async function handleAction(action, event) {
             form.reset();
             setTimeout(() => window.location.href = '/titulares', 1500);
         } else {
-            // DISPARO DEL POP-UP DE ERROR
             console.error("🔥 Error de servidor:", result.error);
             const cleanMsg = handleDatabaseError(result.error);
             

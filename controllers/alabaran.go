@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 13/04/2026 - FIX FINAL: Horas como Strings literales para evitar desfase UTC+2.
+ * ACTUALIZADO: 15/04/2026 - FIX DEFINITIVO: Compensación dinámica Madrid-UTC para Cloud.
  */
 
 package controllers
@@ -27,7 +27,6 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	if strings.TrimSpace(dateStr) == "" {
 		return nil, nil
 	}
-	// Usamos Parse en lugar de ParseInLocation para que sea UTC "ingenuo".
 	t, err := time.Parse(dateFormat, dateStr)
 	if err != nil {
 		return nil, err
@@ -35,34 +34,37 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	return &t, nil
 }
 
-// NUEVO HELPER: Convierte la combinación de fecha y hora en un string literal para MySQL.
-// Esto evita que el driver de Go aplique offsets de zona horaria (CEST/UTC).
-func formatDateTimeString(dateBase, timeStr string) interface{} {
+// NUEVO HELPER DINÁMICO:
+// Toma la hora local (España) y la convierte a UTC antes de guardarla.
+// Esto soluciona el desfase de +2h en Verano y +1h en Invierno automáticamente.
+func formatDateTimeWithOffset(dateBase, timeStr string) interface{} {
 	if strings.TrimSpace(timeStr) == "" {
 		return nil
 	}
-	// Si viene HH:mm, añadimos segundos
 	if len(timeStr) == 5 {
 		timeStr += ":00"
 	}
-	// Retornamos formato estándar MySQL: YYYY-MM-DD HH:mm:ss
-	return fmt.Sprintf("%s %s", dateBase, timeStr)
-}
 
-func parseTimePtr(dateBase, timeStr string) (*time.Time, error) {
-	if strings.TrimSpace(timeStr) == "" {
-		return nil, nil
-	}
-	if len(timeStr) == 5 {
-		timeStr += ":00"
-	}
 	full := fmt.Sprintf("%s %s", dateBase, timeStr)
-	loc, _ := time.LoadLocation("Europe/Madrid")
-	t, err := time.ParseInLocation("2006-01-02 15:04:05", full, loc)
+
+	// 1. Intentamos cargar la zona horaria de Madrid
+	loc, err := time.LoadLocation("Europe/Madrid")
 	if err != nil {
-		return nil, err
+		// Fallback manual si el servidor no tiene tzdata instalado
+		t, _ := time.Parse("2006-01-02 15:04:05", full)
+		return t.Add(-2 * time.Hour).Format("2006-01-02 15:04:05")
 	}
-	return &t, nil
+
+	// 2. Interpretamos la hora recibida como hora de Madrid
+	tMadrid, err := time.ParseInLocation("2006-01-02 15:04:05", full, loc)
+	if err != nil {
+		return nil
+	}
+
+	// 3. Convertimos a UTC (esto resta automáticamente el desfase vigente)
+	tUTC := tMadrid.UTC()
+
+	return tUTC.Format("2006-01-02 15:04:05")
 }
 
 func preloadAlbaran(db *gorm.DB) *gorm.DB {
@@ -101,7 +103,6 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		}
 	}
 
-	// Campos que deben ser tratados como strings literales en la consulta SQL
 	timeFields := map[string]bool{
 		"hora": true, "hora_ini": true, "hora_fin": true,
 		"espera_ini": true, "espera_fin": true, "tiempo_espera": true,
@@ -112,11 +113,10 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			continue
 		}
 
-		// TRATAMIENTO DE TIEMPOS (FIX 2 HORAS):
+		// TRATAMIENTO DE TIEMPOS CON COMPENSACIÓN DINÁMICA:
 		if timeFields[key] {
 			str, _ := value.(string)
 			structKey := ""
-			// Mapeo manual de nombres para mantener compatibilidad con el switch inferior
 			parts := strings.Split(key, "_")
 			for i := range parts {
 				parts[i] = strings.Title(parts[i])
@@ -126,8 +126,8 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 				structKey = "Hora"
 			}
 
-			// Guardamos el string literal "YYYY-MM-DD HH:mm:ss"
-			clean[structKey] = formatDateTimeString(fechaBase, str)
+			// Aplicamos la conversión Madrid -> UTC
+			clean[structKey] = formatDateTimeWithOffset(fechaBase, str)
 			continue
 		}
 
@@ -244,7 +244,6 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 	albaran := models.Albaran{}
 	cleanInput := cleanAlbaranMap(input, albaran)
 
-	// Usamos SQL Directo para Create para asegurar que los strings de tiempo entren sin procesar
 	query := `INSERT INTO albaranes (
         numero_albaran, fecha, licencia_ref, empresa_ref, licencia, empresa_nombre,
         referencia, asalariado, hora, hora_ini, hora_fin, hora_total, espera_ini, 
@@ -263,12 +262,12 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		strOrEmpty(cleanInput, "EmpresaNombre"),
 		strPtrOrNil(cleanInput, "Referencia"),
 		strPtrOrNil(cleanInput, "Asalariado"),
-		cleanInput["Hora"],    // String literal o nil
-		cleanInput["HoraIni"], // String literal o nil
-		cleanInput["HoraFin"], // String literal o nil
+		cleanInput["Hora"],
+		cleanInput["HoraIni"],
+		cleanInput["HoraFin"],
 		floatOrZero(cleanInput, "HoraTotal"),
-		cleanInput["EsperaIni"], // String literal o nil
-		cleanInput["EsperaFin"], // String literal o nil
+		cleanInput["EsperaIni"],
+		cleanInput["EsperaFin"],
 		strPtrOrNil(cleanInput, "DNIPasajero"),
 		strOrEmpty(cleanInput, "TlfPasajero"),
 		strPtrOrNil(cleanInput, "Matricula"),
@@ -298,7 +297,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado"})
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado con corrección horaria"})
 }
 
 func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
@@ -352,7 +351,6 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Envío simplificado de estado
 	if len(input) <= 3 && input["enviado"] != nil {
 		if err := db.Model(&albaran).Updates(input).Error; err != nil {
 			c.JSON(500, gin.H{"error": "Error al marcar enviado"})
@@ -371,7 +369,7 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado"})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado con corrección horaria"})
 }
 
 func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licID uint, isAdmin bool) error {
@@ -390,10 +388,10 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 
 	params := []interface{}{
 		timePtrOrNil(cleanInput, "Fecha"),
-		cleanInput["HoraIni"],   // String literal
-		cleanInput["HoraFin"],   // String literal
-		cleanInput["EsperaIni"], // String literal
-		cleanInput["EsperaFin"], // String literal
+		cleanInput["HoraIni"],
+		cleanInput["HoraFin"],
+		cleanInput["EsperaIni"],
+		cleanInput["EsperaFin"],
 		strPtrOrNil(cleanInput, "Referencia"),
 		strPtrOrNil(cleanInput, "Asalariado"),
 		strPtrOrNil(cleanInput, "DNIPasajero"),

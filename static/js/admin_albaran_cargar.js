@@ -1,21 +1,22 @@
 /**
  * ARCHIVO: static/js/admin_albaran_cargar.js
  * DESCRIPCIÓN: Motor de mapeo de datos para la vista de detalle del Administrador.
- * FUNCIONALIDAD: Formato europeo, detección de elementos Input vs Text y renderizado de badges.
- * ACTUALIZADO: 21/03/2026
+ * ACTUALIZADO: 15/04/2026 - FIX: Sincronización de zona horaria (Local España vs Cloud Francia).
  */
 
 function populateForm(data) {
     if (!data) return;
-    console.log("📦 [ADMIN MAPPER] Procesando albarán maestro:", data);
+    console.log("📦 [ADMIN MAPPER] Procesando albarán maestro con ajuste horario:", data);
 
-    // --- HELPERS DE FORMATO ---
+    // --- HELPERS DE FORMATO CON FIX DE ZONA HORARIA ---
 
-    /** Formatea fecha ISO a estándar europeo DD/MM/YYYY */
+    /** Formatea fecha ISO a estándar europeo DD/MM/YYYY evitando resta de día */
     const formatEuroDate = (isoStr) => {
         if (!isoStr) return "-";
         try {
-            const d = new Date(isoStr);
+            // Extraemos solo la parte de la fecha antes de la 'T' para evitar desfase UTC
+            const cleanDate = isoStr.split('T')[0];
+            const d = new Date(cleanDate);
             if (isNaN(d.getTime())) return isoStr;
             return d.toLocaleDateString('es-ES', { 
                 day: '2-digit', 
@@ -25,18 +26,36 @@ function populateForm(data) {
         } catch (e) { return "-"; }
     };
 
-    /** Limpia strings de tiempo ISO o MySQL a HH:mm */
+    /** Limpia strings de tiempo ISO o MySQL y ajusta a zona Europa/Madrid */
     const formatTime = (timeStr) => {
         if (!timeStr) return "--:--";
-        let rawTime = timeStr;
-        if (timeStr.includes('T')) rawTime = timeStr.split('T')[1];
-        else if (timeStr.includes(' ')) rawTime = timeStr.split(' ')[1];
-        return rawTime.substring(0, 5);
+        
+        // Si ya es un formato corto HH:mm literal (ej: desde un input), lo devolvemos
+        if (typeof timeStr === 'string' && timeStr.includes(':') && timeStr.length === 5) {
+            return timeStr;
+        }
+
+        try {
+            const date = new Date(timeStr);
+            if (isNaN(date.getTime())) {
+                // Fallback: si no es un ISO válido pero tiene ":" extraemos los primeros 5 caracteres
+                return timeStr.includes(':') ? timeStr.substring(0, 5) : "--:--";
+            }
+
+            /**
+             * SOLUCIÓN DESFASE 2 HORAS:
+             * Forzamos al navegador a interpretar la hora como local de Madrid.
+             */
+            return date.toLocaleTimeString('es-ES', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                hour12: false,
+                timeZone: 'Europe/Madrid' 
+            });
+        } catch (e) { return "--:--"; }
     };
 
-    /** * ASIGNADOR UNIVERSAL:
-     * Detecta si es un campo de formulario o un elemento de visualización.
-     */
+    /** ASIGNADOR UNIVERSAL: Detecta si es Input vs Text */
     const setVal = (id, value, isDate = false, isTime = false) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -47,7 +66,12 @@ function populateForm(data) {
         if (isTime && value) finalValue = formatTime(value);
 
         if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) {
-            el.value = (finalValue === "-") ? "" : finalValue;
+            // Para inputs tipo date, necesitamos formato YYYY-MM-DD literal
+            if (el.type === 'date' && value) {
+                el.value = value.split('T')[0];
+            } else {
+                el.value = (finalValue === "-") ? "" : finalValue;
+            }
         } else {
             el.textContent = finalValue;
         }
@@ -65,7 +89,7 @@ function populateForm(data) {
     const empresaNombre = data.empresa_data?.nombre || data.empresa_nombre || "-";
     setVal('empresa_nombre_view', empresaNombre.toUpperCase());
     setVal('matricula', data.matricula);
-    setVal('nombre_pasajero', data.cliente); // Columna 'cliente' -> ID 'nombre_pasajero'
+    setVal('nombre_pasajero', data.cliente);
     setVal('dni_pasajero', data.dni_pasajero);
     setVal('tlf_pasajero', data.tlf_pasajero);
 
@@ -86,11 +110,9 @@ function populateForm(data) {
     setVal('asalariado', data.asalariado);
     setVal('autorizado_por', data.autorizado_por);
     
-    // Suplidos con símbolo de euro
     const suplidos = parseFloat(data.importe_suplidos) || 0;
     setVal('importe_suplidos', suplidos.toFixed(2) + " €");
     
-    // Importe Total (Badge principal)
     const totalEl = document.getElementById('importe_total_view');
     if (totalEl) {
         totalEl.textContent = (parseFloat(data.importe_total) || 0).toFixed(2);
@@ -111,11 +133,9 @@ function populateForm(data) {
         if (!el) return;
         const parent = el.parentElement;
         if (active) {
-            // Aplicar estilo activo (naranja pastel)
             parent.classList.add('bg-orange-100', 'border-orange-300', 'text-orange-700', 'opacity-100');
             parent.classList.remove('bg-slate-100', 'opacity-80');
         } else {
-            // Estilo inactivo
             parent.classList.remove('bg-orange-100', 'border-orange-300', 'text-orange-700', 'opacity-100');
             parent.classList.add('bg-slate-100', 'opacity-80');
         }
@@ -129,9 +149,8 @@ function populateForm(data) {
     // --- 8. RENDERIZADO DINÁMICO DE BADGES DE ESTADO ---
     const statusContainer = document.getElementById('status_badges_container');
     if (statusContainer) {
-        statusContainer.innerHTML = ''; // Limpiar
+        statusContainer.innerHTML = '';
         
-        // Badge de Facturación
         const hasFactura = data.num_factura && data.num_factura !== '-';
         const factClass = hasFactura ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-slate-100 text-slate-400 border-slate-200";
         const factIcon = hasFactura ? "file-check" : "file-minus";
@@ -142,7 +161,6 @@ function populateForm(data) {
                 <i data-lucide="${factIcon}" class="w-3 h-3"></i> ${factText}
             </div>`;
         
-        // Badge de Cobro
         const hasCobro = data.fecha_cobro;
         const cobroClass = hasCobro ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200";
         const cobroIcon = hasCobro ? "check-circle" : "clock";
@@ -154,11 +172,9 @@ function populateForm(data) {
             </div>`;
     }
 
-    // Refrescar iconos de Lucide tras inyectar el HTML de los badges
     if (window.lucide) {
         lucide.createIcons();
     }
 }
 
-// Hacer la función disponible globalmente
 window.populateForm = populateForm;

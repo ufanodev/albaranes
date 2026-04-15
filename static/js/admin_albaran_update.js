@@ -1,10 +1,10 @@
 /**
- * admin_albaran_update.js - PANEL ADMINISTRADOR
- * Edición total de albaranes con trazabilidad completa en consola.
+ * ARCHIVO: static/js/admin_albaran_update.js
+ * DESCRIPCIÓN: Edición total de albaranes para Administrador.
+ * ACTUALIZADO: 15/04/2026 - FIX: Sincronización horaria dinámica y carga de diccionarios.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Obtener ID desde la URL
     const urlParts = window.location.pathname.split('/').filter(p => p !== "");
     const albaranId = urlParts[urlParts.length - 1];
 
@@ -16,40 +16,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.group(`🚀 [ADMIN-UPDATE] Inicializando Edición - ID: ${albaranId}`);
     
     try {
-        // 2. CARGA DE DICCIONARIOS MAESTROS
-        console.log("⏳ 1. Cargando diccionarios maestros (Licencias, Empresas, Conductores)...");
+        // 1. CARGA DE DICCIONARIOS MAESTROS
+        console.log("⏳ 1. Cargando diccionarios maestros...");
         await Promise.all([
             loadSelectData('/api/v1/licencias', 'licencia_ref', 'licencia'),
             loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre'),
             loadSelectData('/api/v1/conductores/licencia/all', 'asalariado_select', 'nombre', true)
         ]);
-        console.log("✅ 1. Diccionarios cargados correctamente.");
 
-        // 3. RECUPERAR DATOS DEL ALBARÁN
-        console.log(`⏳ 2. Solicitando datos del albarán ${albaranId} al servidor...`);
+        // 2. RECUPERAR DATOS DEL ALBARÁN
         const response = await fetch(`/api/v1/albaranes/id/${albaranId}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
-        if (!response.ok) {
-            console.error("❌ Error en la respuesta del servidor:", response.status);
-            throw new Error(`Error ${response.status}: No se pudo obtener el registro.`);
-        }
+        if (!response.ok) throw new Error(`Error ${response.status}: No se pudo obtener el registro.`);
 
         const result = await response.json();
-        console.log("📥 2. Datos recibidos del servidor:", result.data);
-        
         const data = result.data;
 
-        // 4. POBLAR FORMULARIO Y BLOQUEAR LICENCIA
-        populateAdminForm(data);
+        // 3. POBLAR FORMULARIO (Usa AlbaranLoader para el fix de horas Madrid vs Cloud)
+        if (window.AlbaranLoader) {
+            window.AlbaranLoader.populateForm(data);
+        } else {
+            console.warn("⚠️ AlbaranLoader no encontrado, usando fallback local.");
+            fallbackPopulate(data);
+        }
+        
         lockLicenseField(data);
 
-        // UI Helpers
         if(document.getElementById('header_num')) {
             document.getElementById('header_num').textContent = `#${data.numero_albaran}`;
         }
-        console.log("✅ 3. Formulario poblado y listo.");
+        console.log("✅ 2. Formulario poblado correctamente.");
 
     } catch (err) {
         console.error("❌ [CRITICAL-ERROR]:", err.message);
@@ -60,41 +58,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     initCalculosKms();
     if (window.lucide) lucide.createIcons();
 });
-
-/**
- * Mapeo de datos al formulario
- */
-function populateAdminForm(data) {
-    const form = document.getElementById('albaranForm');
-    if (!form) return;
-
-    Object.keys(data).forEach(key => {
-        const el = form.querySelector(`[name="${key}"]`);
-        if (el) {
-            if (el.type === 'checkbox') {
-                el.checked = !!data[key];
-            } else if (el.type === 'date') {
-                el.value = data[key] ? data[key].substring(0, 10) : '';
-            } else if (el.type === 'time') {
-                let timeVal = data[key];
-                if (timeVal && timeVal.includes('T')) {
-                    timeVal = timeVal.split('T')[1].substring(0, 5);
-                } else if (timeVal) {
-                    timeVal = timeVal.substring(0, 5);
-                }
-                el.value = timeVal || '';
-            } else {
-                el.value = data[key] || '';
-            }
-        }
-    });
-
-    if(data.id) document.getElementById('albaran_id').value = data.id;
-    if(data.numero_albaran) {
-        const nAlbaran = document.getElementById('n_albaran') || form.querySelector('[name="numero_albaran"]');
-        if(nAlbaran) nAlbaran.value = data.numero_albaran;
-    }
-}
 
 /**
  * 🔒 Bloquea el campo de Licencia Titular
@@ -122,7 +85,6 @@ function lockLicenseField(data) {
 async function loadSelectData(url, elementId, textField, useTextAsValue = false) {
     const select = document.getElementById(elementId);
     if (!select) return;
-
     try {
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
@@ -135,16 +97,29 @@ async function loadSelectData(url, elementId, textField, useTextAsValue = false)
                 const val = useTextAsValue ? item[textField] : item.id;
                 return `<option value="${val}">${String(item[textField]).toUpperCase()}</option>`;
             }).join('');
-            
             const firstOption = select.options[0] ? select.options[0].outerHTML : '<option value="">Seleccione...</option>';
             select.innerHTML = firstOption + options;
         }
-    } catch (e) {
-        console.warn(`⚠️ No se cargó selector: ${elementId}`, e);
-    }
+    } catch (e) { console.warn(`⚠️ No se cargó selector: ${elementId}`); }
 }
 
-// 5. MANEJO DEL ENVÍO (PUT)
+/**
+ * Fallback en caso de que AlbaranLoader falle
+ */
+function fallbackPopulate(data) {
+    const form = document.getElementById('albaranForm');
+    if (!form) return;
+    Object.keys(data).forEach(key => {
+        const el = form.querySelector(`[name="${key}"]`) || document.getElementById(key);
+        if (el) {
+            if (el.type === 'checkbox') el.checked = !!data[key];
+            else if (el.type === 'date') el.value = data[key] ? data[key].substring(0, 10) : '';
+            else el.value = data[key] || '';
+        }
+    });
+}
+
+// 4. MANEJO DEL ENVÍO (PUT)
 document.getElementById('albaranForm').onsubmit = async (e) => {
     e.preventDefault();
     const albaranId = document.getElementById('albaran_id').value;
@@ -158,18 +133,30 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
         if (el) payload[id] = el.checked;
     });
 
-    // Normalizar Números
-    const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total'];
-    nums.forEach(f => payload[f] = parseFloat(payload[f]) || 0);
+    // Normalizar Números (Fix comas a puntos)
+    const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total', 'hora_total'];
+    nums.forEach(f => {
+        if (payload[f] !== undefined) {
+            payload[f] = parseFloat(String(payload[f]).replace(',', '.')) || 0;
+        }
+    });
 
-    // Limpieza de seguridad
+    // Normalizar Horas (Strings literales HH:mm para que el Backend Go reste el desfase)
+    const times = ['hora_ini', 'hora_fin', 'espera_ini', 'espera_fin'];
+    times.forEach(t => {
+        const el = e.target.querySelector(`[name="${t}"]`);
+        if (el && el.value) payload[t] = el.value;
+        else delete payload[t];
+    });
+
+    // Mapeo especial para coincidir con el Modelo del Backend
+    if (payload.nombre_pasajero) {
+        payload.cliente = payload.nombre_pasajero;
+        delete payload.nombre_pasajero;
+    }
+
     delete payload.id;
     delete payload.licencia_ref; 
-
-    console.group("📡 [ENVÍO] Petición PUT al Servidor");
-    console.log("📍 URL:", `/api/v1/albaranes/${albaranId}`);
-    console.log("📤 Datos enviados (Payload):", payload);
-    console.groupEnd();
 
     try {
         const res = await fetch(`/api/v1/albaranes/${albaranId}`, {
@@ -182,12 +169,6 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
         });
 
         const result = await res.json();
-
-        console.group("📥 [RECIBIDO] Respuesta del Servidor");
-        console.log("📊 Status:", res.status);
-        console.log("📦 Cuerpo:", result);
-        console.groupEnd();
-
         if (res.ok) {
             showStatus("✅ ACTUALIZADO CORRECTAMENTE", "success");
             setTimeout(() => window.location.href = '/admin/albaranes', 1500); 
@@ -200,14 +181,17 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     }
 };
 
-/**
- * Utilidades UI y Cálculos
- */
 function initCalculosKms() {
     const v1 = document.querySelector('[name="km_ini"]');
     const v2 = document.querySelector('[name="km_fin"]');
     const tot = document.querySelector('[name="km_totales"]');
-    const c = () => { if(v1 && v2 && tot && v2.value > 0) tot.value = (v2.value - v1.value).toFixed(2); };
+    const c = () => { 
+        if(v1 && v2 && tot) {
+            const val1 = parseFloat(v1.value) || 0;
+            const val2 = parseFloat(v2.value) || 0;
+            if (val2 > 0) tot.value = Math.max(0, val2 - val1).toFixed(2);
+        }
+    };
     v1?.addEventListener('input', c); v2?.addEventListener('input', c);
 }
 

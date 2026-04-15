@@ -1,8 +1,7 @@
 /**
  * ARCHIVO: static/js/albaran_update.js
  * DESCRIPCIÓN: Lógica de actualización para usuarios (Titulares).
- * FUNCIONALIDAD: Normalización de tiempos, protección de decimales y fix de fechas.
- * ACTUALIZADO: 31/03/2026 - FIX: Gestión literal de fechas (evita resta de día).
+ * ACTUALIZADO: 15/04/2026 - FIX: Compatibilidad con corrección horaria dinámica del Backend.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -28,16 +27,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (response.ok && result.data) {
             const data = result.data;
-            document.getElementById('albaran_id').value = data.id;
+            const albaranIdInput = document.getElementById('albaran_id');
+            if (albaranIdInput) albaranIdInput.value = data.id;
 
-            // --- FIX FECHA: Evitar que el navegador reste un día por la zona horaria ---
-            if (data.fecha) {
-                const fechaLimpia = data.fecha.split('T')[0];
-                const inputFecha = document.getElementById('fecha');
-                if (inputFecha) inputFecha.value = fechaLimpia;
-            }
-
-            // 3. Usar el motor universal para rellenar el resto del formulario
+            // 3. Usar el motor universal para rellenar el formulario (Fix de zona horaria incluido en Loader)
             if (window.AlbaranLoader) {
                 window.AlbaranLoader.populateForm(data);
             }
@@ -45,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 4. Inicializar formateadores para lógica sexagesimal (.59 máx)
             initUpdateFormatters();
             
-            console.log("%c✅ [UPDATE] Datos cargados correctamente.", "color: #10B981; font-weight: bold;");
+            console.log("%c✅ [UPDATE] Datos cargados con ajuste local.", "color: #10B981; font-weight: bold;");
         } else {
             throw new Error(result.error || "No se encontró el albarán.");
         }
@@ -101,56 +94,53 @@ async function cargarCatalogoEmpresas() {
 }
 
 /**
- * ENVÍO CRÍTICO: Sincronización con el Backend Go
+ * ENVÍO: Sincronización con el Backend Go (Normalización a string plano)
  */
 async function handleFormSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('albaran_id').value;
     const btn = e.target.querySelector('button[type="submit"]');
 
-    // Normaliza HH:mm → HH:mm:ss para evitar fallos de parseo en Go
-    const normalizeTime = (id) => {
+    // Captura literal del valor (HH:mm). El Backend compensará el desfase.
+    const getTimeValue = (id) => {
         const el = document.getElementById(id);
-        if (!el || !el.value) return "";
-        return el.value.length === 5 ? `${el.value}:00` : el.value;
+        return (el && el.value) ? el.value : "";
     };
 
     const payload = {
-        "fecha":        document.getElementById('fecha').value,
-        "hora_ini":     normalizeTime('hora_ini'),
-        "hora_fin":     normalizeTime('hora_fin'),
-        "espera_ini":   normalizeTime('espera_ini'),
-        "espera_fin":   normalizeTime('espera_fin'),
-        "nombre_pasajero": document.getElementById('nombre_pasajero').value,
-        "referencia":      document.getElementById('referencia').value,
-        "origen":          document.getElementById('origen').value,
-        "parada":          document.getElementById('parada').value,
-        "destino":         document.getElementById('destino').value,
-        "tlf_pasajero":    document.getElementById('tlf_pasajero').value,
-        "dni_pasajero":    document.getElementById('dni_pasajero').value,
-        "matricula":       document.getElementById('matricula').value,
-        "observaciones":   document.getElementById('observaciones').value,
-        "autorizado_por":  document.getElementById('autorizado_por').value,
-        "asalariado":      document.getElementById('asalariado').value,
-        "adjuntos":        document.getElementById('adjuntos_ref').value,
+        "fecha":            document.getElementById('fecha').value,
+        "hora_ini":         getTimeValue('hora_ini'),
+        "hora_fin":         getTimeValue('hora_fin'),
+        "espera_ini":       getTimeValue('espera_ini'),
+        "espera_fin":       getTimeValue('espera_fin'),
+        "nombre_pasajero":  document.getElementById('nombre_pasajero').value,
+        "referencia":       document.getElementById('referencia').value,
+        "origen":           document.getElementById('origen').value,
+        "parada":           document.getElementById('parada').value,
+        "destino":          document.getElementById('destino').value,
+        "tlf_pasajero":     document.getElementById('tlf_pasajero').value,
+        "dni_pasajero":     document.getElementById('dni_pasajero').value,
+        "matricula":        document.getElementById('matricula').value,
+        "observaciones":    document.getElementById('observaciones').value,
+        "autorizado_por":   document.getElementById('autorizado_por').value,
+        "asalariado":       document.getElementById('asalariado').value,
+        "adjuntos":         document.getElementById('adjuntos_ref').value,
 
-        // Números (Tipado estricto)
-        "empresa_ref":    parseInt(document.getElementById('empresa').value) || 0,
-        "km_totales":     parseFloat(document.getElementById('km_totales').value.replace(',','.')) || 0,
-        "importe_total":  parseFloat(document.getElementById('importe_total').value.replace(',','.')) || 0,
+        // Números
+        "empresa_ref":      parseInt(document.getElementById('empresa').value) || 0,
+        "km_totales":       parseFloat(document.getElementById('km_totales').value.replace(',','.')) || 0,
+        "importe_total":    parseFloat(document.getElementById('importe_total').value.replace(',','.')) || 0,
         "importe_suplidos": parseFloat(document.getElementById('importe_suplidos').value.replace(',','.')) || 0,
-        "hora_total":     parseFloat(document.getElementById('hora_total').value.replace(',','.')) || 0,
-        "num_plazas":     parseInt(document.getElementById('num_plazas').value) || 4,
+        "hora_total":       parseFloat(document.getElementById('hora_total').value.replace(',','.')) || 0,
+        "num_plazas":       parseInt(document.getElementById('num_plazas').value) || 4,
 
         // Booleanos
-        "urbano":        document.getElementById('urbano').checked,
-        "diurno":        document.getElementById('diurno').checked,
-        "noct_fest":     document.getElementById('noct_fest').checked,
-        "remolque":      document.getElementById('remolque').checked,
-        "adjuntos_bool": document.getElementById('adjuntos_bool').checked
+        "urbano":           document.getElementById('urbano').checked,
+        "diurno":           document.getElementById('diurno').checked,
+        "noct_fest":        document.getElementById('noct_fest').checked,
+        "remolque":         document.getElementById('remolque').checked,
+        "adjuntos_bool":    document.getElementById('adjuntos_bool').checked
     };
-
-    console.log("📤 [DEBUG] Enviando Payload de actualización:", payload);
 
     btn.disabled = true;
     try {
@@ -172,7 +162,6 @@ async function handleFormSubmit(e) {
             throw new Error(resData.error || "Error al procesar la actualización.");
         }
     } catch (error) {
-        console.error("❌ [UPDATE] Error:", error);
         showStatus(error.message, "error");
     } finally {
         btn.disabled = false;

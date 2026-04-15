@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/admin_albaran_nuevo.js
  * DESCRIPCIÓN: Inserción rápida para Administrador con valores por defecto para SQL.
- * ACTUALIZADO: 21/03/2026 - FIX: Prevención de errores de tipo en campos obligatorios.
+ * ACTUALIZADO: 15/04/2026 - FIX: Sincronización horaria local y compatibilidad Backend.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -9,10 +9,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await Promise.all([cargarLicencias(), cargarEmpresas()]);
 
-    // Establecer fecha de hoy por defecto
+    // Establecer fecha de hoy por defecto (Local España, no UTC)
     const fechaInput = document.getElementById('fecha');
     if (fechaInput) {
-        fechaInput.value = new Date().toISOString().split('T')[0];
+        const hoy = new Date();
+        const offset = hoy.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(hoy - offset)).toISOString().split('T')[0];
+        fechaInput.value = localISOTime;
     }
 
     initCalculosKms();
@@ -69,21 +72,19 @@ async function handleInsertMaestro(event) {
             data[key] = input.checked;
         } 
         else if (input.type === 'number') {
-            // ✅ Para SQL Decimal/Int: si está vacío va a 0 (evita el error '-')
             data[key] = valStr === "" ? 0 : parseFloat(valStr);
         } 
         else if (input.type === 'time') {
-            // ✅ Para SQL Time: si está vacío va a null (Go parseTimePtr lo ignora)
+            // ✅ Enviamos el string literal "HH:mm". 
+            // El Backend compensará el desfase de Madrid automáticamente.
             data[key] = valStr === "" ? null : valStr;
         }
         else {
-            // ✅ Para SQL String: si está vacío va a "-"
             data[key] = valStr === "" ? "-" : valStr;
         }
     });
 
     // 2. MAPEADO DE CAMPOS ESPECIALES Y FORZADO DE TIPOS
-    // HTML 'nombre_pasajero' -> Backend 'cliente'
     data.cliente = data.nombre_pasajero || "-";
     delete data.nombre_pasajero;
 
@@ -95,7 +96,7 @@ async function handleInsertMaestro(event) {
     data.num_plazas = parseInt(data.num_plazas) || 4;
     data.finalizado = true; // Por ser admin
 
-    console.log("📤 [DEBUG] Payload Final a enviar:", data);
+    console.log("📤 [DEBUG] Payload Final Admin:", data);
 
     // Validación de campos mínimos requeridos en el front
     if (data.licencia_ref === 0 || data.empresa_ref === 0 || data.numero_albaran === "-") {
