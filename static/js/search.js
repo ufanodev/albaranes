@@ -1,16 +1,13 @@
 /**
  * ARCHIVO: static/js/search.js
  * FUNCIÓN: Cerebro de búsqueda universal (User, Admin, Liquidaciones).
- * ACTUALIZADO: 26/03/2026 - FIX: Búsqueda por palabra excluyente y robusta.
+ * ACTUALIZADO: 22/04/2026 - FIX: Búsqueda profunda por palabra (soporte nulos y 'Titular').
  */
 
 window.SearchEngine = {
     empresasCatalog: {},
     licenciasCatalog: {},
 
-    /**
-     * Inicializa catálogos de empresas y licencias.
-     */
     async initCatalog(isAdmin = false) {
         try {
             const token = localStorage.getItem('token');
@@ -58,10 +55,6 @@ window.SearchEngine = {
         select.innerHTML = html;
     },
 
-    /**
-     * Aplica filtrado lógico. 
-     * Si el modo es 'palabra', ignora los filtros de campos individuales.
-     */
     applyFilters(data, params) {
         const { mode, empresa, licencia, ref, desde, hasta, palabra, estado, pagado, num_albaran } = params;
         
@@ -74,18 +67,29 @@ window.SearchEngine = {
                 if (!palabra || palabra.trim() === "") return true;
                 
                 const query = palabra.toLowerCase();
-                const searchTxt = [
-                    i.numero_albaran,
-                    i.referencia,
+
+                // FIX: Normalizamos los valores para que nunca sean null/undefined
+                const asalariado = i.asalariado ? i.asalariado.toLowerCase() : "titular"; // Si está vacío, buscamos por 'titular'
+                const albaran = i.numero_albaran ? String(i.numero_albaran).toLowerCase() : "";
+                const referencia = i.referencia ? i.referencia.toLowerCase() : "";
+                const cliente = i.cliente ? i.cliente.toLowerCase() : "";
+                const obs = i.observaciones ? i.observaciones.toLowerCase() : "";
+                const obsAdmin = i.observaciones_admin ? i.observaciones_admin.toLowerCase() : "";
+
+                // Creamos un array de términos de búsqueda reales
+                const searchFields = [
+                    albaran,
+                    referencia,
                     nombreEmp,
                     numLicencia,
-                    i.asalariado,
-                    i.cliente,
-                    i.observaciones,
-                    i.observaciones_admin
-                ].join(" ").toLowerCase();
+                    asalariado,
+                    cliente,
+                    obs,
+                    obsAdmin
+                ];
 
-                return searchTxt.includes(query);
+                // Verificamos si la query existe en alguno de los campos
+                return searchFields.some(field => field.includes(query));
             }
 
             // --- MODO CAMPOS (Filtros Específicos) ---
