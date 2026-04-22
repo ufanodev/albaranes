@@ -2,7 +2,7 @@
  * ARCHIVO: static/js/busqueda.js
  * IMPORTANCIA: Media (Controlador de Interfaz Específico)
  * FUNCIÓN: Gestión de UI, Paginación, API y Renderizado de la tabla de búsqueda.
- * DEPENDE DE: search.js y oficina.js
+ * DEPENDE DE: search.js, albaran_cargar.js y oficina.js
  */
 
 const APP = {
@@ -36,29 +36,24 @@ const APP = {
 async function startApp() {
     console.log("🚀 [BUSQUEDA] Iniciando controlador de vista...");
     try {
-        // Obtener identidad del usuario
         const resp = await fetch('/api/v1/user/licencia_info', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         const identity = await resp.json();
         APP.state.licId = identity.licencia_id;
         
-        // Actualizar UI con datos de licencia
         if (APP.elements.numLicenciaHeader) APP.elements.numLicenciaHeader.textContent = identity.licencia_numero;
         if (APP.elements.licenciaDisplay) APP.elements.licenciaDisplay.value = identity.licencia_numero;
 
-        // Iniciar el motor común (Cargar empresas en el select y diccionario)
         if (window.SearchEngine) {
             await SearchEngine.initCatalog();
         } else {
             console.error("❌ No se encontró SearchEngine. Revisa el orden de carga de scripts.");
         }
 
-        // Cargar datos y configurar eventos
         await loadAlbaranes();
         setupEventListeners();
 
-        // HACER EL ESTADO ACCESIBLE PARA oficina.js
         window.APP_STATE = APP.state;
 
     } catch (e) {
@@ -78,10 +73,7 @@ async function loadAlbaranes() {
         });
         const json = await response.json();
         APP.state.rawAlbaranes = json.data || json || [];
-        
-        // Una vez cargados, aplicamos el filtrado inicial
         executeFiltering(); 
-
     } catch (e) {
         APP.elements.resultsBody.innerHTML = '<tr><td colspan="8" class="text-center py-20 text-red-500 font-bold">Error al conectar con el servidor.</td></tr>';
     }
@@ -130,15 +122,20 @@ function renderTable() {
         return;
     }
 
-    // El total se calcula sobre el dataset filtrado COMPLETO, no solo la página
     let sumTotalFull = APP.state.filteredAlbaranes.reduce((acc, curr) => acc + parseFloat(curr.importe_total || 0), 0);
 
     pageItems.forEach(a => {
         const imp = parseFloat(a.importe_total || 0);
+        
+        // FIX FINAL: Usamos AlbaranLoader para garantizar DD/MM/YYYY
+        const fechaDisplay = window.AlbaranLoader 
+            ? AlbaranLoader.formatEuropeanDate(a.fecha) 
+            : (a.fecha ? a.fecha.substring(0,10) : '-');
+
         const row = `
             <tr class="hover:bg-orange-50/30 border-b border-gray-100 transition-colors text-sm group">
                 <td class="px-4 py-4 font-black text-gray-900">${a.numero_albaran || 'N/A'}</td>
-                <td class="px-4 py-4 text-gray-500 font-bold">${a.fecha ? a.fecha.substring(0,10) : '-'}</td>
+                <td class="px-4 py-4 text-gray-500 font-bold">${fechaDisplay}</td>
                 <td class="px-4 py-4 font-bold uppercase text-blue-600">${SearchEngine.getEmpresaNombre(a)}</td>
                 <td class="px-4 py-4 text-gray-400 italic text-xs uppercase">${a.referencia || '---'}</td>
                 <td class="px-4 py-4 text-gray-600 font-medium uppercase">${a.asalariado || 'TITULAR'}</td>
@@ -185,7 +182,10 @@ function sortData(key, isInitial = false) {
         let vA = a[key], vB = b[key];
         if (key === 'empresa') { vA = SearchEngine.getEmpresaNombre(a); vB = SearchEngine.getEmpresaNombre(b); }
         if (key === 'importe_total') { vA = parseFloat(vA || 0); vB = parseFloat(vB || 0); }
-        if (key === 'fecha') { vA = new Date(vA).getTime(); vB = new Date(vB).getTime(); }
+        if (key === 'fecha') { 
+            vA = vA ? new Date(vA).getTime() : 0; 
+            vB = vB ? new Date(vB).getTime() : 0; 
+        }
         return (vA < vB ? -1 : 1) * (APP.state.currentSort.direction === 'asc' ? 1 : -1);
     });
     if (!isInitial) renderTable();

@@ -1,23 +1,30 @@
 /**
  * ARCHIVO: static/js/albaran_cargar.js
  * FUNCIÓN: Motor universal de inyección de datos para todas las vistas.
- * ACTUALIZADO: 15/04/2026 - FIX: Sincronización de zona horaria (Local España vs Cloud Francia).
+ * ACTUALIZADO: 22/04/2026 - FIX: Formato forzado DD/MM/YYYY literal.
  */
 
 const AlbaranLoader = {
     formatEuropeanDate(isoValue) {
         if (!isoValue) return "-";
-        // Al usar split('T')[0] evitamos que el objeto Date reste un día por la zona horaria
-        const cleanDate = typeof isoValue === 'string' ? isoValue.split('T')[0] : isoValue;
-        const date = new Date(cleanDate);
-        if (isNaN(date.getTime())) return isoValue;
-        return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        
+        // 1. Extraemos solo la parte YYYY-MM-DD (ignorando T00:00:00Z)
+        const cleanDate = String(isoValue).split('T')[0];
+        const parts = cleanDate.split('-');
+
+        // 2. Si tiene el formato esperado, invertimos el orden manualmente
+        if (parts.length === 3) {
+            // Resultado: DD/MM/YYYY
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        // Fallback: Si por alguna razón falla, devolvemos el valor original limpio
+        return cleanDate;
     },
 
     formatTime(isoValue) {
         if (!isoValue) return "--:--";
         
-        // Si ya es un formato corto HH:mm y no viene del ISO del servidor, lo devolvemos tal cual
         if (typeof isoValue === 'string' && isoValue.includes(':') && isoValue.length === 5) {
             return isoValue;
         }
@@ -25,19 +32,12 @@ const AlbaranLoader = {
         try {
             const date = new Date(isoValue);
             if (isNaN(date.getTime())) {
-                // Si falla el objeto Date pero es un string con ":" (ej: "09:00:00")
                 if (typeof isoValue === 'string' && isoValue.includes(':')) {
                     return isoValue.substring(0, 5);
                 }
                 return "--:--";
             }
 
-            /**
-             * SOLUCIÓN ZONA HORARIA:
-             * Usamos toLocaleTimeString configurando la zona horaria de Europa/Madrid.
-             * Esto forzará que si el servidor manda 10:00Z (UTC), el navegador 
-             * lo muestre como 12:00 (España Verano) o 11:00 (España Invierno).
-             */
             return date.toLocaleTimeString('es-ES', { 
                 hour: '2-digit', 
                 minute: '2-digit', 
@@ -56,7 +56,6 @@ const AlbaranLoader = {
         if (!data) return;
         console.log("📦 [LOADER] Inyectando datos con ajuste horario:", data);
 
-        // Mapeos de compatibilidad (Backend -> HTML)
         const mappedData = { ...data };
         if (data.cliente) mappedData.nombre_pasajero = data.cliente;
         if (data.adjuntos_ref) mappedData.adjuntos = data.adjuntos_ref;
