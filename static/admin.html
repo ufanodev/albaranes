@@ -29,7 +29,6 @@
             .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
             .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150 text-sm font-bold text-gray-700; }
 
-            /* DROPDOWNS */
             .dropdown-content {
                 display: none;
                 position: absolute;
@@ -49,7 +48,6 @@
             .dropdown-content a:hover { background-color: #FFDAB9; color: #000; font-weight: bold; }
             .dropdown-content a:last-child { border-bottom: none; }
 
-            /* Tabla Estilo Admin */
             .compact-table { @apply w-full table-fixed border-collapse; }
             .compact-table th { 
                 @apply whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-4 
@@ -82,7 +80,6 @@
                             <a href="/admin/pago_tit">Pagos a Titulares</a>
                         </div>
                     </div>
-
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <span>Albaranes</span>
@@ -93,7 +90,6 @@
                             <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
                         </div>
                     </div>
-
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <span>Empresas</span>
@@ -104,7 +100,6 @@
                             <a href="/admin/pago_emp">Cobros a Empresas</a>
                         </div>
                     </div>
-
                     <div class="dropdown relative">
                         <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
                             <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
@@ -147,6 +142,15 @@
 
             <div class="card">
                 <div class="flex flex-wrap gap-3 mb-6 items-center">
+                    <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-lg border border-slate-200 shadow-sm">
+                        <i data-lucide="history" class="w-3.5 h-3.5 text-slate-400 ml-1"></i>
+                        <select id="searchHistory" onchange="handleLoadHistory(this.value)" class="bg-transparent text-[10px] font-black uppercase outline-none cursor-pointer text-slate-600 min-w-[160px]">
+                            <option value="">Búsquedas Recientes</option>
+                        </select>
+                    </div>
+
+                    <div class="h-8 w-px bg-slate-200 mx-1"></div>
+
                     <button type="button" id="btn-mode-campos" onclick="UI.setSearchModeManual('campos')" class="px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all">📝 Por Filtros</button>
                     <button type="button" id="btn-mode-palabra" onclick="UI.setSearchModeManual('palabra')" class="px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border transition-all">💬 Por Palabra</button>
                     
@@ -154,7 +158,9 @@
                         <i data-lucide="search" class="w-3 h-3"></i> Buscar ahora
                     </button>
 
-                    <button type="button" onclick="handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-slate-200 text-slate-600 text-[10px] font-black uppercase hover:bg-slate-300 ml-auto transition">Limpiar Filtros</button>
+                    <button type="button" onclick="handleClearAllFilters()" class="px-4 py-2 rounded-lg bg-slate-200 text-slate-600 text-[10px] font-black uppercase hover:bg-slate-300 ml-auto transition">
+                        Limpiar Filtros
+                    </button>
                 </div>
 
                 <form id="searchForm" class="space-y-4">
@@ -223,13 +229,13 @@
                     <table class="compact-table">
                         <thead>
                             <tr>
-                                <th onclick="handleSort('numero_albaran')">Nº <span id="sort-icon-numero_albaran">↕</span></th>
-                                <th onclick="handleSort('fecha')">Fecha <span id="sort-icon-fecha">↕</span></th>
-                                <th onclick="handleSort('licencia')">Lic <span id="sort-icon-licencia">↕</span></th>
-                                <th onclick="handleSort('empresa_nombre')">Empresa <span id="sort-icon-empresa_nombre">↕</span></th>
-                                <th onclick="handleSort('referencia')">Exp <span id="sort-icon-referencia">↕</span></th>
-                                <th onclick="handleSort('num_factura')">Fac <span id="sort-icon-num_factura">↕</span></th>
-                                <th class="text-right" onclick="handleSort('importe_total')">Importe <span id="sort-icon-importe_total">↕</span></th>
+                                <th onclick="handleSort('numero_albaran')">Nº <span id="sort-icon-numero_albaran" class="ml-1 opacity-30 italic">↕</span></th>
+                                <th onclick="handleSort('fecha')">Fecha <span id="sort-icon-fecha" class="ml-1 opacity-30 italic">↕</span></th>
+                                <th onclick="handleSort('licencia')">Lic <span id="sort-icon-licencia" class="ml-1 opacity-30 italic">↕</span></th>
+                                <th onclick="handleSort('empresa_nombre')">Empresa <span id="sort-icon-empresa_nombre" class="ml-1 opacity-30 italic">↕</span></th>
+                                <th onclick="handleSort('referencia')">Exp <span id="sort-icon-referencia" class="ml-1 opacity-30 italic">↕</span></th>
+                                <th onclick="handleSort('num_factura')">Fac <span id="sort-icon-num_factura" class="ml-1 opacity-30 italic">↕</span></th>
+                                <th class="text-right" onclick="handleSort('importe_total')">Importe <span id="sort-icon-importe_total" class="ml-1 opacity-30 italic">↕</span></th>
                                 <th class="text-center">Env</th><th class="text-center">Cob</th><th class="text-center">Pag</th>
                                 <th class="text-left">Observaciones</th>
                                 <th class="text-center">Acciones</th>
@@ -258,6 +264,7 @@
 
     <script src="/js/oficina.js"></script> 
     <script src="/js/search.js"></script>
+    <script src="/js/admin_busqueda.js"></script>
     <script src="/js/admin.js"></script>
 
     <script>

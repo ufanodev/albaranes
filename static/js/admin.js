@@ -14,7 +14,8 @@ const APP = {
         resultsCount: document.getElementById('resultsCount'),
         palabraInput: document.getElementById('palabra'),
         prevBtn: document.getElementById('prevPageBtn'),
-        nextBtn: document.getElementById('nextPageBtn')
+        nextBtn: document.getElementById('nextPageBtn'),
+        historySelect: document.getElementById('searchHistory') // El combo del historial
     },
     state: {
         rawAlbaranes: [],
@@ -23,7 +24,9 @@ const APP = {
         pageSize: 25,
         searchMode: 'campos',
         currentSort: { key: 'fecha', direction: 'desc' }
-    }
+    },
+    cacheKey: 'admin_search_cache',
+    historyKey: 'admin_search_history_v1' // Clave para LocalStorage
 };
 
 const UI_ADMIN = {
@@ -47,9 +50,106 @@ const UI_ADMIN = {
     }
 };
 
+// =================================================================================
+// 💾 GESTIÓN DE HISTORIAL (LocalStorage) Y CACHÉ (SessionStorage)
+// =================================================================================
+
+/**
+ * Guarda el estado en sesión (rápido) y en historial (permanente 10 últimos)
+ */
+function saveSearchState(params) {
+    // 1. Guardar en SessionStorage para navegación "Atrás"
+    sessionStorage.setItem(APP.cacheKey, JSON.stringify(params));
+
+    // 2. Guardar en LocalStorage para el Combo de Historial
+    const hasFilters = Object.values(params).some(v => v !== "" && v !== null && v !== 'campos' && v !== 'palabra');
+    if (!hasFilters) return;
+
+    let history = JSON.parse(localStorage.getItem(APP.historyKey) || '[]');
+    
+    let label = params.mode === 'palabra' ? `Búsq: ${params.palabra}` : `Filtro: ${params.num_albaran || params.ref || 'Manual'}`;
+    const newEntry = { label, params, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
+
+    // Evitar duplicados idénticos
+    if (history.length > 0 && JSON.stringify(history[0].params) === JSON.stringify(params)) return;
+
+    history.unshift(newEntry);
+    history = history.slice(0, 10); // Limitar a 10 registros
+
+    localStorage.setItem(APP.historyKey, JSON.stringify(history));
+    renderHistoryCombo();
+}
+
+/**
+ * Pinta las opciones en el Select de Historial
+ */
+function renderHistoryCombo() {
+    const combo = APP.elements.historySelect;
+    if (!combo) return;
+    const history = JSON.parse(localStorage.getItem(APP.historyKey) || '[]');
+    
+    combo.innerHTML = '<option value="">BÚSQUEDAS RECIENTES</option>';
+    history.forEach((item, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.textContent = `${item.time} - ${item.label}`;
+        combo.appendChild(opt);
+    });
+}
+
+/**
+ * Carga una búsqueda desde el historial al seleccionar una opción
+ */
+window.handleLoadHistory = (index) => {
+    if (index === "") return;
+    const history = JSON.parse(localStorage.getItem(APP.historyKey) || '[]');
+    const selected = history[index];
+    if (selected && selected.params) {
+        applyParamsToUI(selected.params);
+        handleSearch(); // Ejecutar la búsqueda con estos parámetros
+    }
+};
+
+/**
+ * Inyecta parámetros en los inputs de la interfaz
+ */
+function applyParamsToUI(cache) {
+    if (cache.mode) window.UI.setSearchModeManual(cache.mode);
+    
+    document.getElementById('licenciaSelect').value = cache.licencia || "";
+    document.getElementById('empresaSelect').value = cache.empresa || "";
+    document.getElementById('state').value = cache.estado || "";
+    APP.elements.searchForm.querySelector('[name="referencia"]').value = cache.ref || "";
+    APP.elements.searchForm.querySelector('[name="numero_albaran"]').value = cache.num_albaran || "";
+    APP.elements.searchForm.querySelector('[name="fecha_desde"]').value = cache.desde || "";
+    APP.elements.searchForm.querySelector('[name="fecha_hasta"]').value = cache.hasta || "";
+    APP.elements.palabraInput.value = cache.palabra || "";
+}
+
+/**
+ * Recupera la caché de la última búsqueda al cargar la página
+ */
+function applySearchCache() {
+    const data = sessionStorage.getItem(APP.cacheKey);
+    if (!data) return false;
+    applyParamsToUI(JSON.parse(data));
+    return true;
+}
+
+// =================================================================================
+// 🚀 INICIO Y CARGA
+// =================================================================================
+
 async function startAdmin() {
     try {
         await SearchEngine.initCatalog(true);
+        
+        // Cargar historial visualmente
+        renderHistoryCombo();
+        
+        // Cargar caché si existe
+        const teniaCache = applySearchCache();
+        
         await loadData();
         setupEventListeners();
     } catch (e) { console.error(e); }
@@ -80,11 +180,18 @@ function handleSearch(e) {
         hasta: APP.elements.searchForm.querySelector('[name="fecha_hasta"]').value,
         palabra: APP.elements.palabraInput.value
     };
+
     APP.state.filteredAlbaranes = SearchEngine.applyFilters(APP.state.rawAlbaranes, params);
+    
+    // PERSISTENCIA: Guardar para sesión e historial
+    saveSearchState(params);
+
     handleSort(APP.state.currentSort.key, true);
     APP.state.currentPage = 1;
     render();
 }
+
+// ... (render, handleSort, exportaciones se mantienen igual) ...
 
 function render() {
     const { resultsBody, tableFooter, totalImporte, pageInfo, resultsCount, totalLabel } = APP.elements;
@@ -95,6 +202,7 @@ function render() {
     if (pageItems.length === 0) {
         resultsBody.innerHTML = '<tr><td colspan="12" class="p-20 text-center text-orange-500 font-bold uppercase">Sin registros coincidentes</td></tr>';
         if (tableFooter) tableFooter.classList.add('hidden');
+        resultsCount.textContent = "0";
         return;
     }
 
@@ -153,13 +261,8 @@ function handleSort(key, isInitial = false) {
     if (!isInitial) render();
 }
 
-/**
- * GESTIÓN DE EXPORTACIÓN
- */
 window.handleGeneratePDF = () => {
     if (APP.state.filteredAlbaranes.length === 0) return;
-    
-    // Mapeo exacto de los datos para el PDF visual
     const dataClean = APP.state.filteredAlbaranes.map(a => ({
         "Nº ALBARAN": a.numero_albaran,
         "FECHA": a.fecha ? a.fecha.substring(0,10) : "-",
@@ -168,7 +271,6 @@ window.handleGeneratePDF = () => {
         "EXPEDIENTE": a.referencia || "-",
         "TOTAL": `€${parseFloat(a.importe_total || 0).toFixed(2)}`
     }));
-    
     Oficina.generarPDF("LISTADO_ALBARANES_REGISTRADOS", dataClean);
 };
 
@@ -212,13 +314,32 @@ function setupEventListeners() {
 
 window.handleSearch = handleSearch;
 window.handleSort = handleSort;
-window.handleClearAllFilters = () => { APP.elements.searchForm.reset(); document.getElementById('palabra').value = ''; handleSearch(); };
+window.handleClearAllFilters = () => { 
+    sessionStorage.removeItem(APP.cacheKey);
+    APP.elements.searchForm.reset(); 
+    document.getElementById('palabra').value = ''; 
+    handleSearch(); 
+};
 
 window.UI = {
     setSearchModeManual(mode) {
         APP.state.searchMode = mode;
-        document.getElementById('palabraSection').classList.toggle('hidden', mode === 'campos');
-        document.getElementById('searchForm').classList.toggle('hidden', mode === 'palabra');
+        const palabraSection = document.getElementById('palabraSection');
+        const searchForm = document.getElementById('searchForm');
+        if (palabraSection) palabraSection.classList.toggle('hidden', mode === 'campos');
+        if (searchForm) searchForm.classList.toggle('hidden', mode === 'palabra');
+        
+        const btnCampos = document.getElementById('btn-mode-campos');
+        const btnPalabra = document.getElementById('btn-mode-palabra');
+        if (btnCampos && btnPalabra) {
+            if (mode === 'campos') {
+                btnCampos.className = "px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all";
+                btnPalabra.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border transition-all";
+            } else {
+                btnPalabra.className = "px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all";
+                btnCampos.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border transition-all";
+            }
+        }
     }
 };
 
