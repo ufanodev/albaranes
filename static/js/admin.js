@@ -15,7 +15,7 @@ const APP = {
         palabraInput: document.getElementById('palabra'),
         prevBtn: document.getElementById('prevPageBtn'),
         nextBtn: document.getElementById('nextPageBtn'),
-        historySelect: document.getElementById('searchHistory') // El combo del historial
+        historySelect: document.getElementById('searchHistory')
     },
     state: {
         rawAlbaranes: [],
@@ -26,7 +26,7 @@ const APP = {
         currentSort: { key: 'fecha', direction: 'desc' }
     },
     cacheKey: 'admin_search_cache',
-    historyKey: 'admin_search_history_v1' // Clave para LocalStorage
+    historyKey: 'admin_search_history_v1'
 };
 
 const UI_ADMIN = {
@@ -54,40 +54,27 @@ const UI_ADMIN = {
 // 💾 GESTIÓN DE HISTORIAL (LocalStorage) Y CACHÉ (SessionStorage)
 // =================================================================================
 
-/**
- * Guarda el estado en sesión (rápido) y en historial (permanente 10 últimos)
- */
 function saveSearchState(params) {
-    // 1. Guardar en SessionStorage para navegación "Atrás"
     sessionStorage.setItem(APP.cacheKey, JSON.stringify(params));
 
-    // 2. Guardar en LocalStorage para el Combo de Historial
     const hasFilters = Object.values(params).some(v => v !== "" && v !== null && v !== 'campos' && v !== 'palabra');
     if (!hasFilters) return;
 
     let history = JSON.parse(localStorage.getItem(APP.historyKey) || '[]');
-    
     let label = params.mode === 'palabra' ? `Búsq: ${params.palabra}` : `Filtro: ${params.num_albaran || params.ref || 'Manual'}`;
     const newEntry = { label, params, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
 
-    // Evitar duplicados idénticos
     if (history.length > 0 && JSON.stringify(history[0].params) === JSON.stringify(params)) return;
-
     history.unshift(newEntry);
-    history = history.slice(0, 10); // Limitar a 10 registros
-
+    history = history.slice(0, 10);
     localStorage.setItem(APP.historyKey, JSON.stringify(history));
     renderHistoryCombo();
 }
 
-/**
- * Pinta las opciones en el Select de Historial
- */
 function renderHistoryCombo() {
     const combo = APP.elements.historySelect;
     if (!combo) return;
     const history = JSON.parse(localStorage.getItem(APP.historyKey) || '[]');
-    
     combo.innerHTML = '<option value="">BÚSQUEDAS RECIENTES</option>';
     history.forEach((item, index) => {
         const opt = document.createElement('option');
@@ -97,25 +84,18 @@ function renderHistoryCombo() {
     });
 }
 
-/**
- * Carga una búsqueda desde el historial al seleccionar una opción
- */
 window.handleLoadHistory = (index) => {
     if (index === "") return;
     const history = JSON.parse(localStorage.getItem(APP.historyKey) || '[]');
     const selected = history[index];
     if (selected && selected.params) {
         applyParamsToUI(selected.params);
-        handleSearch(); // Ejecutar la búsqueda con estos parámetros
+        handleSearch();
     }
 };
 
-/**
- * Inyecta parámetros en los inputs de la interfaz
- */
 function applyParamsToUI(cache) {
     if (cache.mode) window.UI.setSearchModeManual(cache.mode);
-    
     document.getElementById('licenciaSelect').value = cache.licencia || "";
     document.getElementById('empresaSelect').value = cache.empresa || "";
     document.getElementById('state').value = cache.estado || "";
@@ -126,9 +106,6 @@ function applyParamsToUI(cache) {
     APP.elements.palabraInput.value = cache.palabra || "";
 }
 
-/**
- * Recupera la caché de la última búsqueda al cargar la página
- */
 function applySearchCache() {
     const data = sessionStorage.getItem(APP.cacheKey);
     if (!data) return false;
@@ -143,13 +120,8 @@ function applySearchCache() {
 async function startAdmin() {
     try {
         await SearchEngine.initCatalog(true);
-        
-        // Cargar historial visualmente
         renderHistoryCombo();
-        
-        // Cargar caché si existe
         const teniaCache = applySearchCache();
-        
         await loadData();
         setupEventListeners();
     } catch (e) { console.error(e); }
@@ -182,16 +154,11 @@ function handleSearch(e) {
     };
 
     APP.state.filteredAlbaranes = SearchEngine.applyFilters(APP.state.rawAlbaranes, params);
-    
-    // PERSISTENCIA: Guardar para sesión e historial
     saveSearchState(params);
-
     handleSort(APP.state.currentSort.key, true);
     APP.state.currentPage = 1;
     render();
 }
-
-// ... (render, handleSort, exportaciones se mantienen igual) ...
 
 function render() {
     const { resultsBody, tableFooter, totalImporte, pageInfo, resultsCount, totalLabel } = APP.elements;
@@ -240,7 +207,6 @@ function render() {
     const totalPages = Math.ceil(APP.state.filteredAlbaranes.length / APP.state.pageSize) || 1;
     pageInfo.textContent = `${APP.state.currentPage} / ${totalPages}`;
     totalLabel.textContent = `${APP.state.filteredAlbaranes.length} REGISTROS TOTALES`;
-    
     if (window.lucide) lucide.createIcons();
     UI_ADMIN.updateSortIcons();
 }
@@ -261,37 +227,109 @@ function handleSort(key, isInitial = false) {
     if (!isInitial) render();
 }
 
+// =================================================================================
+// 📡 PUENTE: fuente única de verdad para exportaciones.
+// admin_busqueda.js rellena 'currentData' (búsqueda real por API).
+// admin.js rellena 'APP.state.filteredAlbaranes' (búsqueda local con SearchEngine).
+// La exportación usa el que tenga datos, priorizando el local (ya filtrado y ordenado).
+// =================================================================================
+function getActiveData() {
+    if (APP.state.filteredAlbaranes.length > 0) return APP.state.filteredAlbaranes;
+    if (typeof currentData !== 'undefined' && Array.isArray(currentData) && currentData.length > 0) return currentData;
+    return [];
+}
+
+// =================================================================================
+// 🖨️ EXPORTACIONES
+// =================================================================================
+
 window.handleGeneratePDF = () => {
-    if (APP.state.filteredAlbaranes.length === 0) return;
-    const dataClean = APP.state.filteredAlbaranes.map(a => ({
+    const datos = getActiveData();
+    if (datos.length === 0) return;
+    const dataClean = datos.map(a => ({
         "Nº ALBARAN": a.numero_albaran,
-        "FECHA": a.fecha ? a.fecha.substring(0,10) : "-",
-        "LICENCIA": SearchEngine.getLicenciaNumero(a),
-        "EMPRESA": SearchEngine.getEmpresaNombre(a),
+        "FECHA":      a.fecha ? a.fecha.substring(0,10) : "-",
+        "LICENCIA":   SearchEngine.getLicenciaNumero(a),
+        "EMPRESA":    SearchEngine.getEmpresaNombre(a),
         "EXPEDIENTE": a.referencia || "-",
-        "TOTAL": `€${parseFloat(a.importe_total || 0).toFixed(2)}`
+        "TOTAL":      `€${parseFloat(a.importe_total || 0).toFixed(2)}`
     }));
     Oficina.generarPDF("LISTADO_ALBARANES_REGISTRADOS", dataClean);
 };
 
 window.handleGenerateXLSX = () => {
-    if (APP.state.filteredAlbaranes.length === 0) return;
-    const dataClean = APP.state.filteredAlbaranes.map(a => ({
-        "Nº ALBARAN": a.numero_albaran,
-        "FECHA": a.fecha ? a.fecha.substring(0,10) : "-",
-        "LICENCIA": SearchEngine.getLicenciaNumero(a),
-        "EMPRESA": SearchEngine.getEmpresaNombre(a),
-        "EXPEDIENTE": a.referencia,
-        "TOTAL": parseFloat(a.importe_total || 0)
+    const datos = getActiveData();
+    if (datos.length === 0) return;
+
+    const fmtHora  = (v) => { if (!v) return '-'; const d = new Date(v); return isNaN(d) ? '-' : d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); };
+    const fmtFecha = (v) => v ? String(v).substring(0, 10) : '-';
+    const fmtBool  = (v) => v ? 'Sí' : 'No';
+    const fmtNum   = (v) => parseFloat(v || 0);
+
+    const dataClean = datos.map(a => ({
+        // --- IDENTIFICACIÓN ---
+        "Nº ALBARÁN":           a.numero_albaran || '-',
+        "FECHA":                fmtFecha(a.fecha),
+        "LICENCIA":             SearchEngine.getLicenciaNumero(a),
+        "EMPRESA":              SearchEngine.getEmpresaNombre(a),
+        "REFERENCIA":           a.referencia || '-',
+        "ASALARIADO":           a.asalariado || '-',
+        // --- PASAJERO Y VEHÍCULO ---
+        "CLIENTE":              a.cliente || '-',
+        "DNI PASAJERO":         a.dni_pasajero || '-',
+        "TLF PASAJERO":         a.tlf_pasajero || '-',
+        "MATRÍCULA":            a.matricula || '-',
+        // --- RUTA ---
+        "ORIGEN":               a.origen || '-',
+        "PARADA":               a.parada || '-',
+        "DESTINO":              a.destino || '-',
+        // --- TIEMPOS ---
+        "HORA":                 fmtHora(a.hora),
+        "HORA INI":             fmtHora(a.hora_ini),
+        "HORA FIN":             fmtHora(a.hora_fin),
+        "HORA TOTAL (h)":       fmtNum(a.hora_total),
+        "ESPERA INI":           fmtHora(a.espera_ini),
+        "ESPERA FIN":           fmtHora(a.espera_fin),
+        // --- KILÓMETROS ---
+        "KM TOTALES":           fmtNum(a.km_totales),
+        "KM NACIONALES":        fmtNum(a.km_nacionales),
+        "KM INTERNACIONALES":   fmtNum(a.km_internacionales),
+        // --- IMPORTES ---
+        "IMPORTE ESPERA":       fmtNum(a.importe_espera),
+        "IMPORTE SUPLIDOS":     fmtNum(a.importe_suplidos),
+        "IMPORTE TOTAL":        fmtNum(a.importe_total),
+        // --- ESTADOS SERVICIO ---
+        "URBANO":               fmtBool(a.urbano),
+        "DIURNO":               fmtBool(a.diurno),
+        "NOCT/FEST":            fmtBool(a.noct_fest),
+        "FESTIVO":              fmtBool(a.festivo),
+        "REMOLQUE":             fmtBool(a.remolque),
+        "Nº PLAZAS":            a.num_plazas || 4,
+        // --- GESTIÓN ADMIN ---
+        "Nº FACTURA":           a.num_factura || '-',
+        "ENVIADO":              fmtBool(a.enviado),
+        "COBRADO":              fmtBool(a.cobrado),
+        "FECHA COBRO":          fmtFecha(a.fecha_cobro),
+        "PAGADO":               fmtBool(a.pagado),
+        "FECHA PAGO":           fmtFecha(a.fecha_pago),
+        "FINALIZADO":           fmtBool(a.finalizado),
+        "AUTORIZADO POR":       a.autorizado_por || '-',
+        // --- OBSERVACIONES ---
+        "OBSERVACIONES":        a.observaciones || '-',
+        "OBS. ADMIN":           a.observaciones_admin || '-',
+        // --- AUDITORÍA ---
+        "CREADO":               fmtFecha(a.created_at),
+        "ACTUALIZADO":          fmtFecha(a.updated_at),
     }));
-    Oficina.generarExcel("LISTADO_ALBARANES", dataClean);
+
+    Oficina.generarExcel("LISTADO_ALBARANES_COMPLETO", dataClean);
 };
 
 window.handleDeleteAction = async (id) => {
     if (!confirm("¿Eliminar?")) return;
     try {
-        const res = await fetch(`/api/v1/albaranes/${id}`, { 
-            method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } 
+        const res = await fetch(`/api/v1/albaranes/${id}`, {
+            method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         if (res.ok) { UI_ADMIN.alertMessage("Eliminado", "success"); loadData(); }
     } catch (e) { console.error(e); }
@@ -305,20 +343,20 @@ function setupEventListeners() {
         render();
     };
     APP.elements.prevBtn.onclick = () => { if(APP.state.currentPage > 1) { APP.state.currentPage--; render(); } };
-    APP.elements.nextBtn.onclick = () => { 
-        if(APP.state.currentPage < Math.ceil(APP.state.filteredAlbaranes.length/APP.state.pageSize)) { 
-            APP.state.currentPage++; render(); 
-        } 
+    APP.elements.nextBtn.onclick = () => {
+        if(APP.state.currentPage < Math.ceil(APP.state.filteredAlbaranes.length/APP.state.pageSize)) {
+            APP.state.currentPage++; render();
+        }
     };
 }
 
 window.handleSearch = handleSearch;
 window.handleSort = handleSort;
-window.handleClearAllFilters = () => { 
+window.handleClearAllFilters = () => {
     sessionStorage.removeItem(APP.cacheKey);
-    APP.elements.searchForm.reset(); 
-    document.getElementById('palabra').value = ''; 
-    handleSearch(); 
+    APP.elements.searchForm.reset();
+    document.getElementById('palabra').value = '';
+    handleSearch();
 };
 
 window.UI = {
@@ -328,17 +366,14 @@ window.UI = {
         const searchForm = document.getElementById('searchForm');
         if (palabraSection) palabraSection.classList.toggle('hidden', mode === 'campos');
         if (searchForm) searchForm.classList.toggle('hidden', mode === 'palabra');
-        
-        const btnCampos = document.getElementById('btn-mode-campos');
+
+        const btnCampos  = document.getElementById('btn-mode-campos');
         const btnPalabra = document.getElementById('btn-mode-palabra');
         if (btnCampos && btnPalabra) {
-            if (mode === 'campos') {
-                btnCampos.className = "px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all";
-                btnPalabra.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border transition-all";
-            } else {
-                btnPalabra.className = "px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all";
-                btnCampos.className = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border transition-all";
-            }
+            const ON  = "px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all";
+            const OFF = "px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] uppercase border transition-all";
+            btnCampos.className  = mode === 'campos'  ? ON : OFF;
+            btnPalabra.className = mode === 'palabra' ? ON : OFF;
         }
     }
 };

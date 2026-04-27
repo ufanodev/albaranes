@@ -75,14 +75,89 @@ window.Oficina = {
     },
 
     async generarExcel(nombreReporte, datos) {
-        console.log("🚀 [XLSX] Generando Excel...");
+        console.log("🚀 [XLSX] Generando Excel completo...");
         try {
-            const ws = XLSX.utils.json_to_sheet(datos);
             const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(datos);
+
+            // --- Anchos de columna automáticos según contenido ---
+            const headers = Object.keys(datos[0] || {});
+            ws['!cols'] = headers.map(h => {
+                // Ancho máximo entre cabecera y el valor más largo de la columna
+                const maxLen = datos.reduce((acc, row) => {
+                    const val = String(row[h] || '');
+                    return Math.max(acc, val.length);
+                }, h.length);
+                return { wch: Math.min(maxLen + 2, 40) }; // máx 40 chars
+            });
+
+            // --- Estilos de cabecera (naranja corporativo) ---
+            const headerRange = XLSX.utils.decode_range(ws['!ref']);
+            for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
+                const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
+                if (!ws[cellAddr]) continue;
+                ws[cellAddr].s = {
+                    font:      { bold: true, color: { rgb: "FFFFFF" } },
+                    fill:      { fgColor: { rgb: "FF8C00" } },
+                    alignment: { horizontal: "center" },
+                    border: {
+                        bottom: { style: "medium", color: { rgb: "000000" } }
+                    }
+                };
+            }
+
+            // --- Estilos de filas alternadas ---
+            for (let R = 1; R <= headerRange.e.r; R++) {
+                const isAlt = R % 2 === 0;
+                for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
+                    const cellAddr = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
+                    ws[cellAddr].s = {
+                        fill: isAlt ? { fgColor: { rgb: "F3F4F6" } } : {},
+                        alignment: { vertical: "center" }
+                    };
+                }
+            }
+
+            // --- Fila de TOTALES para columnas numéricas ---
+            const colasNumericas = ["HORA TOTAL (h)", "KM TOTALES", "KM NACIONALES",
+                "KM INTERNACIONALES", "IMPORTE ESPERA", "IMPORTE SUPLIDOS", "IMPORTE TOTAL"];
+            const totalRow = {};
+            headers.forEach(h => {
+                if (colasNumericas.includes(h)) {
+                    totalRow[h] = datos.reduce((sum, row) => sum + (parseFloat(row[h]) || 0), 0);
+                } else if (h === headers[0]) {
+                    totalRow[h] = `TOTAL (${datos.length} registros)`;
+                } else {
+                    totalRow[h] = '';
+                }
+            });
+            XLSX.utils.sheet_add_json(ws, [totalRow], { skipHeader: true, origin: -1 });
+
+            // Estilo fila total (fondo pastel naranja + negrita)
+            const totalRowIdx = headerRange.e.r + 1;
+            for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
+                const cellAddr = XLSX.utils.encode_cell({ r: totalRowIdx, c: C });
+                if (!ws[cellAddr]) ws[cellAddr] = { v: '', t: 's' };
+                ws[cellAddr].s = {
+                    font: { bold: true },
+                    fill: { fgColor: { rgb: "FFDAB9" } },
+                    border: { top: { style: "medium", color: { rgb: "000000" } } }
+                };
+            }
+
+            // --- Congelar fila de cabecera ---
+            ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
             XLSX.utils.book_append_sheet(wb, ws, "Albaranes");
-            XLSX.writeFile(wb, `${nombreReporte}.xlsx`);
+
+            // Nombre con fecha
+            const ts = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            XLSX.writeFile(wb, `${nombreReporte}_${ts}.xlsx`, { cellStyles: true });
+            console.log("✅ [XLSX] Excel generado con éxito.");
         } catch (e) {
             console.error("❌ [XLSX] Error:", e);
+            alert("Error al generar el Excel.");
         }
     },
 
