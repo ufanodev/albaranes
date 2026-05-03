@@ -144,7 +144,6 @@ function renderTable() {
                 <td class="px-4 py-4 text-center">
                     <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onclick="window.location.href='/titulares/view/${a.id}'" class="p-2 text-secondary-blue hover:bg-blue-100 rounded-xl transition-all"><i data-lucide="eye" class="w-4 h-4"></i></button>
-                        <button onclick="window.location.href='/titulares/update/${a.id}'" class="p-2 text-orange-600 hover:bg-orange-100 rounded-xl transition-all"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                     </div>
                 </td>
             </tr>`;
