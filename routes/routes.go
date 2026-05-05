@@ -144,7 +144,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		api.POST("/empresas/export/xlsx", func(c *gin.Context) { controllers.ExportEmpresasXLSX(c, db) })
 
 		// ✅ API LICENCIAS (TITULARES) TOTALMENTE LIBERADA
-		// Esto soluciona los errores 401 Unauthorized y 404 Not Found
 		api.GET("/licencias", func(c *gin.Context) { controllers.GetLicencias(c, db) })
 		api.GET("/licencias/search", func(c *gin.Context) { controllers.SearchLicencias(c, db) })
 		api.GET("/licencias/:id", func(c *gin.Context) { controllers.GetLicencia(c, db) })
@@ -160,6 +159,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		api.POST("/albaranes/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
 		api.POST("/albaranes/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
 
+		// ✅ API BACKUP LIBERADA (uso interno admin)
+		api.GET("/backup/list", controllers.ObtenerBackupsList)
+		api.GET("/backup/licencias", controllers.ObtenerLicenciasBackup)
+		api.POST("/backup/:tipo/:accion", controllers.RealizarBackup)
+
 		protectedAPI := api.Group("/")
 		protectedAPI.Use(utils.JWTAuthMiddleware())
 		{
@@ -171,13 +175,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			protectedAPI.GET("/users/search", func(c *gin.Context) { controllers.SearchUsers(c, db) })
 			protectedAPI.PUT("/users/:id", func(c *gin.Context) { controllers.UpdateUser(c, db) })
 			protectedAPI.DELETE("/users/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
-
-			adminOnly := protectedAPI.Group("/")
-			adminOnly.Use(controllers.RequireRole("admin"))
-			{
-				adminOnly.GET("/backup/list", controllers.ObtenerBackupsList)
-				adminOnly.POST("/backup/:tipo/:accion", controllers.RealizarBackup)
-			}
 
 			albs := protectedAPI.Group("/albaranes")
 			{

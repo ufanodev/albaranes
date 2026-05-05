@@ -9,27 +9,35 @@ document.addEventListener('DOMContentLoaded', function() {
         window.lucide.createIcons();
     }
     // Cargar la lista de archivos existentes al entrar
-    fetchBackupList(); 
+    fetchBackupList();
+    // Cargar combo de licencias para filtro de albaranes
+    fetchLicenciasCombo();
 });
 
 const statusMessage = document.getElementById('statusMessage');
 const backupListContainer = document.getElementById('backup-list');
-const BASE_API_URL = '/api/v1/backup'; 
+const BASE_API_URL = '/api/v1/backup';
+
+// Header de autenticación reutilizable (igual que el resto de módulos)
+function authHeaders(withContentType = false) {
+    const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+    if (withContentType) headers['Content-Type'] = 'application/json';
+    return headers;
+}
 
 /**
  * Muestra alertas visuales en la parte superior del panel.
  */
 function displayMessage(text, type) {
     statusMessage.textContent = text;
-    statusMessage.className = 'status-message block'; // Reset clases
+    statusMessage.className = 'status-message block';
 
     if (type === 'success') statusMessage.classList.add('status-success');
     else if (type === 'error') statusMessage.classList.add('status-error');
     else statusMessage.classList.add('status-info');
-    
+
     statusMessage.classList.remove('hidden');
 
-    // Desaparece tras 8 segundos
     setTimeout(() => {
         statusMessage.classList.add('hidden');
     }, 8000);
@@ -52,33 +60,79 @@ function setButtonLoading(button, isLoading) {
 }
 
 /**
+ * Carga las licencias desde /api/v1/licencias (ruta liberada, igual que admin_albaran_nuevo.js)
+ * y rellena el combo del filtro de albaranes.
+ */
+async function fetchLicenciasCombo() {
+    const combo = document.getElementById('comboLicencias');
+    if (!combo) return;
+    try {
+        const res = await fetch('/api/v1/licencias', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        const result = await res.json();
+        const list = result.data || result;
+        if (!Array.isArray(list)) return;
+
+        list
+            .filter(l => l.estado !== 0) // solo activas
+            .sort((a, b) => String(a.licencia).localeCompare(String(b.licencia), undefined, { numeric: true }))
+            .forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.id;
+                opt.textContent = `Licencia ${l.licencia}`;
+                combo.appendChild(opt);
+            });
+    } catch (err) {
+        console.error('[fetchLicenciasCombo] Error:', err);
+    }
+}
+
+/**
  * Ejecuta la acción de Backup (crear .sql o snapshot en DB).
  */
 async function handleBackup(tipo, accion, button) {
     console.log(`[ACTION] Tipo: ${tipo} | Acción: ${accion}`);
 
+    // Determinar si hay filtro de licencia activo (solo para albaranes/crear)
+    let licenciaRef = '';
+    let licenciaLabel = '';
+    if (tipo === 'albaranes' && accion === 'crear') {
+        const combo = document.getElementById('comboLicencias');
+        if (combo && combo.value) {
+            licenciaRef = combo.value;
+            licenciaLabel = combo.options[combo.selectedIndex].text;
+        }
+    }
+
     const confirmMsgs = {
-        'crear': `¿Confirmar la creación del archivo de BACKUP (.sql) para ${tipo.toUpperCase()}?`,
+        'crear': licenciaRef
+            ? `¿Crear backup de ALBARANES filtrado por "${licenciaLabel}"?`
+            : `¿Confirmar la creación del archivo de BACKUP (.sql) para ${tipo.toUpperCase()}?`,
         'copia': `¿Desea crear un SNAPSHOT (tabla espejo) de ${tipo.toUpperCase()} en la base de datos?`,
         'cargar': `⚠️ ¡ATENCIÓN! ¿Desea RESTAURAR la tabla ${tipo.toUpperCase()}? Los datos actuales se perderán.`
     };
 
     if (!confirm(confirmMsgs[accion] || "¿Continuar?")) return;
-    
+
     setButtonLoading(button, true);
 
     try {
-        const response = await fetch(`${BASE_API_URL}/${tipo}/${accion}`, {
+        let url = `${BASE_API_URL}/${tipo}/${accion}`;
+        if (licenciaRef) {
+            url += `?licencia_ref=${encodeURIComponent(licenciaRef)}`;
+        }
+
+        const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-            // Las cookies de sesión se envían automáticamente
+            headers: authHeaders(true)
         });
 
         const data = await response.json();
 
         if (response.ok) {
             displayMessage(data.message, 'success');
-            if (accion === 'crear') fetchBackupList(); // Recargar lista de archivos
+            if (accion === 'crear') fetchBackupList();
         } else {
             displayMessage(`Error: ${data.error || 'No se pudo completar la acción'}`, 'error');
         }
@@ -95,16 +149,17 @@ async function handleBackup(tipo, accion, button) {
  */
 async function fetchBackupList() {
     backupListContainer.innerHTML = '<div class="text-center p-4 text-gray-500 italic text-xs">Actualizando lista...</div>';
-    
+
     try {
-        const response = await fetch(`${BASE_API_URL}/list`);
+        const response = await fetch(`${BASE_API_URL}/list`, {
+            headers: authHeaders()
+        });
         const data = await response.json();
-        
+
         backupListContainer.innerHTML = '';
 
         if (response.ok && Array.isArray(data) && data.length > 0) {
             data.forEach(item => {
-                // Si el backend envía un mensaje de "No encontrado" en el primer elemento
                 if (item.name && item.name.includes("No se encontraron")) {
                     backupListContainer.innerHTML = `<div class="text-center p-4 text-gray-400 text-xs italic">${item.name}</div>`;
                     return;
@@ -112,7 +167,7 @@ async function fetchBackupList() {
 
                 const icon = item.type === 'full' ? 'database' : 'file-text';
                 const color = item.type === 'full' ? 'text-orange-600' : 'text-green-600';
-                
+
                 const itemHtml = `
                     <div class="flex items-center p-3 bg-white rounded-lg shadow-sm hover:bg-gray-50 border border-gray-100 transition-all duration-200 group">
                         <div class="mr-3 p-2 bg-gray-50 rounded-lg group-hover:bg-white">

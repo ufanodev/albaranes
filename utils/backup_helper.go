@@ -8,7 +8,9 @@ import (
 	"time"
 )
 
-func GenerarSQLBackupNativo(host, port, user, pass, dbName, tabla string) (string, error) {
+// GenerarSQLBackupNativo genera un archivo .sql de la tabla indicada.
+// Si licenciaRef != "" y tabla == "albaranes", filtra por licencia_ref.
+func GenerarSQLBackupNativo(host, port, user, pass, dbName, tabla, licenciaRef string) (string, error) {
 	const backupDir = "./backups"
 	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
 		os.MkdirAll(backupDir, 0755)
@@ -23,7 +25,12 @@ func GenerarSQLBackupNativo(host, port, user, pass, dbName, tabla string) (strin
 	defer db.Close()
 
 	timestamp := time.Now().Format("20060102_150405")
+
+	// Nombre de archivo: incluye sufijo de licencia si hay filtro
 	fileName := fmt.Sprintf("%s_backup_%s.sql", tabla, timestamp)
+	if licenciaRef != "" && tabla == "albaranes" {
+		fileName = fmt.Sprintf("%s_lic%s_backup_%s.sql", tabla, licenciaRef, timestamp)
+	}
 	filePath := backupDir + "/" + fileName
 
 	f, err := os.Create(filePath)
@@ -35,6 +42,9 @@ func GenerarSQLBackupNativo(host, port, user, pass, dbName, tabla string) (strin
 	// --- 1. CABECERA ---
 	f.WriteString("-- phpMyAdmin SQL Dump Estilo Go\n")
 	f.WriteString(fmt.Sprintf("-- Tiempo de generación: %s\n", time.Now().Format("02-01-2006 a las 15:04:05")))
+	if licenciaRef != "" && tabla == "albaranes" {
+		f.WriteString(fmt.Sprintf("-- Filtro aplicado: licencia_ref = %s\n", licenciaRef))
+	}
 	f.WriteString("SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\nSTART TRANSACTION;\nSET time_zone = \"+00:00\";\n\n")
 
 	// --- 2. ESTRUCTURA (CREATE TABLE) ---
@@ -48,7 +58,18 @@ func GenerarSQLBackupNativo(host, port, user, pass, dbName, tabla string) (strin
 	f.WriteString(fmt.Sprintf("DROP TABLE IF EXISTS `%s`;\n%s;\n\n", tabla, createQuery))
 
 	// --- 3. VOLCADO DE DATOS (INSERT INTO) ---
-	rows, err := db.Query(fmt.Sprintf("SELECT * FROM `%s`", tabla))
+	// Construir query: con o sin filtro de licencia
+	var dataQuery string
+	var rows *sql.Rows
+
+	if licenciaRef != "" && tabla == "albaranes" {
+		dataQuery = fmt.Sprintf("SELECT * FROM `%s` WHERE `licencia_ref` = ?", tabla)
+		rows, err = db.Query(dataQuery, licenciaRef)
+	} else {
+		dataQuery = fmt.Sprintf("SELECT * FROM `%s`", tabla)
+		rows, err = db.Query(dataQuery)
+	}
+
 	if err != nil {
 		return "", err
 	}

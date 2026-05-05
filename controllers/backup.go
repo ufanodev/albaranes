@@ -59,6 +59,9 @@ func RealizarBackup(c *gin.Context) {
 
 	switch accion {
 	case "crear":
+		// Capturar filtro de licencia (solo aplica a albaranes, ignorado en el resto)
+		licenciaRef := c.Query("licencia_ref")
+
 		// 🚀 BACKUP SELECTIVO (OPCIÓN C)
 		fileName, err := utils.GenerarSQLBackupNativo(
 			config.Host,
@@ -67,6 +70,7 @@ func RealizarBackup(c *gin.Context) {
 			config.Password,
 			config.DBName,
 			tipo,
+			licenciaRef, // "" cuando no hay filtro → comportamiento original
 		)
 
 		if err != nil {
@@ -74,8 +78,14 @@ func RealizarBackup(c *gin.Context) {
 			return
 		}
 
+		// Mensaje adaptado según si hay filtro o no
+		msg := fmt.Sprintf("✅ Backup de %s generado con éxito (Solo esta tabla)", strings.ToUpper(tipo))
+		if licenciaRef != "" {
+			msg = fmt.Sprintf("✅ Backup de %s generado con éxito (Licencia ref: %s)", strings.ToUpper(tipo), licenciaRef)
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"message": fmt.Sprintf("✅ Backup de %s generado con éxito (Solo esta tabla)", strings.ToUpper(tipo)),
+			"message": msg,
 			"file":    fileName,
 		})
 
@@ -153,4 +163,56 @@ func ObtenerBackupsList(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, backupList)
+}
+
+// ObtenerLicenciasBackup devuelve los valores únicos de licencia_ref y licencia
+// de la tabla albaranes para poblar el combo del frontend.
+// GET /api/v1/backup/licencias
+func ObtenerLicenciasBackup(c *gin.Context) {
+	config := getDBConfig()
+
+	if config.Host == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Configuración de DB no detectada en .env"})
+		return
+	}
+
+	db, err := initDBConnection(config)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error de conexión: " + err.Error()})
+		return
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`
+		SELECT DISTINCT licencia_ref, licencia
+		FROM albaranes
+		WHERE licencia_ref IS NOT NULL
+		ORDER BY licencia ASC
+	`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error en consulta: " + err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type LicenciaItem struct {
+		Ref      int64  `json:"ref"`
+		Licencia string `json:"licencia"`
+	}
+
+	var lista []LicenciaItem
+	for rows.Next() {
+		var l LicenciaItem
+		if err := rows.Scan(&l.Ref, &l.Licencia); err != nil {
+			continue
+		}
+		lista = append(lista, l)
+	}
+
+	// Devolver array vacío en lugar de null si no hay resultados
+	if lista == nil {
+		lista = []LicenciaItem{}
+	}
+
+	c.JSON(http.StatusOK, lista)
 }

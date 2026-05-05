@@ -35,10 +35,8 @@
             background-color: #f4f7f9;
             color: #1f2937;
         }
-        /* Clases base de tu ejemplo de albaranes */
         .card { @apply bg-white p-6 rounded-xl shadow-2xl border border-primary-pastel/50; }
         
-        /* Estilos del mensaje de estado (Adaptados) */
         .status-message { 
             @apply mt-6 p-4 rounded-xl font-bold text-center border-2 shadow-inner transition-opacity duration-300; 
         }
@@ -46,14 +44,12 @@
         .status-info { @apply bg-blue-100 text-blue-800 border-blue-300; }
         .status-error { @apply bg-red-100 text-red-800 border-red-300; }
 
-        /* Estilo general de los botones de la página principal (Adaptados de tu ejemplo) */
         .admin-button {
             @apply flex flex-col items-center justify-center p-4 rounded-xl shadow-lg 
                    transition duration-300 transform text-center font-bold text-sm h-full
                    hover:scale-[1.03] hover:shadow-xl focus:outline-none focus:ring-4;
         }
 
-        /* Estilos para el botón de Volver (Azul Secundario) */
         .btn-volver {
              @apply bg-secondary-blue text-white hover:bg-blue-700 focus:ring-blue-300;
         }
@@ -70,7 +66,7 @@
                 </h1>
 
                 <div class="flex flex-wrap gap-3">
-                     <button type="button" onclick="handleAction('volver')"
+                    <button type="button" onclick="handleAction('volver')"
                         class="group relative inline-flex items-center justify-center px-4 py-2.5 font-semibold text-white transition-all duration-300 ease-in-out bg-secondary-blue rounded-lg shadow-md hover:bg-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-secondary-blue focus:ring-offset-2">
                         <span class="mr-2 transition-transform group-hover:scale-105">🔙</span> Volver
                     </button>
@@ -80,7 +76,7 @@
             <div id="statusMessage" class="hidden status-message status-success"></div>
             
             <div class="mb-8">
-                 <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center border-b pb-2">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center border-b pb-2">
                     <i data-lucide="table" class="h-5 w-5 mr-2 text-primary-link"></i> Tablas Disponibles para Backup
                 </h2>
                 <div class="flex flex-wrap gap-4 text-sm font-medium text-gray-600">
@@ -94,11 +90,30 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
+                <!-- SECCIÓN 1: Backup .sql -->
                 <div class="p-6 border border-green-300 rounded-xl bg-green-50 shadow-lg">
-                    <h2 class="text-xl font-bold text-green-800 mb-6 flex items-center">
+                    <h2 class="text-xl font-bold text-green-800 mb-4 flex items-center">
                         <i data-lucide="archive" class="h-6 w-6 mr-2"></i> 1. Copia de Seguridad (.sql)
                     </h2>
-                    <p class="text-sm text-gray-700 mb-4">Crea un archivo de backup de la estructura y los datos en la carpeta **./backups**.</p>
+                    <p class="text-sm text-gray-700 mb-4">Crea un archivo de backup de la estructura y los datos en la carpeta <strong>./backups</strong>.</p>
+
+                    <!-- COMBO LICENCIAS: solo actúa sobre el botón Albaranes -->
+                    <div class="mb-5 p-3 bg-white rounded-lg border border-green-200 shadow-sm">
+                        <label for="comboLicencias" class="flex items-center gap-1 text-xs font-bold text-green-800 mb-1.5 uppercase tracking-wide">
+                            <i data-lucide="filter" class="h-3 w-3"></i>
+                            Filtrar Albaranes por Licencia
+                            <span class="font-normal text-gray-400 normal-case">(opcional)</span>
+                        </label>
+                        <select id="comboLicencias"
+                                class="w-full text-sm border border-green-300 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-400">
+                            <option value="">— Todas las licencias (backup completo) —</option>
+                            <!-- Opciones cargadas dinámicamente por fetchLicenciasCombo() -->
+                        </select>
+                        <p class="text-[10px] text-gray-400 mt-1.5">
+                            Si seleccionas una licencia, el backup de <strong>Albaranes</strong> solo incluirá sus registros. El resto de tablas ignoran este filtro.
+                        </p>
+                    </div>
+
                     <div class="grid grid-cols-3 gap-4">
                         <button type="button" onclick="handleBackup('albaranes', 'crear', this)" class="admin-button bg-green-600 text-white hover:bg-green-700 focus:ring-green-300">
                             <i data-lucide="file-text" class="h-5 w-5 mb-1"></i> Albaranes
@@ -121,11 +136,12 @@
                     </div>
                 </div>
 
+                <!-- SECCIÓN 2: Snapshot -->
                 <div class="p-6 border border-blue-300 rounded-xl bg-blue-50 shadow-lg">
                     <h2 class="text-xl font-bold text-blue-800 mb-6 flex items-center">
                         <i data-lucide="copy-plus" class="h-6 w-6 mr-2"></i> 2. Copia de Tabla (Snapshot)
                     </h2>
-                     <p class="text-sm text-gray-700 mb-4">Crea una tabla idéntica en la DB para rollback rápido (ej: `tabla_copia_timestamp`).</p>
+                    <p class="text-sm text-gray-700 mb-4">Crea una tabla idéntica en la DB para rollback rápido (ej: <code>tabla_copia_timestamp</code>).</p>
                     <div class="grid grid-cols-3 gap-4">
                         <button type="button" onclick="handleBackup('albaranes', 'copia', this)" class="admin-button bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-300">
                             <i data-lucide="file-copy" class="h-5 w-5 mb-1"></i> Albaranes
@@ -148,11 +164,12 @@
                     </div>
                 </div>
                 
+                <!-- SECCIÓN 3: Lista y Restaurar -->
                 <div class="p-6 border border-orange-300 rounded-xl bg-orange-50 shadow-lg flex flex-col">
                     <h2 class="text-xl font-bold text-orange-800 mb-6 flex items-center">
                         <i data-lucide="list-checks" class="h-6 w-6 mr-2"></i> 3. Backups Recientes / Restaurar
                     </h2>
-                    <p class="text-sm text-gray-700 mb-4 flex-shrink-0">Archivos .sql disponibles en el servidor (`./backups`).</p>
+                    <p class="text-sm text-gray-700 mb-4 flex-shrink-0">Archivos .sql disponibles en el servidor (<code>./backups</code>).</p>
                     <div id="backup-list" class="space-y-3 max-h-96 overflow-y-auto pr-2 flex-grow">
                         <div class="text-center p-4 text-gray-500 italic">Cargando lista de archivos...</div>
                     </div>
@@ -162,7 +179,6 @@
                         <i data-lucide="rotate-ccw" class="h-5 w-5 mr-2"></i> 
                         ⚠️ Iniciar Restauración (Simulación)
                     </button>
-
                 </div>
 
             </div>
