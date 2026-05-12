@@ -1,7 +1,7 @@
 /**
  * ARCHIVO: static/js/admin_albaran_update.js
  * DESCRIPCIÓN: Edición total de albaranes para Administrador.
- * ACTUALIZADO: 15/04/2026 - FIX: Sincronización horaria dinámica y carga de diccionarios.
+ * ACTUALIZADO: 12/05/2026 - FIX: Campo 'enviado' siempre = true en cada actualización admin.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -154,6 +154,9 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
         payload.cliente = payload.nombre_pasajero;
         delete payload.nombre_pasajero;
     }
+
+    // 🔒 El admin siempre marca el albarán como enviado al guardar
+    payload.enviado = true;
 
     delete payload.id;
     delete payload.licencia_ref; 
