@@ -1,7 +1,9 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 15/04/2026 - FIX DEFINITIVO: Compensación dinámica Madrid-UTC para Cloud.
+ * ACTUALIZADO: 13/05/2026
+ *   - FIX: UpdateAlbaranAdmin detecta payloads de cobro/pago y hace UPDATE quirúrgico
+ *     en lugar de UPDATE total (que machacaba todos los campos con NULL).
  */
 
 package controllers
@@ -34,9 +36,6 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	return &t, nil
 }
 
-// NUEVO HELPER DINÁMICO:
-// Toma la hora local (España) y la convierte a UTC antes de guardarla.
-// Esto soluciona el desfase de +2h en Verano y +1h en Invierno automáticamente.
 func formatDateTimeWithOffset(dateBase, timeStr string) interface{} {
 	if strings.TrimSpace(timeStr) == "" {
 		return nil
@@ -47,23 +46,18 @@ func formatDateTimeWithOffset(dateBase, timeStr string) interface{} {
 
 	full := fmt.Sprintf("%s %s", dateBase, timeStr)
 
-	// 1. Intentamos cargar la zona horaria de Madrid
 	loc, err := time.LoadLocation("Europe/Madrid")
 	if err != nil {
-		// Fallback manual si el servidor no tiene tzdata instalado
 		t, _ := time.Parse("2006-01-02 15:04:05", full)
 		return t.Add(-2 * time.Hour).Format("2006-01-02 15:04:05")
 	}
 
-	// 2. Interpretamos la hora recibida como hora de Madrid
 	tMadrid, err := time.ParseInLocation("2006-01-02 15:04:05", full, loc)
 	if err != nil {
 		return nil
 	}
 
-	// 3. Convertimos a UTC (esto resta automáticamente el desfase vigente)
 	tUTC := tMadrid.UTC()
-
 	return tUTC.Format("2006-01-02 15:04:05")
 }
 
@@ -88,7 +82,6 @@ func getUintFromContext(c *gin.Context, key string) uint {
 	}
 }
 
-// cleanAlbaranMap mapea el JSON a campos del Struct para lógica interna
 func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[string]interface{} {
 	clean := make(map[string]interface{})
 	fechaBase := time.Now().Format(dateFormat)
@@ -113,7 +106,6 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			continue
 		}
 
-		// TRATAMIENTO DE TIEMPOS CON COMPENSACIÓN DINÁMICA:
 		if timeFields[key] {
 			str, _ := value.(string)
 			structKey := ""
@@ -125,8 +117,6 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			if key == "hora" {
 				structKey = "Hora"
 			}
-
-			// Aplicamos la conversión Madrid -> UTC
 			clean[structKey] = formatDateTimeWithOffset(fechaBase, str)
 			continue
 		}
@@ -218,6 +208,44 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		}
 	}
 	return clean
+}
+
+// ---------------------------------------------------------------------
+// isPayloadQuirurgico detecta si el body es un payload de cobro/pago
+// (solo contiene campos de estado + fecha + licencia_ref, sin datos del albarán)
+// ---------------------------------------------------------------------
+func isPayloadQuirurgico(input map[string]interface{}) bool {
+	// Campos permitidos en un payload quirúrgico de cobro/pago
+	camposQuirurgicos := map[string]bool{
+		"cobrado":      true,
+		"pagado":       true,
+		"enviado":      true,
+		"fecha_cobro":  true,
+		"fecha_pago":   true,
+		"licencia_ref": true,
+	}
+
+	// Campos que SOLO aparecen en un UPDATE completo de albarán
+	camposAlbaran := []string{
+		"fecha", "hora_ini", "hora_fin", "origen", "destino",
+		"cliente", "empresa_ref", "importe_total", "km_totales",
+		"numero_albaran", "matricula", "referencia",
+	}
+
+	// Si contiene algún campo del albarán → es un UPDATE completo
+	for _, campo := range camposAlbaran {
+		if _, ok := input[campo]; ok {
+			return false
+		}
+	}
+
+	// Si todos sus campos son quirúrgicos → UPDATE quirúrgico
+	for key := range input {
+		if !camposQuirurgicos[key] {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------------------------------------------------------------------
@@ -318,17 +346,72 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	}
 
 	var input map[string]interface{}
-	c.ShouldBindJSON(&input)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
+		return
+	}
 
-	if len(input) <= 3 && (input["enviado"] != nil || input["pagado"] != nil || input["cobrado"] != nil) {
-		db.Model(&albaran).Updates(input)
+	// ✅ FIX: UPDATE QUIRÚRGICO para payloads de cobro/pago
+	if isPayloadQuirurgico(input) {
+
+		// Construimos el UPDATE dinámicamente solo con los campos presentes
+		// GORM .Updates() ignora false/0 (zero values) → usamos db.Exec directo
+		setClauses := []string{}
+		params := []interface{}{}
+
+		if v, ok := input["cobrado"]; ok {
+			setClauses = append(setClauses, "cobrado = ?")
+			params = append(params, v)
+		}
+		if v, ok := input["pagado"]; ok {
+			setClauses = append(setClauses, "pagado = ?")
+			params = append(params, v)
+		}
+		if v, ok := input["enviado"]; ok {
+			setClauses = append(setClauses, "enviado = ?")
+			params = append(params, v)
+		}
+		if v, ok := input["fecha_cobro"].(string); ok && v != "" {
+			soloFecha := v
+			if len(v) > 10 {
+				soloFecha = v[:10]
+			}
+			if t, err := parseDatePtr(soloFecha); err == nil && t != nil {
+				setClauses = append(setClauses, "fecha_cobro = ?")
+				params = append(params, t)
+			}
+		}
+		if v, ok := input["fecha_pago"].(string); ok && v != "" {
+			soloFecha := v
+			if len(v) > 10 {
+				soloFecha = v[:10]
+			}
+			if t, err := parseDatePtr(soloFecha); err == nil && t != nil {
+				setClauses = append(setClauses, "fecha_pago = ?")
+				params = append(params, t)
+			}
+		}
+
+		if len(setClauses) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Sin campos para actualizar"})
+			return
+		}
+
+		setClauses = append(setClauses, "updated_at = NOW()")
+		params = append(params, albaran.ID)
+
+		query := "UPDATE albaranes SET " + strings.Join(setClauses, ", ") + " WHERE id = ?"
+		if err := db.Exec(query, params...).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "✅ Estado actualizado"})
 		return
 	}
 
+	// UPDATE completo para edición de albarán
 	cleanInput := cleanAlbaranMap(input, albaran)
-	err := execUpdateSQL(db, cleanInput, albaran.ID, 0, true)
-	if err != nil {
+	if err := execUpdateSQL(db, cleanInput, albaran.ID, 0, true); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -364,8 +447,7 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	delete(input, "licencia_ref")
 	cleanInput := cleanAlbaranMap(input, albaran)
 
-	err := execUpdateSQL(db, cleanInput, albaran.ID, licID, false)
-	if err != nil {
+	if err := execUpdateSQL(db, cleanInput, albaran.ID, licID, false); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar"})
 		return
 	}
@@ -423,7 +505,8 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		boolOrFalse(cleanInput, "Pagado"),
 		strOrEmpty(cleanInput, "NumFactura"),
 		boolOrFalse(cleanInput, "Finalizado"),
-		timePtrOrNil(cleanInput, "FechaCobro"), id,
+		timePtrOrNil(cleanInput, "FechaCobro"),
+		id,
 	}
 
 	if !isAdmin {

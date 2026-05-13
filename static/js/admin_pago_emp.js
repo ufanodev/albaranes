@@ -253,7 +253,7 @@ window.handleBulkPay = async () => {
                 },
                 body: JSON.stringify({ 
                     cobrado     : true,
-                    fecha_cobro : fechaHoy,   // 'YYYY-MM-DD' — columna DATE en MySQL
+                    fecha_cobro : fechaHoy,
                     licencia_ref: licenciaRef
                 })
             });
