@@ -36,20 +36,16 @@
             body { font-family: 'Inter', sans-serif; @apply bg-slate-50 text-slate-900; }
             .card { @apply bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100; }
             
-            /* INPUTS ESTILO LIMPIO (FOTO) */
             .input-field { @apply w-full px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none transition-all duration-200 text-slate-700 font-bold text-[11px] placeholder-slate-400 shadow-sm; }
             .input-field:focus { @apply border-primary-link ring-4 ring-orange-500/10; }
             
-            /* TABLA PROFESIONAL */
             .compact-table { @apply w-full table-fixed border-separate border-spacing-0; }
             .compact-table th { @apply px-4 py-4 bg-slate-900 text-white text-[9px] font-black uppercase tracking-[0.15em] cursor-pointer hover:bg-slate-800 transition-colors border-r border-slate-800 last:border-0; }
             .compact-table td { @apply px-4 py-3 text-[11px] border-b border-slate-50 font-medium text-slate-600 overflow-hidden text-ellipsis whitespace-nowrap; }
             
-            /* DROPDOWNS NAVEGACIÓN */
             .dropdown-content { @apply hidden absolute bg-white min-w-[220px] shadow-2xl z-[1000] rounded-2xl mt-2 border border-orange-100 overflow-hidden text-slate-700 text-sm font-bold; }
             .dropdown-content a { @apply block px-5 py-3 hover:bg-orange-50 hover:text-primary-link transition-colors border-b border-slate-50 last:border-0; }
             .dropdown.active .dropdown-content { @apply block; }
-
             .nav-link { @apply flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-white/20 transition font-bold text-white text-xs uppercase tracking-wider; }
         }
     </style>
@@ -138,6 +134,7 @@
             </h1>
         </div>
 
+        <!-- FILTROS -->
         <div class="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100">
             <div class="flex flex-wrap gap-3 mb-6 items-center">
                 <button id="btn-mode-campos" onclick="UI_EMP.setSearchModeManual('campos')" class="px-5 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-lg shadow-orange-500/20 flex items-center gap-2">
@@ -149,7 +146,6 @@
                 <button onclick="handleSearch(event)" class="px-6 py-2 rounded-lg bg-primary-link text-white text-[10px] font-black uppercase shadow-lg shadow-orange-500/20 flex items-center gap-2 hover:bg-orange-600 transition active:scale-95">
                     <i data-lucide="search" class="w-3.5 h-3.5"></i> Buscar ahora
                 </button>
-                
                 <button type="button" onclick="handleClearAllFilters()" class="px-6 py-2 rounded-lg bg-slate-50 text-slate-500 text-[10px] font-black uppercase ml-auto hover:bg-slate-100 transition border border-slate-200">Limpiar</button>
             </div>
 
@@ -170,8 +166,8 @@
                     <div>
                         <label class="block text-[9px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Estatus Cobro</label>
                         <select id="cobrado" name="cobrado" class="input-field">
-                            <option value="no" selected>❌ PENDIENTES</option>
-                            <option value="si">✅ COBRADOS</option>
+                            <option value="false" selected>❌ PENDIENTES</option>
+                            <option value="true">✅ COBRADOS</option>
                             <option value="">🎯 TODOS</option>
                         </select>
                     </div>
@@ -194,12 +190,16 @@
             </form>
         </div>
 
-        <div class="flex justify-start">
+        <!-- BOTON MARCAR COBRADOS -->
+        <div class="flex items-center gap-4">
             <button onclick="handleBulkPay()" class="bg-[#059669] text-white px-8 py-4 rounded-[1.5rem] font-black text-sm uppercase shadow-xl hover:bg-[#047857] flex items-center gap-3 transition active:scale-95 group">
                 <i data-lucide="check-circle-2" class="w-6 h-6 group-hover:scale-110 transition"></i> Marcar como Cobrados
             </button>
+            <!-- Contador de seleccionados -->
+            <span id="selectedCount" class="hidden bg-green-50 text-green-700 border border-green-200 text-[11px] font-black px-4 py-2 rounded-full uppercase tracking-widest"></span>
         </div>
 
+        <!-- TABLA -->
         <div class="card">
             <div class="flex justify-between items-center mb-6 px-2">
                 <h2 class="font-black text-slate-800 flex items-center uppercase text-sm tracking-tighter italic">
@@ -224,7 +224,20 @@
                 <table class="compact-table w-full">
                     <thead>
                         <tr>
-                            <th class="text-center w-14"><i data-lucide="check-square" class="w-4 h-4 mx-auto"></i></th>
+                            <!-- ✅ CHECKBOX SELECCIONAR TODOS -->
+                            <th class="text-center w-14 !cursor-default hover:!bg-slate-900" onclick="event.stopPropagation()">
+                                <div class="flex flex-col items-center gap-1">
+                                    <input 
+                                        type="checkbox" 
+                                        id="cb-select-all" 
+                                        title="Seleccionar / Deseleccionar todos"
+                                        class="h-4 w-4 rounded border-slate-500 cursor-pointer accent-orange-500"
+                                        onclick="event.stopPropagation()"
+                                        onchange="handleSelectAll(this, event)"
+                                    >
+                                    <span class="text-[7px] text-slate-400 font-bold uppercase tracking-wider leading-none">Todo</span>
+                                </div>
+                            </th>
                             <th class="w-20" onclick="handleSort('id', 'number')">ID</th>
                             <th class="w-44" onclick="handleSort('numero_albaran', 'string')">Nº Albarán</th>
                             <th class="w-24" onclick="handleSort('licencia_ref', 'string')">Licencia</th>

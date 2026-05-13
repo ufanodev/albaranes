@@ -1,7 +1,8 @@
 /**
  * ARCHIVO: routes/routes.go
  * DESCRIPCIÓN: Configuración integral y definitiva de rutas.
- * ACTUALIZADO: 26/03/2026 - FIX: Liberación total de rutas de Licencias para evitar error 401.
+ * ACTUALIZADO: 13/05/2026 - FIX: PUT /albaranes/id/:id movida a protectedAPI (requiere JWT).
+ *              El controller extrae licencia_ref del token; sin JWT quedaba en 0 → 403.
  */
 
 package routes
@@ -152,10 +153,9 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		api.DELETE("/licencias/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
 		api.PUT("/licencias/status/:id", func(c *gin.Context) { controllers.UpdateStatusLicencia(c, db) })
 
-		// ✅ API ALBARANES LIBERADA (Búsqueda, Detalle y Exportación)
+		// ✅ API ALBARANES — solo lectura y exportación liberadas; escritura requiere JWT
 		api.GET("/albaranes/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
 		api.GET("/albaranes/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
-		api.PUT("/albaranes/id/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 		api.POST("/albaranes/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
 		api.POST("/albaranes/export/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesXLSX(c, db) })
 
@@ -175,6 +175,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			protectedAPI.GET("/users/search", func(c *gin.Context) { controllers.SearchUsers(c, db) })
 			protectedAPI.PUT("/users/:id", func(c *gin.Context) { controllers.UpdateUser(c, db) })
 			protectedAPI.DELETE("/users/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
+
+			// ✅ FIX: PUT albaranes/id/:id aquí — el controller lee licencia_ref del JWT
+			//    Antes estaba en el grupo público → licencia_ref = 0 → 403 siempre
+			protectedAPI.PUT("/albaranes/id/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 
 			albs := protectedAPI.Group("/albaranes")
 			{
