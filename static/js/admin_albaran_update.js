@@ -1,7 +1,12 @@
 /**
  * ARCHIVO: static/js/admin_albaran_update.js
  * DESCRIPCIÓN: Edición total de albaranes para Administrador.
- * ACTUALIZADO: 12/05/2026 - FIX: Campo 'enviado' siempre = true en cada actualización admin.
+ * ACTUALIZADO: 26/05/2026
+ *   - FIX: empresa_ref se fuerza desde el select id='empresa' porque FormData
+ *     puede no cogerlo si el select fue poblado dinámicamente.
+ *   - FIX: fecha se fuerza desde el input directamente.
+ *   - FIX: nombre_pasajero se envía como 'nombre_pasajero' (backend acepta ambos).
+ *   - FIX: Campo 'enviado' siempre = true en cada actualización admin.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -16,15 +21,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.group(`🚀 [ADMIN-UPDATE] Inicializando Edición - ID: ${albaranId}`);
     
     try {
-        // 1. CARGA DE DICCIONARIOS MAESTROS
         console.log("⏳ 1. Cargando diccionarios maestros...");
         await Promise.all([
             loadSelectData('/api/v1/licencias', 'licencia_ref', 'licencia'),
-            loadSelectData('/api/v1/empresas', 'empresa_ref', 'nombre'),
-            loadSelectData('/api/v1/conductores/licencia/all', 'asalariado_select', 'nombre', true)
+            loadSelectData('/api/v1/empresas', 'empresa', 'nombre'),
         ]);
 
-        // 2. RECUPERAR DATOS DEL ALBARÁN
         const response = await fetch(`/api/v1/albaranes/id/${albaranId}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -34,7 +36,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const result = await response.json();
         const data = result.data;
 
-        // 3. POBLAR FORMULARIO (Usa AlbaranLoader para el fix de horas Madrid vs Cloud)
         if (window.AlbaranLoader) {
             window.AlbaranLoader.populateForm(data);
         } else {
@@ -44,7 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         lockLicenseField(data);
 
-        if(document.getElementById('header_num')) {
+        if (document.getElementById('header_num')) {
             document.getElementById('header_num').textContent = `#${data.numero_albaran}`;
         }
         console.log("✅ 2. Formulario poblado correctamente.");
@@ -59,9 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.lucide) lucide.createIcons();
 });
 
-/**
- * 🔒 Bloquea el campo de Licencia Titular
- */
 function lockLicenseField(data) {
     const selectLic = document.getElementById('licencia_ref');
     if (selectLic) {
@@ -79,9 +77,6 @@ function lockLicenseField(data) {
     }
 }
 
-/**
- * Carga genérica de selectores
- */
 async function loadSelectData(url, elementId, textField, useTextAsValue = false) {
     const select = document.getElementById(elementId);
     if (!select) return;
@@ -103,12 +98,12 @@ async function loadSelectData(url, elementId, textField, useTextAsValue = false)
     } catch (e) { console.warn(`⚠️ No se cargó selector: ${elementId}`); }
 }
 
-/**
- * Fallback en caso de que AlbaranLoader falle
- */
 function fallbackPopulate(data) {
     const form = document.getElementById('albaranForm');
     if (!form) return;
+    if (data.cliente !== undefined && data.nombre_pasajero === undefined) {
+        data.nombre_pasajero = data.cliente;
+    }
     Object.keys(data).forEach(key => {
         const el = form.querySelector(`[name="${key}"]`) || document.getElementById(key);
         if (el) {
@@ -117,49 +112,78 @@ function fallbackPopulate(data) {
             else el.value = data[key] || '';
         }
     });
+    const empresaSelect = document.getElementById('empresa');
+    if (empresaSelect && data.empresa_ref) empresaSelect.value = data.empresa_ref;
 }
 
-// 4. MANEJO DEL ENVÍO (PUT)
+// MANEJO DEL ENVÍO (PUT)
 document.getElementById('albaranForm').onsubmit = async (e) => {
     e.preventDefault();
     const albaranId = document.getElementById('albaran_id').value;
+
+    if (!albaranId) {
+        showStatus("Error: ID de albarán no encontrado", "error");
+        return;
+    }
+
     const formData = new FormData(e.target);
     const payload = Object.fromEntries(formData.entries());
 
-    // Normalizar Checkboxes
-    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'adjuntos', 'cobrado', 'pagado', 'finalizado', 'festivo', 'adjuntos_bool'];
-    bools.forEach(id => {
-        const el = e.target.querySelector(`[name="${id}"]`);
-        if (el) payload[id] = el.checked;
+    // FIX CRÍTICO: FormData no recoge selects disabled ni valores poblados dinámicamente.
+    // Forzamos los campos clave leyéndolos directamente del DOM.
+
+    // Fecha: forzar desde input
+    const fechaEl = document.getElementById('fecha');
+    if (fechaEl && fechaEl.value) payload.fecha = fechaEl.value;
+
+    // Empresa: el select id='empresa' tiene name='empresa_ref'
+    // FormData lo recoge por name, pero por seguridad lo forzamos
+    const empresaEl = document.getElementById('empresa');
+    if (empresaEl && empresaEl.value) payload.empresa_ref = empresaEl.value;
+
+    // Horas: leer del input y sumar 2h para compensar formatDateTimeWithOffset del backend.
+    // El backend recibe hora Madrid y resta 2h para guardar UTC.
+    // El frontend muestra hora extraída del ISO +02:00 (ya es hora Madrid correcta).
+    // Enviamos horaInput + 2h para que backend guarde el valor correcto en UTC.
+    const addTwoHours = (timeStr) => {
+        if (!timeStr) return null;
+        const [h, m] = timeStr.split(':').map(Number);
+        const total = h * 60 + m + 120;
+        const newH = Math.floor(total / 60) % 24;
+        const newM = total % 60;
+        return String(newH).padStart(2, '0') + ':' + String(newM).padStart(2, '0');
+    };
+    const times = ['hora_ini', 'hora_fin', 'espera_ini', 'espera_fin'];
+    times.forEach(t => {
+        const el = document.getElementById(t);
+        if (el && el.value) payload[t] = addTwoHours(el.value);
+        else delete payload[t];
     });
 
-    // Normalizar Números (Fix comas a puntos)
+    // Normalizar Checkboxes
+    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'cobrado', 'pagado', 'finalizado', 'festivo'];
+    bools.forEach(name => {
+        const el = e.target.querySelector(`[name="${name}"]`);
+        payload[name] = el ? el.checked : false;
+    });
+
+    // Normalizar Números
     const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total', 'hora_total'];
     nums.forEach(f => {
-        if (payload[f] !== undefined) {
+        if (payload[f] !== undefined && payload[f] !== '') {
             payload[f] = parseFloat(String(payload[f]).replace(',', '.')) || 0;
         }
     });
 
-    // Normalizar Horas (Strings literales HH:mm para que el Backend Go reste el desfase)
-    const times = ['hora_ini', 'hora_fin', 'espera_ini', 'espera_fin'];
-    times.forEach(t => {
-        const el = e.target.querySelector(`[name="${t}"]`);
-        if (el && el.value) payload[t] = el.value;
-        else delete payload[t];
-    });
-
-    // Mapeo especial para coincidir con el Modelo del Backend
-    if (payload.nombre_pasajero) {
-        payload.cliente = payload.nombre_pasajero;
-        delete payload.nombre_pasajero;
-    }
-
-    // 🔒 El admin siempre marca el albarán como enviado al guardar
+    // Admin siempre marca como enviado
     payload.enviado = true;
 
+    // Limpiar campos que no deben enviarse
     delete payload.id;
-    delete payload.licencia_ref; 
+    delete payload.licencia_ref;
+    delete payload.numero_albaran;
+
+    console.log("📤 [ADMIN-UPDATE] Payload enviado:", JSON.stringify(payload, null, 2));
 
     try {
         const res = await fetch(`/api/v1/albaranes/${albaranId}`, {
@@ -188,14 +212,15 @@ function initCalculosKms() {
     const v1 = document.querySelector('[name="km_ini"]');
     const v2 = document.querySelector('[name="km_fin"]');
     const tot = document.querySelector('[name="km_totales"]');
-    const c = () => { 
-        if(v1 && v2 && tot) {
+    const calcular = () => { 
+        if (v1 && v2 && tot) {
             const val1 = parseFloat(v1.value) || 0;
             const val2 = parseFloat(v2.value) || 0;
             if (val2 > 0) tot.value = Math.max(0, val2 - val1).toFixed(2);
         }
     };
-    v1?.addEventListener('input', c); v2?.addEventListener('input', c);
+    v1?.addEventListener('input', calcular);
+    v2?.addEventListener('input', calcular);
 }
 
 function showStatus(msg, type) {
