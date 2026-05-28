@@ -1,7 +1,8 @@
 /**
  * ARCHIVO: routes/routes.go
  * DESCRIPCIÓN: Configuración integral y definitiva de rutas.
- * ACTUALIZADO: 13/05/2026 - FIX: PUT /albaranes/id/:id movida a protectedAPI (requiere JWT).
+ * ACTUALIZADO: 28/05/2026 - FIX: rutas export/titular movidas dentro del grupo albs para evitar conflicto de prefijos.
+ *              13/05/2026 - FIX: PUT /albaranes/id/:id movida a protectedAPI (requiere JWT).
  *              El controller extrae licencia_ref del token; sin JWT quedaba en 0 → 403.
  */
 
@@ -153,7 +154,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		api.DELETE("/licencias/:id", func(c *gin.Context) { controllers.DeleteLicencia(c, db) })
 		api.PUT("/licencias/status/:id", func(c *gin.Context) { controllers.UpdateStatusLicencia(c, db) })
 
-		// ✅ API ALBARANES — solo lectura y exportación liberadas; escritura requiere JWT
+		// ✅ API ALBARANES — solo lectura y exportación admin liberadas; escritura requiere JWT
 		api.GET("/albaranes/search", func(c *gin.Context) { controllers.SearchAlbaranes(c, db) })
 		api.GET("/albaranes/id/:id", func(c *gin.Context) { controllers.GetAlbaran(c, db) })
 		api.POST("/albaranes/export/pdf", func(c *gin.Context) { controllers.ExportAlbaranesPDF(c, db) })
@@ -177,7 +178,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			protectedAPI.DELETE("/users/:id", func(c *gin.Context) { controllers.DeleteUser(c, db) })
 
 			// ✅ FIX: PUT albaranes/id/:id aquí — el controller lee licencia_ref del JWT
-			//    Antes estaba en el grupo público → licencia_ref = 0 → 403 siempre
 			protectedAPI.PUT("/albaranes/id/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 
 			albs := protectedAPI.Group("/albaranes")
@@ -187,6 +187,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 				albs.PUT("/:id", func(c *gin.Context) { controllers.UpdateAlbaran(c, db) })
 				albs.PUT("/user/:id", func(c *gin.Context) { controllers.UpdateAlbaranUser(c, db) })
 				albs.DELETE("/:id", func(c *gin.Context) { controllers.DeleteAlbaran(c, db) })
+
+				// ✅ NUEVO: dentro del grupo albs para evitar conflicto de prefijos con Gin
+				albs.POST("/export/titular/pdf", func(c *gin.Context) { controllers.ExportAlbaranesTitularPDF(c, db) })
+				albs.POST("/export/titular/xlsx", func(c *gin.Context) { controllers.ExportAlbaranesTitularXLSX(c, db) })
 			}
 		}
 	}

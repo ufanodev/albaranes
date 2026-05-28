@@ -206,37 +206,47 @@
             if (window.lucide) lucide.createIcons(); 
         });
 
-        // Handlers de Exportación (Llaman a oficina.js)
-        function handleGeneratePDF() {
-            // Obtenemos los datos filtrados del estado global (definido en busqueda.js)
+        // ✅ NUEVO: Exportación via backend Go (JWT en cookie, titular)
+        async function handleGeneratePDF() {
             const data = window.APP_STATE?.filteredAlbaranes || [];
             if (data.length === 0) return alert("No hay datos para exportar");
 
-            const dataClean = data.map(a => ({
-                "Nº ALBARAN": a.numero_albaran,
-                "FECHA": a.fecha ? a.fecha.substring(0,10) : "-",
-                "LICENCIA": a.licencia_numero || document.getElementById('licencia_display').value,
-                "EMPRESA": a.empresa_nombre || "N/A",
-                "EXPEDIENTE": a.referencia || "-",
-                "TOTAL": `€${parseFloat(a.importe_total || 0).toFixed(2)}`
-            }));
-            
-            Oficina.generarPDF("BUSQUEDA_ALBARANES", dataClean);
+            try {
+                const res = await fetch('/api/v1/albaranes/export/titular/pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data })
+                });
+                const json = await res.json();
+                if (json.url) {
+                    window.open(json.url, '_blank');
+                } else {
+                    alert(json.error || 'Error generando PDF');
+                }
+            } catch (e) {
+                alert('Error de conexión al generar PDF');
+            }
         }
 
-        function handleGenerateXLSX() {
+        async function handleGenerateXLSX() {
             const data = window.APP_STATE?.filteredAlbaranes || [];
             if (data.length === 0) return alert("No hay datos para exportar");
 
-            const dataClean = data.map(a => ({
-                "Nº ALBARAN": a.numero_albaran,
-                "FECHA": a.fecha ? a.fecha.substring(0,10) : "-",
-                "EMPRESA": a.empresa_nombre || "N/A",
-                "EXPEDIENTE": a.referencia || "-",
-                "TOTAL": parseFloat(a.importe_total || 0)
-            }));
-            
-            Oficina.generarExcel("BUSQUEDA_ALBARANES", dataClean);
+            try {
+                const res = await fetch('/api/v1/albaranes/export/titular/xlsx', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data })
+                });
+                const json = await res.json();
+                if (json.url) {
+                    window.open(json.url, '_blank');
+                } else {
+                    alert(json.error || 'Error generando Excel');
+                }
+            } catch (e) {
+                alert('Error de conexión al generar Excel');
+            }
         }
 
         // Handler para modales

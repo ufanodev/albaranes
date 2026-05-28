@@ -1,7 +1,11 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 13/05/2026
+ * ACTUALIZADO: 28/05/2026
+ *   - AÑADIDO: ExportAlbaranesPDF, ExportAlbaranesXLSX (admin)
+ *   - AÑADIDO: ExportAlbaranesTitularPDF, ExportAlbaranesTitularXLSX (titular, JWT)
+ *   - FIX: GenerateGenericXLSX → GenerateTitularesXLSX (nombre real de la función)
+ *   13/05/2026
  *   - FIX: UpdateAlbaranAdmin detecta payloads de cobro/pago y hace UPDATE quirúrgico
  *     en lugar de UPDATE total (que machacaba todos los campos con NULL).
  */
@@ -10,6 +14,7 @@ package controllers
 
 import (
 	"albaranes/models"
+	"albaranes/utils"
 	"fmt"
 	"net/http"
 	"strings"
@@ -212,10 +217,8 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 
 // ---------------------------------------------------------------------
 // isPayloadQuirurgico detecta si el body es un payload de cobro/pago
-// (solo contiene campos de estado + fecha + licencia_ref, sin datos del albarán)
 // ---------------------------------------------------------------------
 func isPayloadQuirurgico(input map[string]interface{}) bool {
-	// Campos permitidos en un payload quirúrgico de cobro/pago
 	camposQuirurgicos := map[string]bool{
 		"cobrado":      true,
 		"pagado":       true,
@@ -225,27 +228,189 @@ func isPayloadQuirurgico(input map[string]interface{}) bool {
 		"licencia_ref": true,
 	}
 
-	// Campos que SOLO aparecen en un UPDATE completo de albarán
 	camposAlbaran := []string{
 		"fecha", "hora_ini", "hora_fin", "origen", "destino",
 		"cliente", "empresa_ref", "importe_total", "km_totales",
 		"numero_albaran", "matricula", "referencia",
 	}
 
-	// Si contiene algún campo del albarán → es un UPDATE completo
 	for _, campo := range camposAlbaran {
 		if _, ok := input[campo]; ok {
 			return false
 		}
 	}
 
-	// Si todos sus campos son quirúrgicos → UPDATE quirúrgico
 	for key := range input {
 		if !camposQuirurgicos[key] {
 			return false
 		}
 	}
 	return true
+}
+
+// ---------------------------------------------------------------------
+// SECCIÓN: HELPERS DE EXPORTACIÓN
+// ---------------------------------------------------------------------
+
+func floatFromInterface(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	case float32:
+		return float64(val)
+	case int:
+		return float64(val)
+	}
+	return 0
+}
+
+func estadoFromRow(row map[string]interface{}) string {
+	if v, ok := row["pagado"].(bool); ok && v {
+		return "Pagado"
+	}
+	if v, ok := row["enviado"].(bool); ok && v {
+		return "Enviado"
+	}
+	return "Creado"
+}
+
+func fechaCorta(row map[string]interface{}) string {
+	if f, ok := row["fecha"].(string); ok && len(f) >= 10 {
+		return f[:10]
+	}
+	return ""
+}
+
+// ---------------------------------------------------------------------
+// SECCIÓN: EXPORTACIÓN ADMIN
+// Campos: Nº Albarán, Fecha, Licencia, Empresa, Ref, Importe, Estado
+// ---------------------------------------------------------------------
+
+func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
+	var body struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Sin datos"})
+		return
+	}
+
+	var lista []utils.TitularData
+	for _, row := range body.Data {
+		lista = append(lista, utils.TitularData{
+			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
+			"FECHA":      fechaCorta(row),
+			"LICENCIA":   strFromInterface(row["licencia_numero"]),
+			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
+			"REF.":       strFromInterface(row["referencia"]),
+			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
+			"ESTADO":     estadoFromRow(row),
+		})
+	}
+
+	path, err := utils.GenerateGenericPDF("ALBARANES ADMIN", lista)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"url": path})
+}
+
+func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
+	var body struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Sin datos"})
+		return
+	}
+
+	var lista []utils.TitularData
+	for _, row := range body.Data {
+		lista = append(lista, utils.TitularData{
+			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
+			"FECHA":      fechaCorta(row),
+			"LICENCIA":   strFromInterface(row["licencia_numero"]),
+			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
+			"REF.":       strFromInterface(row["referencia"]),
+			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
+			"ESTADO":     estadoFromRow(row),
+		})
+	}
+
+	// ✅ FIX: nombre real de la función
+	path, err := utils.GenerateTitularesXLSX("ALBARANES ADMIN", lista)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"url": path})
+}
+
+// ---------------------------------------------------------------------
+// SECCIÓN: EXPORTACIÓN TITULAR (JWT requerido)
+// Campos: Nº Albarán, Fecha, Empresa, Ref., Conductor, Importe, Estado
+// ---------------------------------------------------------------------
+
+func ExportAlbaranesTitularPDF(c *gin.Context, db *gorm.DB) {
+	var body struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Sin datos"})
+		return
+	}
+
+	var lista []utils.TitularData
+	for _, row := range body.Data {
+		lista = append(lista, utils.TitularData{
+			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
+			"FECHA":      fechaCorta(row),
+			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
+			"REF.":       strFromInterface(row["referencia"]),
+			"CONDUCTOR":  strFromInterface(row["asalariado"]),
+			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
+			"ESTADO":     estadoFromRow(row),
+		})
+	}
+
+	path, err := utils.GenerateGenericPDF("ALBARANES TITULAR", lista)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"url": path})
+}
+
+func ExportAlbaranesTitularXLSX(c *gin.Context, db *gorm.DB) {
+	var body struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || len(body.Data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Sin datos"})
+		return
+	}
+
+	var lista []utils.TitularData
+	for _, row := range body.Data {
+		lista = append(lista, utils.TitularData{
+			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
+			"FECHA":      fechaCorta(row),
+			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
+			"REF.":       strFromInterface(row["referencia"]),
+			"CONDUCTOR":  strFromInterface(row["asalariado"]),
+			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
+			"ESTADO":     estadoFromRow(row),
+		})
+	}
+
+	// ✅ FIX: nombre real de la función
+	path, err := utils.GenerateTitularesXLSX("ALBARANES TITULAR", lista)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"url": path})
 }
 
 // ---------------------------------------------------------------------
@@ -351,11 +516,7 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// ✅ FIX: UPDATE QUIRÚRGICO para payloads de cobro/pago
 	if isPayloadQuirurgico(input) {
-
-		// Construimos el UPDATE dinámicamente solo con los campos presentes
-		// GORM .Updates() ignora false/0 (zero values) → usamos db.Exec directo
 		setClauses := []string{}
 		params := []interface{}{}
 
@@ -409,7 +570,6 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// UPDATE completo para edición de albarán
 	cleanInput := cleanAlbaranMap(input, albaran)
 	if err := execUpdateSQL(db, cleanInput, albaran.ID, 0, true); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -549,7 +709,10 @@ func GetLicenciaInfoForUser(c *gin.Context, db *gorm.DB) {
 	}
 }
 
-// Helpers tipados robustos
+// ---------------------------------------------------------------------
+// SECCIÓN: HELPERS TIPADOS
+// ---------------------------------------------------------------------
+
 func timePtrOrNil(m map[string]interface{}, key string) interface{} {
 	if v, ok := m[key]; ok && v != nil {
 		return v
@@ -613,6 +776,3 @@ func strFromInterface(v interface{}) string {
 	}
 	return ""
 }
-
-func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB)  {}
-func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {}
