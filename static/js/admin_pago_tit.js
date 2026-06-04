@@ -2,15 +2,12 @@
  * ARCHIVO: static/js/admin_pago_tit.js
  * DESCRIPCIÓN: Gestión Maestra de Pagos a Titulares.
  * ACTUALIZADO: 04/06/2026
- *   - FIX: filtro 'pagado' usa 'true'/'false'/''
- *   - FIX: PUT incluye licencia_ref para que el backend lo encuentre
- *   - FIX: fecha_pago en formato 'YYYY-MM-DD'
- *   - FIX: PUT marca cobrado=true Y pagado=true simultáneamente
+ *   - FIX: tableFooter ahora es un <div> fuera de la tabla (resuelve corte del importe)
  *   - NEW: Columnas Nº, Nº Albarán, Licencia, Fecha, Empresa, Exp, Fac, Importe, Env, Cob, Pag, Obs, Ver
- *   - NEW: Botón Ver albarán → /admin/albaranes/view/:id
- *   - NEW: Checkbox "Seleccionar Todo" en cabecera
- *   - NEW: Contador de seleccionados junto al botón
- *   - FIX: Footer importe text-2xl
+ *   - NEW: Botón Ver → /admin/albaranes/view/:id
+ *   - NEW: Checkbox "Seleccionar Todo"
+ *   - NEW: Contador de seleccionados
+ *   - FIX: Los checkboxes ya pagados quedan disabled
  */
 
 const STATE = {
@@ -90,21 +87,11 @@ const UI_PAGOS = {
     }
 };
 
-// =================================================================================
-// ☑️ SELECCIONAR TODO / DESMARCAR TODO
-// =================================================================================
-
 window.handleSelectAll = (masterCb, event) => {
     if (event) event.stopPropagation();
-    document.querySelectorAll('.cb-seleccion:not(:disabled)').forEach(cb => {
-        cb.checked = masterCb.checked;
-    });
+    document.querySelectorAll('.cb-seleccion:not(:disabled)').forEach(cb => { cb.checked = masterCb.checked; });
     UI_PAGOS.updateSelectionUI();
 };
-
-// =================================================================================
-// 🔍 INICIALIZACIÓN Y CARGA
-// =================================================================================
 
 async function initPagoTit() {
     await SearchEngine.initCatalog(true);
@@ -128,7 +115,6 @@ async function loadData() {
         const json    = await res.json();
         const data    = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
 
-        // Base: solo albaranes que la empresa ya cobró
         STATE.allData = data.filter(a => {
             const cob = a.cobrado;
             return cob === true || cob === 1 || cob === '1';
@@ -178,10 +164,6 @@ window.handleSearch = (e) => {
     renderTable();
 };
 
-// =================================================================================
-// 📊 RENDERIZADO
-// =================================================================================
-
 function renderTable() {
     const tbody       = document.getElementById('albaranResults');
     const tableFooter = document.getElementById('tableFooter');
@@ -217,14 +199,10 @@ function renderTable() {
 
         tr.innerHTML = `
             <td class="p-3 text-center">
-                <input
-                    type="checkbox"
-                    value="${alb.id}"
-                    data-licencia="${alb.licencia_ref}"
+                <input type="checkbox" value="${alb.id}" data-licencia="${alb.licencia_ref}"
                     class="cb-seleccion h-4 w-4 rounded border-gray-300 cursor-pointer accent-orange-500"
                     ${isPagado ? 'disabled checked' : ''}
-                    onchange="UI_PAGOS.updateSelectionUI()"
-                >
+                    onchange="UI_PAGOS.updateSelectionUI()">
             </td>
             <td class="p-3 text-slate-400 font-mono text-[11px]">#${alb.id}</td>
             <td class="p-3 font-black text-slate-800 text-[11px]">${alb.numero_albaran}</td>
@@ -239,8 +217,7 @@ function renderTable() {
             <td class="p-3 text-center">${UI_PAGOS.boolIcon(isPagado)}</td>
             <td class="p-3 text-slate-500 text-[10px] truncate" title="${alb.observaciones || ''}">${alb.observaciones || '-'}</td>
             <td class="p-3 text-center">
-                <button
-                    onclick="window.location.href='/admin/albaranes/view/${alb.id}'"
+                <button onclick="window.location.href='/admin/albaranes/view/${alb.id}'"
                     class="bg-slate-100 hover:bg-primary-link hover:text-white text-slate-500 p-2 rounded-xl transition active:scale-95"
                     title="Ver albarán">
                     <i data-lucide="eye" class="w-4 h-4"></i>
@@ -257,58 +234,31 @@ function renderTable() {
     if (window.lucide) lucide.createIcons();
 }
 
-// =================================================================================
-// 💰 PAGO MASIVO
-// =================================================================================
-
 window.handleBulkPay = async () => {
     const checkedBoxes = Array.from(document.querySelectorAll('.cb-seleccion:checked:not(:disabled)'));
-    if (checkedBoxes.length === 0) {
-        return UI_PAGOS.alertMessage("Selecciona registros pendientes para liquidar", "error");
-    }
-
+    if (checkedBoxes.length === 0) return UI_PAGOS.alertMessage("Selecciona registros pendientes para liquidar", "error");
     if (!confirm(`¿Confirmar liquidación de ${checkedBoxes.length} albarán(es)?`)) return;
 
     UI_PAGOS.alertMessage(`Procesando ${checkedBoxes.length} pago(s)...`, "info");
-
     const token    = localStorage.getItem('token');
     const fechaHoy = new Date().toISOString().substring(0, 10);
-    let errores    = 0;
+    let errores = 0;
 
     for (const cb of checkedBoxes) {
         try {
-            const licenciaRef = parseInt(cb.dataset.licencia) || 0;
             const res = await fetch(`/api/v1/albaranes/id/${cb.value}`, {
                 method : 'PUT',
-                headers: {
-                    'Content-Type' : 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    pagado      : true,
-                    cobrado     : true,
-                    fecha_pago  : fechaHoy,
-                    licencia_ref: licenciaRef
-                })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ pagado: true, cobrado: true, fecha_pago: fechaHoy, licencia_ref: parseInt(cb.dataset.licencia) || 0 })
             });
             if (!res.ok) errores++;
-        } catch {
-            errores++;
-        }
+        } catch { errores++; }
     }
 
-    if (errores === 0) {
-        UI_PAGOS.alertMessage(`✅ ${checkedBoxes.length} albarán(es) liquidado(s) correctamente`, "success");
-    } else {
-        UI_PAGOS.alertMessage(`⚠️ Completado con ${errores} error(es)`, "error");
-    }
-
+    if (errores === 0) UI_PAGOS.alertMessage(`✅ ${checkedBoxes.length} albarán(es) liquidado(s) correctamente`, "success");
+    else UI_PAGOS.alertMessage(`⚠️ Completado con ${errores} error(es)`, "error");
     await loadData();
 };
-
-// =================================================================================
-// ⚖️ ORDENACIÓN Y PAGINACIÓN
-// =================================================================================
 
 window.handleSort = (key, type, isInitial = false) => {
     if (!isInitial) {
@@ -350,10 +300,6 @@ function setupTableEvents() {
     });
 }
 
-// =================================================================================
-// 🏁 EXPORTACIÓN Y UTILIDADES
-// =================================================================================
-
 window.handleExportPDF  = () => { if (!STATE.filteredData.length) return alert("No hay datos para exportar"); Oficina.generarPDF('Liquidacion_Titulares',   STATE.filteredData); };
 window.handleExportXLSX = () => { if (!STATE.filteredData.length) return alert("No hay datos para exportar"); Oficina.generarExcel('Liquidacion_Titulares', STATE.filteredData); };
 
@@ -365,7 +311,6 @@ window.handleClearAllFilters = () => {
 };
 
 window.handleLogout = () => { localStorage.removeItem('token'); window.location.href = '/login'; };
-
 window.UI_PAGOS = UI_PAGOS;
 
 document.addEventListener('DOMContentLoaded', initPagoTit);

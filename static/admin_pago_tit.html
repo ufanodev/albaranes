@@ -203,7 +203,7 @@
                 </div>
             </div>
 
-            <div class="overflow-x-auto rounded-[2rem] border border-slate-200 shadow-2xl">
+            <div class="overflow-x-auto rounded-t-[2rem] border border-slate-200 shadow-2xl">
                 <table class="compact-table w-full">
                     <thead>
                         <tr>
@@ -232,18 +232,17 @@
                         </tr>
                     </thead>
                     <tbody id="albaranResults" class="bg-white"></tbody>
-                    <tfoot id="tableFooter" class="hidden">
-                        <tr>
-                            <td colspan="8" class="text-right py-6 px-6 bg-slate-900">
-                                <span class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Suma Página Actual</span>
-                            </td>
-                            <td class="py-6 px-6 bg-slate-800 text-right border-l border-slate-700 min-w-[180px]">
-                                <span id="totalImporte" class="text-2xl font-black text-primary-link whitespace-nowrap">€0.00</span>
-                            </td>
-                            <td colspan="5" class="bg-slate-900"></td>
-                        </tr>
-                    </tfoot>
                 </table>
+            </div>
+
+            <!-- FOOTER TOTAL — fuera de la tabla para evitar restricciones de table-fixed -->
+            <div id="tableFooter" class="hidden">
+                <div class="flex items-center justify-end bg-slate-900 rounded-b-[2rem] border-t border-slate-700">
+                    <span class="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] px-8 py-5">Suma Página Actual</span>
+                    <div class="bg-slate-800 px-10 py-5 rounded-br-[2rem] border-l border-slate-700">
+                        <span id="totalImporte" class="text-2xl font-black text-primary-link whitespace-nowrap">€0.00</span>
+                    </div>
+                </div>
             </div>
         </div>
     </main>

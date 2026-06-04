@@ -2,13 +2,12 @@
  * ARCHIVO: static/js/admin_pago_emp.js
  * DESCRIPCIÓN: Gestión Maestra de Cobros a Empresas.
  * ACTUALIZADO: 04/06/2026
- *   - FIX: handleBulkPay cambia campo 'cobrado'
+ *   - FIX: tableFooter ahora es un <div> fuera de la tabla (resuelve corte del importe)
  *   - NEW: Columnas Nº, Nº Albarán, Licencia, Fecha, Empresa, Exp, Fac, Importe, Env, Cob, Pag, Obs, Ver
- *   - NEW: Botón Ver albarán → /admin/albaranes/view/:id
- *   - NEW: Checkbox "Seleccionar Todo" en cabecera
- *   - NEW: Contador de filas seleccionadas junto al botón
+ *   - NEW: Botón Ver → /admin/albaranes/view/:id
+ *   - NEW: Checkbox "Seleccionar Todo"
+ *   - NEW: Contador de filas seleccionadas
  *   - FIX: Los checkboxes ya cobrados quedan disabled
- *   - FIX: Footer importe text-2xl
  */
 
 const STATE = {
@@ -86,10 +85,6 @@ const UI_EMP = {
     }
 };
 
-// =================================================================================
-// ☑️ SELECCIONAR TODO / DESMARCAR TODO
-// =================================================================================
-
 window.handleSelectAll = (masterCb, event) => {
     if (event) event.stopPropagation();
     document.querySelectorAll('.cb-seleccion:not(:disabled)').forEach(cb => {
@@ -98,14 +93,8 @@ window.handleSelectAll = (masterCb, event) => {
     UI_EMP.updateSelectionUI();
 };
 
-// =================================================================================
-// 🔍 CARGA Y BÚSQUEDA
-// =================================================================================
-
 async function loadCombos() {
-    if (window.SearchEngine) {
-        await SearchEngine.initCatalog(true);
-    }
+    if (window.SearchEngine) await SearchEngine.initCatalog(true);
 }
 
 window.handleSearch = async (e) => {
@@ -162,10 +151,6 @@ window.handleSearch = async (e) => {
     }
 };
 
-// =================================================================================
-// 📊 RENDERIZADO
-// =================================================================================
-
 function renderTable() {
     const tbody       = document.getElementById('albaranResults');
     const tableFooter = document.getElementById('tableFooter');
@@ -201,14 +186,10 @@ function renderTable() {
 
         tr.innerHTML = `
             <td class="p-3 text-center">
-                <input
-                    type="checkbox"
-                    value="${alb.id}"
-                    data-licencia="${alb.licencia_ref}"
+                <input type="checkbox" value="${alb.id}" data-licencia="${alb.licencia_ref}"
                     class="cb-seleccion h-4 w-4 rounded border-slate-300 cursor-pointer accent-orange-500"
                     ${isCobrado ? 'disabled checked' : ''}
-                    onchange="UI_EMP.updateSelectionUI()"
-                >
+                    onchange="UI_EMP.updateSelectionUI()">
             </td>
             <td class="p-3 text-slate-400 font-mono text-[11px]">#${alb.id}</td>
             <td class="p-3 font-black text-slate-800 text-[11px]">${alb.numero_albaran}</td>
@@ -223,8 +204,7 @@ function renderTable() {
             <td class="p-3 text-center">${UI_EMP.boolIcon(isPagado)}</td>
             <td class="p-3 text-slate-500 text-[10px] truncate" title="${alb.observaciones || ''}">${alb.observaciones || '-'}</td>
             <td class="p-3 text-center">
-                <button
-                    onclick="window.location.href='/admin/albaranes/view/${alb.id}'"
+                <button onclick="window.location.href='/admin/albaranes/view/${alb.id}'"
                     class="bg-slate-100 hover:bg-primary-link hover:text-white text-slate-500 p-2 rounded-xl transition active:scale-95"
                     title="Ver albarán">
                     <i data-lucide="eye" class="w-4 h-4"></i>
@@ -240,17 +220,9 @@ function renderTable() {
     if (window.lucide) lucide.createIcons();
 }
 
-// =================================================================================
-// 💰 COBRO MASIVO
-// =================================================================================
-
 window.handleBulkPay = async () => {
     const checkedBoxes = Array.from(document.querySelectorAll('.cb-seleccion:checked:not(:disabled)'));
-
-    if (checkedBoxes.length === 0) {
-        return UI_EMP.alertMessage("Selecciona al menos un registro pendiente", "error");
-    }
-
+    if (checkedBoxes.length === 0) return UI_EMP.alertMessage("Selecciona al menos un registro pendiente", "error");
     if (!confirm(`¿Confirmas marcar como COBRADOS ${checkedBoxes.length} albarán(es)?`)) return;
 
     UI_EMP.alertMessage(`Procesando ${checkedBoxes.length} cobro(s)...`, "info");
@@ -260,37 +232,19 @@ window.handleBulkPay = async () => {
 
     for (const cb of checkedBoxes) {
         try {
-            const licenciaRef = parseInt(cb.dataset.licencia) || 0;
             const res = await fetch(`/api/v1/albaranes/id/${cb.value}`, {
                 method : 'PUT',
-                headers: {
-                    'Content-Type' : 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    cobrado     : true,
-                    fecha_cobro : fechaHoy,
-                    licencia_ref: licenciaRef
-                })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ cobrado: true, fecha_cobro: fechaHoy, licencia_ref: parseInt(cb.dataset.licencia) || 0 })
             });
             if (!res.ok) errores++;
-        } catch {
-            errores++;
-        }
+        } catch { errores++; }
     }
 
-    if (errores === 0) {
-        UI_EMP.alertMessage(`✅ ${checkedBoxes.length} albarán(es) marcado(s) como cobrados`, "success");
-    } else {
-        UI_EMP.alertMessage(`⚠️ Completado con ${errores} error(es)`, "error");
-    }
-
+    if (errores === 0) UI_EMP.alertMessage(`✅ ${checkedBoxes.length} albarán(es) marcado(s) como cobrados`, "success");
+    else UI_EMP.alertMessage(`⚠️ Completado con ${errores} error(es)`, "error");
     window.handleSearch();
 };
-
-// =================================================================================
-// ⚖️ ORDENACIÓN Y PAGINACIÓN
-// =================================================================================
 
 function updatePaginationUI() {
     const total      = STATE.allData.length;
@@ -315,28 +269,11 @@ window.handleSort = (key, type) => {
     renderTable();
 };
 
-// =================================================================================
-// 🏁 INICIALIZACIÓN
-// =================================================================================
-
 document.addEventListener('DOMContentLoaded', async () => {
     await loadCombos();
-
-    document.getElementById('recordsPerPage').onchange = (e) => {
-        STATE.pageSize    = parseInt(e.target.value);
-        STATE.currentPage = 1;
-        renderTable();
-    };
-
-    document.getElementById('prevPageBtn').onclick = () => {
-        if (STATE.currentPage > 1) { STATE.currentPage--; renderTable(); }
-    };
-    document.getElementById('nextPageBtn').onclick = () => {
-        if (STATE.currentPage < Math.ceil(STATE.allData.length / STATE.pageSize)) {
-            STATE.currentPage++; renderTable();
-        }
-    };
-
+    document.getElementById('recordsPerPage').onchange = (e) => { STATE.pageSize = parseInt(e.target.value); STATE.currentPage = 1; renderTable(); };
+    document.getElementById('prevPageBtn').onclick = () => { if (STATE.currentPage > 1) { STATE.currentPage--; renderTable(); } };
+    document.getElementById('nextPageBtn').onclick = () => { if (STATE.currentPage < Math.ceil(STATE.allData.length / STATE.pageSize)) { STATE.currentPage++; renderTable(); } };
     window.handleSearch();
 });
 
