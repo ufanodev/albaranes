@@ -1,13 +1,16 @@
 /**
  * ARCHIVO: static/js/admin_pago_tit.js
  * DESCRIPCIÓN: Gestión Maestra de Pagos a Titulares.
- * ACTUALIZADO: 13/05/2026
- *   - FIX: filtro 'pagado' usa 'true'/'false'/'' en lugar de 'si'/'no'/''
- *   - FIX: PUT incluye licencia_ref (leída del albarán) para que el backend lo encuentre
- *   - FIX: fecha_pago en formato 'YYYY-MM-DD' (MySQL DATE)
+ * ACTUALIZADO: 04/06/2026
+ *   - FIX: filtro 'pagado' usa 'true'/'false'/''
+ *   - FIX: PUT incluye licencia_ref para que el backend lo encuentre
+ *   - FIX: fecha_pago en formato 'YYYY-MM-DD'
  *   - FIX: PUT marca cobrado=true Y pagado=true simultáneamente
+ *   - NEW: Columnas Nº, Nº Albarán, Licencia, Fecha, Empresa, Exp, Fac, Importe, Env, Cob, Pag, Obs, Ver
+ *   - NEW: Botón Ver albarán → /admin/albaranes/view/:id
  *   - NEW: Checkbox "Seleccionar Todo" en cabecera
  *   - NEW: Contador de seleccionados junto al botón
+ *   - FIX: Footer importe text-2xl
  */
 
 const STATE = {
@@ -21,9 +24,16 @@ const STATE = {
 };
 
 const UI_PAGOS = {
-    formatDate(iso) { 
+    formatDate(iso) {
         if (!iso || iso.startsWith('0001')) return '-';
-        return iso.substring(0, 10); 
+        return iso.substring(0, 10);
+    },
+
+    boolIcon(val) {
+        const active = val === true || val === 1 || val === '1';
+        return active
+            ? '<span class="text-green-500 font-black text-base">✅</span>'
+            : '<span class="text-red-400 font-black text-base">✗</span>';
     },
 
     alertMessage(message, type = 'info') {
@@ -38,7 +48,6 @@ const UI_PAGOS = {
         setTimeout(() => s.classList.add('hidden'), 5000);
     },
 
-    /** Actualiza contador y estado indeterminado del cb maestro */
     updateSelectionUI() {
         const all     = Array.from(document.querySelectorAll('.cb-seleccion:not(:disabled)'));
         const checked = all.filter(cb => cb.checked);
@@ -106,42 +115,37 @@ async function initPagoTit() {
 async function loadData() {
     const tbody = document.getElementById('albaranResults');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="11" class="p-10 text-center italic text-gray-400 animate-pulse font-bold uppercase tracking-widest">Sincronizando Liquidaciones...</td></tr>';
-    
-    // Reset selección
+    tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center italic text-gray-400 animate-pulse font-bold uppercase tracking-widest">Sincronizando Liquidaciones...</td></tr>';
+
     const cbAll = document.getElementById('cb-select-all');
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
     document.getElementById('selectedCount')?.classList.add('hidden');
 
     try {
-        const token = localStorage.getItem('token');
+        const token   = localStorage.getItem('token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        // Traemos todo y filtramos en cliente para no depender de filtros del servidor
-        const res  = await fetch('/api/v1/albaranes/search?pageSize=10000', { headers });
-        const json = await res.json();
-        const data = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        const res     = await fetch('/api/v1/albaranes/search?pageSize=10000', { headers });
+        const json    = await res.json();
+        const data    = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
 
-        // Base: solo albaranes que la empresa ya cobró (cobrado=1)
-        // El filtro de pagado al titular se aplica en handleSearch
+        // Base: solo albaranes que la empresa ya cobró
         STATE.allData = data.filter(a => {
             const cob = a.cobrado;
             return cob === true || cob === 1 || cob === '1';
         });
         window.handleSearch();
-    } catch (err) { 
-        UI_PAGOS.alertMessage("Error al conectar con la base de datos", "error"); 
+    } catch (err) {
+        UI_PAGOS.alertMessage("Error al conectar con la base de datos", "error");
     }
 }
 
 window.handleSearch = (e) => {
     if (e) e.preventDefault();
 
-    // Reset cb maestro al buscar
     const cbAll = document.getElementById('cb-select-all');
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
     document.getElementById('selectedCount')?.classList.add('hidden');
 
-    // Valor del select: 'true' | 'false' | ''
     const pagadoVal  = document.getElementById('pagado')?.value ?? '';
     const fechaDesde = document.getElementById('fecha_desde')?.value || '';
     const fechaHasta = document.getElementById('fecha_hasta')?.value || '';
@@ -152,12 +156,10 @@ window.handleSearch = (e) => {
         empresa : document.getElementById('empresa')?.value || '',
         ref     : document.getElementById('referencia')?.value || '',
         palabra : document.getElementById('palabra')?.value || ''
-        // pagado lo filtramos manualmente abajo para mayor robustez
     };
 
     let filtered = SearchEngine.applyFilters(STATE.allData, params);
 
-    // Filtrado por pagado — robusto a boolean/int/string de la API
     if (pagadoVal !== '') {
         const quierePagado = pagadoVal === 'true';
         filtered = filtered.filter(alb => {
@@ -167,13 +169,8 @@ window.handleSearch = (e) => {
         });
     }
 
-    // Filtrado por rango de fechas
-    if (fechaDesde) {
-        filtered = filtered.filter(alb => alb.fecha && alb.fecha.substring(0, 10) >= fechaDesde);
-    }
-    if (fechaHasta) {
-        filtered = filtered.filter(alb => alb.fecha && alb.fecha.substring(0, 10) <= fechaHasta);
-    }
+    if (fechaDesde) filtered = filtered.filter(alb => alb.fecha && alb.fecha.substring(0, 10) >= fechaDesde);
+    if (fechaHasta) filtered = filtered.filter(alb => alb.fecha && alb.fecha.substring(0, 10) <= fechaHasta);
 
     STATE.filteredData = filtered;
     handleSort(STATE.sortKey, 'string', true);
@@ -191,7 +188,6 @@ function renderTable() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    // Reset cb maestro al cambiar de página
     const cbAll = document.getElementById('cb-select-all');
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
     document.getElementById('selectedCount')?.classList.add('hidden');
@@ -200,7 +196,7 @@ function renderTable() {
     const pageData = STATE.filteredData.slice(start, start + STATE.pageSize);
 
     if (pageData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="p-10 text-center font-bold text-orange-500 uppercase tracking-widest">Sin resultados coincidentes</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center font-bold text-orange-500 uppercase tracking-widest">Sin resultados coincidentes</td></tr>';
         if (tableFooter) tableFooter.classList.add('hidden');
         updatePaginationUI();
         return;
@@ -209,15 +205,18 @@ function renderTable() {
     let sumaTotalPagina = 0;
 
     pageData.forEach(alb => {
-        const importe  = parseFloat(alb.importe_total || 0);
+        const importe    = parseFloat(alb.importe_total || 0);
         sumaTotalPagina += importe;
-        const isPagado = alb.pagado === true || alb.pagado === 1 || alb.pagado === '1';
+
+        const isPagado  = alb.pagado   === true || alb.pagado   === 1 || alb.pagado   === '1';
+        const isCobrado = alb.cobrado  === true || alb.cobrado  === 1 || alb.cobrado  === '1';
+        const isEnviado = alb.enviado  === true || alb.enviado  === 1 || alb.enviado  === '1';
 
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-orange-50/50 transition-colors border-b border-gray-100 group';
-        
+        tr.className = 'hover:bg-orange-50/50 transition-colors border-b border-slate-50 group';
+
         tr.innerHTML = `
-            <td class="px-4 py-3 text-center">
+            <td class="p-3 text-center">
                 <input
                     type="checkbox"
                     value="${alb.id}"
@@ -227,19 +226,26 @@ function renderTable() {
                     onchange="UI_PAGOS.updateSelectionUI()"
                 >
             </td>
-            <td class="px-4 py-3 text-gray-400 font-bold">#${alb.id}</td>
-            <td class="px-4 py-3 font-black text-slate-800">${alb.numero_albaran}</td>
-            <td class="px-4 py-3 font-black text-blue-600 uppercase">${SearchEngine.getLicenciaNumero(alb)}</td>
-            <td class="px-4 py-3 font-bold text-slate-500">${UI_PAGOS.formatDate(alb.fecha)}</td>
-            <td class="px-4 py-3 font-black uppercase truncate max-w-[150px] text-slate-700">${SearchEngine.getEmpresaNombre(alb)}</td>
-            <td class="px-4 py-3 text-right font-black text-primary-link bg-orange-50/20">€${importe.toFixed(2)}</td>
-            <td class="px-4 py-3 text-center font-black">
-                ${isPagado
-                    ? '<span class="text-green-600 text-[10px]">✅ PAGADO</span>'
-                    : '<span class="text-red-500 text-[10px]">❌ PENDIENTE</span>'}
+            <td class="p-3 text-slate-400 font-mono text-[11px]">#${alb.id}</td>
+            <td class="p-3 font-black text-slate-800 text-[11px]">${alb.numero_albaran}</td>
+            <td class="p-3 font-bold text-blue-600 uppercase text-[11px]">${SearchEngine.getLicenciaNumero(alb)}</td>
+            <td class="p-3 font-medium text-slate-500 text-[11px]">${UI_PAGOS.formatDate(alb.fecha)}</td>
+            <td class="p-3 font-bold text-slate-700 uppercase truncate text-[11px]">${SearchEngine.getEmpresaNombre(alb)}</td>
+            <td class="p-3 font-bold text-slate-500 uppercase text-[11px] truncate">${alb.referencia || '-'}</td>
+            <td class="p-3 font-bold text-slate-500 text-[11px] truncate">${alb.num_factura || '-'}</td>
+            <td class="p-3 text-right font-black text-primary-link text-sm bg-orange-50/20">€${importe.toFixed(2)}</td>
+            <td class="p-3 text-center">${UI_PAGOS.boolIcon(isEnviado)}</td>
+            <td class="p-3 text-center">${UI_PAGOS.boolIcon(isCobrado)}</td>
+            <td class="p-3 text-center">${UI_PAGOS.boolIcon(isPagado)}</td>
+            <td class="p-3 text-slate-500 text-[10px] truncate" title="${alb.observaciones || ''}">${alb.observaciones || '-'}</td>
+            <td class="p-3 text-center">
+                <button
+                    onclick="window.location.href='/admin/albaranes/view/${alb.id}'"
+                    class="bg-slate-100 hover:bg-primary-link hover:text-white text-slate-500 p-2 rounded-xl transition active:scale-95"
+                    title="Ver albarán">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                </button>
             </td>
-            <td class="px-4 py-3 text-slate-400 font-bold">${UI_PAGOS.formatDate(alb.fecha_pago)}</td>
-            <td class="px-4 py-3 truncate max-w-[120px] italic text-slate-400" title="${alb.observaciones_admin || ''}">${alb.observaciones_admin || '-'}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -266,7 +272,7 @@ window.handleBulkPay = async () => {
     UI_PAGOS.alertMessage(`Procesando ${checkedBoxes.length} pago(s)...`, "info");
 
     const token    = localStorage.getItem('token');
-    const fechaHoy = new Date().toISOString().substring(0, 10); // 'YYYY-MM-DD'
+    const fechaHoy = new Date().toISOString().substring(0, 10);
     let errores    = 0;
 
     for (const cb of checkedBoxes) {
@@ -336,7 +342,9 @@ function setupTableEvents() {
     const recs = document.getElementById('recordsPerPage');
     if (recs) recs.onchange = (e) => { STATE.pageSize = parseInt(e.target.value); STATE.currentPage = 1; renderTable(); };
     document.getElementById('prevPageBtn').onclick = () => { if (STATE.currentPage > 1) { STATE.currentPage--; renderTable(); } };
-    document.getElementById('nextPageBtn').onclick = () => { if (STATE.currentPage < Math.ceil(STATE.filteredData.length / STATE.pageSize)) { STATE.currentPage++; renderTable(); } };
+    document.getElementById('nextPageBtn').onclick = () => {
+        if (STATE.currentPage < Math.ceil(STATE.filteredData.length / STATE.pageSize)) { STATE.currentPage++; renderTable(); }
+    };
     document.getElementById('palabra')?.addEventListener('input', () => {
         if (STATE.searchMode === 'palabra') window.handleSearch();
     });
@@ -358,7 +366,6 @@ window.handleClearAllFilters = () => {
 
 window.handleLogout = () => { localStorage.removeItem('token'); window.location.href = '/login'; };
 
-// Exponer UI_PAGOS globalmente (incluye setSearchModeManual)
 window.UI_PAGOS = UI_PAGOS;
 
 document.addEventListener('DOMContentLoaded', initPagoTit);
