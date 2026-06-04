@@ -28,7 +28,6 @@
         }
         @layer components {
             .input-field { @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl shadow-inner outline-none transition-all duration-200 text-gray-800 text-sm; }
-            /* Estilo específico para Vista: sin bordes activos y cursor de texto */
             .input-view { @apply bg-slate-100 border-slate-200 cursor-default font-bold text-slate-500 shadow-none outline-none ring-0; }
             .label-style { @apply block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1 tracking-tighter; }
             .checkbox-inline-view { @apply flex items-center space-x-2 bg-slate-100 px-3 py-2 rounded-lg border border-slate-200 opacity-80 h-full; }
@@ -60,56 +59,63 @@
         </div>
 
         <form id="albaranForm" class="p-6 md:p-12 space-y-8">
-            
+
+            <!-- SECCIÓN 1: Datos de Control -->
             <div>
                 <div class="section-title !mt-0"><i data-lucide="shield-check" class="w-5 h-5 text-primary-link"></i> Datos de Control</div>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
-                    <div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <div class="md:col-span-2">
                         <label class="label-style">Licencia Titular</label>
                         <input type="text" id="licencia_ref" name="licencia_ref" readonly class="input-field input-view text-blue-600">
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="label-style">Nº Albarán</label>
                         <input type="text" name="numero_albaran" id="n_albaran" readonly class="input-field input-view text-primary-link">
                     </div>
-                    <div>
+                    <div class="md:col-span-3">
                         <label class="label-style">Fecha Servicio</label>
                         <input type="text" name="fecha" id="fecha" readonly class="input-field input-view">
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="label-style">Hora Inicio</label>
                         <input type="text" name="hora_ini" id="hora_ini" readonly class="input-field input-view">
                     </div>
-                    <div>
+                    <div class="md:col-span-3">
                         <label class="label-style">Hora Fin</label>
                         <input type="text" name="hora_fin" id="hora_fin" readonly class="input-field input-view">
                     </div>
                 </div>
             </div>
 
+            <!-- SECCIÓN 2: Detalles de Facturación -->
             <div>
                 <div class="section-title"><i data-lucide="users" class="w-5 h-5 text-primary-link"></i> Detalles de Facturación</div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="label-style">Empresa Asociada</label>
                         <input type="text" id="empresa_nombre_view" readonly class="input-field input-view">
                         <select id="empresa_ref" name="empresa_ref" class="hidden"></select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="label-style">Matrícula</label>
-                        <input type="text" name="matricula" id="matricula" readonly class="input-field input-view uppercase">
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Pasajero / Cliente</label>
                         <input type="text" name="nombre_pasajero" id="nombre_pasajero" readonly class="input-field input-view">
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-2">
+                        <label class="label-style">Teléfono</label>
+                        <input type="text" name="tlf_pasajero" id="tlf_pasajero" readonly class="input-field input-view">
+                    </div>
+                    <div class="md:col-span-2">
                         <label class="label-style">DNI Pasajero</label>
                         <input type="text" name="dni_pasajero" id="dni_pasajero" readonly class="input-field input-view uppercase">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="label-style">Matrícula</label>
+                        <input type="text" name="matricula" id="matricula" readonly class="input-field input-view uppercase">
                     </div>
                 </div>
             </div>
 
+            <!-- SECCIÓN 3: Itinerario del Viaje -->
             <div>
                 <div class="section-title"><i data-lucide="map-pinned" class="w-5 h-5 text-primary-link"></i> Itinerario del Viaje</div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -118,16 +124,16 @@
                         <input type="text" name="origen" id="origen" readonly class="input-field input-view">
                     </div>
                     <div class="md:col-span-4">
+                        <label class="label-style">Parada / Vía</label>
+                        <input type="text" name="parada" id="parada" readonly class="input-field input-view">
+                    </div>
+                    <div class="md:col-span-4">
                         <label class="label-style">Destino</label>
                         <input type="text" name="destino" id="destino" readonly class="input-field input-view">
                     </div>
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="label-style">Referencia Expediente</label>
                         <input type="text" name="referencia" id="referencia" readonly class="input-field input-view font-black uppercase">
-                    </div>
-                    <div class="md:col-span-6">
-                        <label class="label-style">Parada Intermedia</label>
-                        <input type="text" name="parada" id="parada" readonly class="input-field input-view">
                     </div>
                     <div class="md:col-span-3">
                         <label class="label-style">Espera Inicio</label>
@@ -137,9 +143,14 @@
                         <label class="label-style">Espera Fin</label>
                         <input type="text" name="espera_fin" id="espera_fin" readonly class="input-field input-view">
                     </div>
+                    <div class="md:col-span-3">
+                        <label class="label-style text-orange-600">Espera Total (min)</label>
+                        <input type="text" name="hora_total" id="hora_total" readonly class="input-field input-view text-right text-orange-600">
+                    </div>
                 </div>
             </div>
 
+            <!-- SECCIÓN 4: Kilometraje -->
             <div class="grid grid-cols-1 md:grid-cols-12 gap-6 bg-slate-50 p-6 rounded-[2rem] border border-slate-200 shadow-inner">
                 <div class="md:col-span-2">
                     <label class="label-style">Km Inicio</label>
@@ -161,6 +172,7 @@
                 </div>
             </div>
 
+            <!-- SECCIÓN 5: Economía y Conductor -->
             <div>
                 <div class="section-title"><i data-lucide="banknote" class="w-5 h-5 text-primary-link"></i> Economía y Conductor</div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -186,26 +198,54 @@
                 </div>
             </div>
 
-            <div class="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-200 shadow-lg space-y-6">
+            <!-- SECCIÓN 6: Estado Administrativo -->
+            <div class="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-200 shadow-lg space-y-5">
                 <h3 class="text-blue-800 font-black uppercase text-xs tracking-[0.2em] flex items-center gap-2">
                     <i data-lucide="file-text" class="w-4 h-4"></i> Estado Administrativo
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="flex flex-col justify-center gap-4">
-                        <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-blue-100">
-                            <span class="text-[10px] font-black uppercase text-blue-400">Nº Factura:</span>
-                            <span id="num_factura_view" class="text-sm font-black text-slate-700">-</span>
-                        </div>
-                        <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-blue-100">
-                            <span class="text-[10px] font-black uppercase text-blue-400">Fecha Cobro:</span>
-                            <span id="fecha_cobro_view" class="text-sm font-black text-slate-700">-</span>
+
+                <!-- Nº Factura -->
+                <div class="max-w-sm">
+                    <label class="label-style text-blue-400">Nº Factura Asignada</label>
+                    <div class="input-field input-view bg-white border-blue-200 font-black" id="num_factura_view">—</div>
+                </div>
+
+                <!-- Fila: Cobrado + Fecha | Pagado + Fecha | Finalizado -->
+                <div class="flex flex-wrap items-end gap-4 pt-4 border-t border-blue-100">
+
+                    <!-- Cobrado -->
+                    <div class="shrink-0">
+                        <div id="badge_cobrado" class="badge-status border-slate-200 bg-slate-100 text-slate-400">
+                            <i data-lucide="circle" class="w-4 h-4"></i> Cobrado (Empresa)
                         </div>
                     </div>
-                    <div id="status_badges_container" class="flex flex-wrap gap-3 items-center justify-center md:justify-start">
+                    <div class="w-44 shrink-0">
+                        <label class="label-style text-blue-400">Fecha de Cobro</label>
+                        <div class="input-field input-view bg-white border-blue-200 font-black" id="fecha_cobro_view">—</div>
+                    </div>
+
+                    <!-- Pagado -->
+                    <div class="shrink-0">
+                        <div id="badge_pagado" class="badge-status border-slate-200 bg-slate-100 text-slate-400">
+                            <i data-lucide="circle" class="w-4 h-4"></i> Pagado (Conductor)
                         </div>
+                    </div>
+                    <div class="w-44 shrink-0">
+                        <label class="label-style text-green-500">Fecha de Pago</label>
+                        <div class="input-field input-view bg-white border-green-200 font-black" id="fecha_pago_view">—</div>
+                    </div>
+
+                    <!-- Finalizado -->
+                    <div class="shrink-0">
+                        <div id="badge_finalizado" class="badge-status border-slate-200 bg-slate-100 text-slate-400">
+                            <i data-lucide="circle" class="w-4 h-4"></i> Servicio Cerrado
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
+            <!-- Observaciones -->
             <div class="w-full">
                 <label class="label-style tracking-widest text-slate-500 mb-2 block uppercase">Observaciones Registradas</label>
                 <div id="observaciones_view" class="input-field input-view min-h-[100px] italic p-6 text-sm"></div>
