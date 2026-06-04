@@ -1,12 +1,14 @@
 /**
  * ARCHIVO: static/js/admin_albaran_update.js
  * DESCRIPCIÓN: Edición total de albaranes para Administrador.
- * ACTUALIZADO: 26/05/2026
- *   - FIX: empresa_ref se fuerza desde el select id='empresa' porque FormData
- *     puede no cogerlo si el select fue poblado dinámicamente.
+ * ACTUALIZADO: 04/06/2026
+ *   - FIX: empresa_ref se fuerza desde el select id='empresa'.
  *   - FIX: fecha se fuerza desde el input directamente.
- *   - FIX: nombre_pasajero se envía como 'nombre_pasajero' (backend acepta ambos).
+ *   - FIX: nombre_pasajero se envía como 'nombre_pasajero'.
  *   - FIX: Campo 'enviado' siempre = true en cada actualización admin.
+ *   - FIX: espera_ini y espera_fin son HH:mm (pasan por addTwoHours).
+ *   - FIX: hora_total es entero (minutos totales de espera, tecleado por admin).
+ *   - ADD: toggleFecha y syncFechasFacturacion para cobrado/pagado con fecha inline.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     console.group(`🚀 [ADMIN-UPDATE] Inicializando Edición - ID: ${albaranId}`);
-    
+
     try {
         console.log("⏳ 1. Cargando diccionarios maestros...");
         await Promise.all([
@@ -30,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch(`/api/v1/albaranes/id/${albaranId}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        
+
         if (!response.ok) throw new Error(`Error ${response.status}: No se pudo obtener el registro.`);
 
         const result = await response.json();
@@ -42,8 +44,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn("⚠️ AlbaranLoader no encontrado, usando fallback local.");
             fallbackPopulate(data);
         }
-        
+
         lockLicenseField(data);
+        syncFechasFacturacion();
 
         if (document.getElementById('header_num')) {
             document.getElementById('header_num').textContent = `#${data.numero_albaran}`;
@@ -64,9 +67,9 @@ function lockLicenseField(data) {
     const selectLic = document.getElementById('licencia_ref');
     if (selectLic) {
         selectLic.value = data.licencia_ref;
-        selectLic.disabled = true; 
+        selectLic.disabled = true;
         selectLic.classList.add('bg-gray-100', 'cursor-not-allowed', 'border-orange-300');
-        
+
         if (!document.getElementById('lic-lock-msg')) {
             const msg = document.createElement('div');
             msg.id = 'lic-lock-msg';
@@ -129,22 +132,17 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     const formData = new FormData(e.target);
     const payload = Object.fromEntries(formData.entries());
 
-    // FIX CRÍTICO: FormData no recoge selects disabled ni valores poblados dinámicamente.
-    // Forzamos los campos clave leyéndolos directamente del DOM.
-
     // Fecha: forzar desde input
     const fechaEl = document.getElementById('fecha');
     if (fechaEl && fechaEl.value) payload.fecha = fechaEl.value;
 
-    // Empresa: el select id='empresa' tiene name='empresa_ref'
-    // FormData lo recoge por name, pero por seguridad lo forzamos
+    // Empresa: forzar desde select
     const empresaEl = document.getElementById('empresa');
     if (empresaEl && empresaEl.value) payload.empresa_ref = empresaEl.value;
 
-    // Horas: leer del input y sumar 2h para compensar formatDateTimeWithOffset del backend.
-    // El backend recibe hora Madrid y resta 2h para guardar UTC.
-    // El frontend muestra hora extraída del ISO +02:00 (ya es hora Madrid correcta).
-    // Enviamos horaInput + 2h para que backend guarde el valor correcto en UTC.
+    // Horas HH:mm: sumar 2h para compensar offset UTC del backend.
+    // espera_ini y espera_fin son HH:mm → pasan por addTwoHours.
+    // hora_total es número entero → NO pasa por aquí.
     const addTwoHours = (timeStr) => {
         if (!timeStr) return null;
         const [h, m] = timeStr.split(':').map(Number);
@@ -161,19 +159,33 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     });
 
     // Normalizar Checkboxes
-    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'cobrado', 'pagado', 'finalizado', 'festivo'];
+    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'cobrado', 'pagado', 'finalizado'];
     bools.forEach(name => {
         const el = e.target.querySelector(`[name="${name}"]`);
         payload[name] = el ? el.checked : false;
     });
 
-    // Normalizar Números
-    const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales', 'importe_suplidos', 'importe_total', 'hora_total'];
+    // Normalizar Números decimales
+    const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales',
+                  'importe_suplidos', 'importe_total', 'hora_total'];
     nums.forEach(f => {
         if (payload[f] !== undefined && payload[f] !== '') {
             payload[f] = parseFloat(String(payload[f]).replace(',', '.')) || 0;
         }
     });
+
+    // hora_total: forzar entero (minutos totales de espera)
+    if (payload.hora_total !== undefined) {
+        payload.hora_total = Math.min(360, Math.max(0, Math.round(payload.hora_total)));
+    }
+
+    // Fechas cobro/pago: solo si el check está activo y hay valor, si no null
+    const fechaCobro = document.getElementById('fecha_cobro');
+    const fechaPago  = document.getElementById('fecha_pago');
+    payload.fecha_cobro = (document.getElementById('cobrado')?.checked && fechaCobro?.value)
+        ? fechaCobro.value : null;
+    payload.fecha_pago  = (document.getElementById('pagado')?.checked && fechaPago?.value)
+        ? fechaPago.value : null;
 
     // Admin siempre marca como enviado
     payload.enviado = true;
@@ -188,7 +200,7 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     try {
         const res = await fetch(`/api/v1/albaranes/${albaranId}`, {
             method: 'PUT',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             },
@@ -198,7 +210,7 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
         const result = await res.json();
         if (res.ok) {
             showStatus("✅ ACTUALIZADO CORRECTAMENTE", "success");
-            setTimeout(() => window.location.href = '/admin/albaranes', 1500); 
+            setTimeout(() => window.location.href = '/admin/albaranes', 1500);
         } else {
             throw new Error(result.error || "Error al actualizar");
         }
@@ -212,7 +224,7 @@ function initCalculosKms() {
     const v1 = document.querySelector('[name="km_ini"]');
     const v2 = document.querySelector('[name="km_fin"]');
     const tot = document.querySelector('[name="km_totales"]');
-    const calcular = () => { 
+    const calcular = () => {
         if (v1 && v2 && tot) {
             const val1 = parseFloat(v1.value) || 0;
             const val2 = parseFloat(v2.value) || 0;
@@ -221,6 +233,36 @@ function initCalculosKms() {
     };
     v1?.addEventListener('input', calcular);
     v2?.addEventListener('input', calcular);
+}
+
+/**
+ * Activa/desactiva el input de fecha según el estado del checkbox.
+ * Si se desmarca, limpia el valor.
+ */
+function toggleFecha(checkId, dateId) {
+    const check = document.getElementById(checkId);
+    const dateEl = document.getElementById(dateId);
+    if (!check || !dateEl) return;
+    if (check.checked) {
+        dateEl.disabled = false;
+        if (!dateEl.value) {
+            const hoy = new Date();
+            const offset = hoy.getTimezoneOffset() * 60000;
+            dateEl.value = new Date(hoy - offset).toISOString().split('T')[0];
+        }
+    } else {
+        dateEl.disabled = true;
+        dateEl.value = '';
+    }
+}
+
+/**
+ * Sincroniza el estado inicial de las fechas al cargar el formulario.
+ * Se llama tras populateForm para reflejar los datos del backend.
+ */
+function syncFechasFacturacion() {
+    toggleFecha('cobrado', 'fecha_cobro');
+    toggleFecha('pagado',  'fecha_pago');
 }
 
 function showStatus(msg, type) {

@@ -69,17 +69,14 @@
                         <label class="label-style">Nº Albarán</label>
                         <input type="text" name="numero_albaran" id="n_albaran" readonly class="input-field input-readonly text-primary-link">
                     </div>
-                    <!-- IGUALADO: fecha required como en titular -->
                     <div class="md:col-span-3">
                         <label class="label-style">Fecha Servicio *</label>
                         <input type="date" name="fecha" id="fecha" required class="input-field font-bold">
                     </div>
-                    <!-- IGUALADO: hora_ini required como en titular -->
                     <div class="md:col-span-2">
                         <label class="label-style text-primary-link font-black">Hora Ini *</label>
                         <input type="time" name="hora_ini" id="hora_ini" required class="input-field font-bold">
                     </div>
-                    <!-- IGUALADO: hora_fin igual que titular -->
                     <div class="md:col-span-3">
                         <label class="label-style">Hora Fin</label>
                         <input type="time" name="hora_fin" id="hora_fin" class="input-field font-bold">
@@ -91,7 +88,6 @@
             <div>
                 <div class="section-title"><i data-lucide="users" class="w-5 h-5 text-primary-link"></i> Detalles de Facturación</div>
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <!-- IGUALADO: id="empresa" igual que titular -->
                     <div class="md:col-span-3">
                         <label class="label-style">Empresa Asociada *</label>
                         <select id="empresa" name="empresa_ref" required class="input-field font-semibold"></select>
@@ -100,7 +96,6 @@
                         <label class="label-style">Pasajero / Cliente</label>
                         <input type="text" name="nombre_pasajero" id="nombre_pasajero" class="input-field" placeholder="Nombre del cliente">
                     </div>
-                    <!-- IGUALADO: tlf_pasajero añadido igual que titular -->
                     <div class="md:col-span-2">
                         <label class="label-style">Teléfono</label>
                         <input type="text" name="tlf_pasajero" id="tlf_pasajero" class="input-field">
@@ -109,7 +104,6 @@
                         <label class="label-style">DNI Pasajero</label>
                         <input type="text" name="dni_pasajero" id="dni_pasajero" class="input-field uppercase">
                     </div>
-                    <!-- IGUALADO: maxlength=15 igual que titular -->
                     <div class="md:col-span-2">
                         <label class="label-style">Matrícula</label>
                         <input type="text" name="matricula" id="matricula" maxlength="15" class="input-field font-bold uppercase">
@@ -133,17 +127,23 @@
                         <label class="label-style">Destino *</label>
                         <input type="text" name="destino" id="destino" required class="input-field">
                     </div>
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="label-style">Referencia Expediente</label>
                         <input type="text" name="referencia" id="referencia" class="input-field uppercase font-bold" placeholder="OPCIONAL">
                     </div>
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="label-style">Espera Inicio</label>
                         <input type="time" name="espera_ini" id="espera_ini" class="input-field">
                     </div>
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-3">
                         <label class="label-style">Espera Fin</label>
                         <input type="time" name="espera_fin" id="espera_fin" class="input-field">
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="label-style text-orange-600">Espera Total (min)</label>
+                        <input type="number" inputmode="numeric" name="hora_total" id="hora_total"
+                            min="0" max="360" step="1"
+                            class="input-field font-bold text-orange-600 text-right" placeholder="0">
                     </div>
                 </div>
             </div>
@@ -207,37 +207,59 @@
             </div>
 
             <!-- SECCIÓN 6: Facturación y Liquidación Administrativa (exclusiva admin) -->
-            <div class="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-200 shadow-lg space-y-6">
+            <div class="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-200 shadow-lg space-y-5">
                 <h3 class="text-blue-800 font-black uppercase text-xs tracking-[0.2em] flex items-center gap-2">
                     <i data-lucide="file-text" class="w-4 h-4"></i> Facturación y Liquidación Administrativa
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <label for="num_factura" class="label-style text-blue-400">Nº Factura Asignada</label>
-                        <input type="text" id="num_factura" name="num_factura" placeholder="Ej: 2026/FAC-001" class="input-field bg-white border-blue-200 font-bold" />
-                    </div>
-                    <div>
-                        <label for="fecha_cobro" class="label-style text-blue-400">Fecha de Cobro Real</label>
-                        <input type="date" id="fecha_cobro" name="fecha_cobro" class="input-field bg-white border-blue-200" />
-                    </div>
+
+                <!-- Nº Factura -->
+                <div class="max-w-sm">
+                    <label for="num_factura" class="label-style text-blue-400">Nº Factura Asignada</label>
+                    <input type="text" id="num_factura" name="num_factura" placeholder="Ej: 2026/FAC-001"
+                        class="input-field bg-white border-blue-200 font-bold" />
                 </div>
-                <div class="flex flex-wrap gap-4 pt-4 border-t border-blue-100">
-                    <label class="checkbox-inline flex-1 border-blue-200 bg-blue-100/50">
-                        <input type="checkbox" name="cobrado" id="cobrado" class="w-5 h-5 accent-blue-600">
-                        <span class="text-[10px] font-black uppercase text-blue-800">Cobrado (Empresa)</span>
-                    </label>
-                    <label class="checkbox-inline flex-1 border-green-200 bg-green-50">
-                        <input type="checkbox" name="pagado" id="pagado" class="w-5 h-5 accent-green-600">
-                        <span class="text-[10px] font-black uppercase text-green-800">Pagado (Conductor)</span>
-                    </label>
-                    <label class="checkbox-inline flex-1 border-teal-200 bg-teal-50">
-                        <input type="checkbox" name="finalizado" id="finalizado" class="w-5 h-5 accent-teal-600">
-                        <span class="text-[10px] font-black uppercase text-teal-800">Servicio Cerrado</span>
-                    </label>
-                    <label class="checkbox-inline flex-1 border-pink-200 bg-pink-50">
-                        <input type="checkbox" name="festivo" id="festivo" class="w-5 h-5 accent-pink-600">
-                        <span class="text-[10px] font-black uppercase text-pink-800">Plus Festivo</span>
-                    </label>
+
+                <!-- Fila única: Cobrado + Fecha cobro | Pagado + Fecha pago | Finalizado -->
+                <div class="flex flex-wrap items-end gap-4 pt-4 border-t border-blue-100">
+
+                    <!-- Cobrado -->
+                    <div class="shrink-0">
+                        <label class="checkbox-inline border-blue-200 bg-blue-100/50 h-10">
+                            <input type="checkbox" name="cobrado" id="cobrado" class="w-5 h-5 accent-blue-600"
+                                onchange="toggleFecha('cobrado', 'fecha_cobro')">
+                            <span class="text-[10px] font-black uppercase text-blue-800">Cobrado (Empresa)</span>
+                        </label>
+                    </div>
+                    <div class="w-44 shrink-0">
+                        <label class="label-style text-blue-400">Fecha de Cobro</label>
+                        <input type="date" id="fecha_cobro" name="fecha_cobro"
+                            class="input-field bg-white border-blue-200 disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed"
+                            disabled />
+                    </div>
+
+                    <!-- Pagado -->
+                    <div class="shrink-0">
+                        <label class="checkbox-inline border-green-200 bg-green-50 h-10">
+                            <input type="checkbox" name="pagado" id="pagado" class="w-5 h-5 accent-green-600"
+                                onchange="toggleFecha('pagado', 'fecha_pago')">
+                            <span class="text-[10px] font-black uppercase text-green-800">Pagado (Conductor)</span>
+                        </label>
+                    </div>
+                    <div class="w-44 shrink-0">
+                        <label class="label-style text-green-500">Fecha de Pago</label>
+                        <input type="date" id="fecha_pago" name="fecha_pago"
+                            class="input-field bg-white border-green-200 disabled:bg-slate-100 disabled:text-slate-300 disabled:cursor-not-allowed"
+                            disabled />
+                    </div>
+
+                    <!-- Finalizado -->
+                    <div class="shrink-0">
+                        <label class="checkbox-inline border-teal-200 bg-teal-50 h-10">
+                            <input type="checkbox" name="finalizado" id="finalizado" class="w-5 h-5 accent-teal-600">
+                            <span class="text-[10px] font-black uppercase text-teal-800">Servicio Cerrado</span>
+                        </label>
+                    </div>
+
                 </div>
             </div>
 
