@@ -338,7 +338,6 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 		})
 	}
 
-	// ✅ FIX: nombre real de la función
 	path, err := utils.GenerateTitularesXLSX("ALBARANES ADMIN", lista)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -404,7 +403,6 @@ func ExportAlbaranesTitularXLSX(c *gin.Context, db *gorm.DB) {
 		})
 	}
 
-	// ✅ FIX: nombre real de la función
 	path, err := utils.GenerateTitularesXLSX("ALBARANES TITULAR", lista)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -719,18 +717,21 @@ func timePtrOrNil(m map[string]interface{}, key string) interface{} {
 	}
 	return nil
 }
+
 func strOrEmpty(m map[string]interface{}, key string) string {
 	if v, ok := m[key].(string); ok {
 		return v
 	}
 	return ""
 }
+
 func strPtrOrNil(m map[string]interface{}, key string) interface{} {
 	if v, ok := m[key].(string); ok && strings.TrimSpace(v) != "" {
 		return v
 	}
 	return nil
 }
+
 func floatOrZero(m map[string]interface{}, key string) float64 {
 	val, ok := m[key]
 	if !ok || val == nil {
@@ -751,6 +752,7 @@ func floatOrZero(m map[string]interface{}, key string) float64 {
 	}
 	return 0.0
 }
+
 func intOrZero(m map[string]interface{}, key string) int {
 	val, ok := m[key]
 	if !ok || val == nil {
@@ -764,12 +766,14 @@ func intOrZero(m map[string]interface{}, key string) int {
 	}
 	return 0
 }
+
 func boolOrFalse(m map[string]interface{}, key string) bool {
 	if v, ok := m[key].(bool); ok {
 		return v
 	}
 	return false
 }
+
 func strFromInterface(v interface{}) string {
 	if s, ok := v.(string); ok {
 		return s
