@@ -2,12 +2,13 @@
  * ARCHIVO: static/js/admin_pago_tit.js
  * ACTUALIZADO: 24/06/2026
  *   - FIX: isBlank() corregido — pagado por defecto no bloquea el guardado
- *   - FIX: render() no duplica la opción cabecera (el <select> del HTML va vacío)
- *   - FIX: render() sólo se llama desde DOMContentLoaded, nunca antes
+ *   - FIX: render() no duplica la opción cabecera
  *   - FIX: tableFooter como <div> fuera de la tabla
  *   - FIX: pageSize "Mostrar Todo" usa filteredData.length real, no 99999
- *   - FIX: loadData() trae TODOS los registros sin límite artificial
- *   - FIX: renderTable() respeta pageSize=Infinity cuando se elige "Mostrar Todo"
+ *   - FIX: loadData() pagina la API en lotes de API_BATCH (500) en paralelo
+ *   - FIX: totalServer detecta total_albaranes / total / count según API
+ *   - FIX: cálculo de totalPages usa API_BATCH, no data.length (evita bug última página)
+ *   - FIX: logs debug en consola para diagnosticar respuesta de la API
  */
 
 'use strict';
@@ -20,7 +21,7 @@ const STATE = {
     sortKey: 'fecha',
     sortDir: 'desc',
     searchMode: 'campos',
-    showAll: false   // true cuando el usuario elige "Mostrar Todo"
+    showAll: false
 };
 
 /* ═══════════════════════ HISTORIAL ═══════════════════════ */
@@ -29,18 +30,14 @@ const HISTORY_KEY = 'pago_tit_search_history';
 const HISTORY_MAX = 15;
 
 const SearchHistory = {
-
     load() {
         try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
         catch { return []; }
     },
-
     save(list) {
         try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); }
-        catch { /* storage lleno — ignorar */ }
+        catch {}
     },
-
-    /** Snapshot de los filtros activos en este momento */
     capture() {
         return {
             ts         : Date.now(),
@@ -54,12 +51,6 @@ const SearchHistory = {
             palabra    : document.getElementById('palabra')?.value         || ''
         };
     },
-
-    /**
-     * Una búsqueda es "en blanco" sólo si no hay NINGÚN filtro real.
-     * ¡OJO! pagado='false' (pendientes) SÍ es un filtro real y debe guardarse.
-     * Sólo pagado='' (mostrar todos) sin nada más sería blanco.
-     */
     isBlank(snap) {
         if (snap.mode === 'palabra') return !snap.palabra.trim();
         return (
@@ -68,167 +59,100 @@ const SearchHistory = {
             !snap.referencia  &&
             !snap.fecha_desde &&
             !snap.fecha_hasta &&
-            snap.pagado === ''   // "mostrar todos" sin ningún otro filtro
+            snap.pagado === ''
         );
     },
-
-    /** Igual que el anterior ignorando timestamp */
     _sameFilters(a, b) {
-        return a.mode        === b.mode        &&
-               a.licencia    === b.licencia    &&
-               a.empresa     === b.empresa     &&
-               a.pagado      === b.pagado      &&
-               a.referencia  === b.referencia  &&
-               a.fecha_desde === b.fecha_desde &&
-               a.fecha_hasta === b.fecha_hasta &&
-               a.palabra     === b.palabra;
+        return a.mode === b.mode && a.licencia === b.licencia && a.empresa === b.empresa &&
+               a.pagado === b.pagado && a.referencia === b.referencia &&
+               a.fecha_desde === b.fecha_desde && a.fecha_hasta === b.fecha_hasta && a.palabra === b.palabra;
     },
-
     push(snap) {
         if (this.isBlank(snap)) return;
-
         let list = this.load();
-        // Eliminar duplicado exacto (moverlo al principio con timestamp nuevo)
         list = list.filter(e => !this._sameFilters(e, snap));
         list.unshift(snap);
         if (list.length > HISTORY_MAX) list = list.slice(0, HISTORY_MAX);
         this.save(list);
         HistoryUI.render();
     },
-
-    remove(index) {
-        const list = this.load();
-        list.splice(index, 1);
-        this.save(list);
-        HistoryUI.render();
-    },
-
-    clear() {
-        this.save([]);
-        HistoryUI.render();
-    }
+    remove(index) { const list = this.load(); list.splice(index, 1); this.save(list); HistoryUI.render(); },
+    clear() { this.save([]); HistoryUI.render(); }
 };
 
-/* ── Texto de cada entrada: "08:25 · FILTRO: LIC 42 · PEND" ── */
 function _histLabel(item) {
     const d  = new Date(item.ts);
-    const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-
-    if (item.mode === 'palabra' && item.palabra)
-        return `${hm} · BÚSQ: ${item.palabra.toUpperCase().substring(0, 30)}`;
-
+    const hm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    if (item.mode === 'palabra' && item.palabra) return `${hm} · BÚSQ: ${item.palabra.toUpperCase().substring(0,30)}`;
     const parts = [];
-    if (item.licencia)             parts.push(`LIC ${item.licencia}`);
-    if (item.empresa)              parts.push(item.empresa.substring(0, 20).toUpperCase());
-    if (item.pagado === 'false')   parts.push('PENDIENTES');
-    if (item.pagado === 'true')    parts.push('PAGADOS');
-    if (item.referencia)           parts.push(`EXP:${item.referencia}`);
-    if (item.fecha_desde)          parts.push(`D:${item.fecha_desde.substring(5)}`);
-    if (item.fecha_hasta)          parts.push(`H:${item.fecha_hasta.substring(5)}`);
-
+    if (item.licencia)           parts.push(`LIC ${item.licencia}`);
+    if (item.empresa)            parts.push(item.empresa.substring(0,20).toUpperCase());
+    if (item.pagado === 'false') parts.push('PENDIENTES');
+    if (item.pagado === 'true')  parts.push('PAGADOS');
+    if (item.referencia)         parts.push(`EXP:${item.referencia}`);
+    if (item.fecha_desde)        parts.push(`D:${item.fecha_desde.substring(5)}`);
+    if (item.fecha_hasta)        parts.push(`H:${item.fecha_hasta.substring(5)}`);
     return `${hm} · ${parts.length ? parts.join(' · ') : 'FILTRO: MANUAL'}`;
 }
 
 const HistoryUI = {
-
-    /** Rellena el <select id="histSelect"> con las entradas del historial.
-     *  El <select> en el HTML debe estar VACÍO (sin <option> hardcodeadas). */
     render() {
         const sel = document.getElementById('histSelect');
         if (!sel) return;
-
         const list = SearchHistory.load();
-        sel.innerHTML = ''; // limpiar siempre
-
-        // ── Opción cabecera ──
+        sel.innerHTML = '';
         const hdr = document.createElement('option');
-        hdr.value    = '__hdr__';
-        hdr.text     = list.length ? `🕐 BÚSQUEDAS RECIENTES (${list.length})` : '🕐 BÚSQUEDAS RECIENTES';
+        hdr.value = '__hdr__';
+        hdr.text  = list.length ? `🕐 BÚSQUEDAS RECIENTES (${list.length})` : '🕐 BÚSQUEDAS RECIENTES';
         hdr.selected = true;
         sel.appendChild(hdr);
-
         if (list.length === 0) {
             const emp = document.createElement('option');
-            emp.value    = '__empty__';
-            emp.text     = '  — Sin búsquedas guardadas —';
-            emp.disabled = true;
-            sel.appendChild(emp);
-            return;
+            emp.value = '__empty__'; emp.text = '  — Sin búsquedas guardadas —'; emp.disabled = true;
+            sel.appendChild(emp); return;
         }
-
-        // ── Entradas del historial ──
         list.forEach((item, i) => {
             const opt = document.createElement('option');
-            opt.value = String(i);
-            opt.text  = _histLabel(item);
-            sel.appendChild(opt);
+            opt.value = String(i); opt.text = _histLabel(item); sel.appendChild(opt);
         });
-
-        // ── Separador + borrar ──
         const sep = document.createElement('option');
-        sep.value    = '__sep__';
-        sep.text     = '─────────────────────────────';
-        sep.disabled = true;
+        sep.value = '__sep__'; sep.text = '─────────────────────────────'; sep.disabled = true;
         sel.appendChild(sep);
-
         const clr = document.createElement('option');
-        clr.value = '__clear__';
-        clr.text  = '🗑  Borrar historial';
-        sel.appendChild(clr);
+        clr.value = '__clear__'; clr.text = '🗑  Borrar historial'; sel.appendChild(clr);
     },
-
-    /** Handler del onchange del <select> */
     onSelectChange(sel) {
         const val = sel.value;
         if (!val || val === '__hdr__' || val === '__empty__' || val === '__sep__') return;
-
-        if (val === '__clear__') {
-            SearchHistory.clear();
-            sel.selectedIndex = 0;
-            return;
-        }
-
-        // Aplicar la entrada seleccionada
+        if (val === '__clear__') { SearchHistory.clear(); sel.selectedIndex = 0; return; }
         const list = SearchHistory.load();
         const snap = list[parseInt(val, 10)];
         if (!snap) { sel.selectedIndex = 0; return; }
-
-        // Restaurar modo de búsqueda primero (cambia visibilidad de secciones)
         UI_PAGOS.setSearchModeManual(snap.mode);
-
         const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-        set('licenciaSelect', snap.licencia);
-        set('empresa',        snap.empresa);
-        set('pagado',         snap.pagado);
-        set('referencia',     snap.referencia);
-        set('fecha_desde',    snap.fecha_desde);
-        set('fecha_hasta',    snap.fecha_hasta);
-        set('palabra',        snap.palabra);
-
-        sel.selectedIndex = 0; // volver al placeholder
-        window.handleSearch(); // buscar (sin evento → no guarda en historial)
+        set('licenciaSelect', snap.licencia); set('empresa', snap.empresa); set('pagado', snap.pagado);
+        set('referencia', snap.referencia);   set('fecha_desde', snap.fecha_desde);
+        set('fecha_hasta', snap.fecha_hasta); set('palabra', snap.palabra);
+        sel.selectedIndex = 0;
+        window.handleSearch();
     }
 };
 
-// Exponer al global para que funcionen los onchange/onclick inline del HTML
 window.SearchHistory = SearchHistory;
 window.HistoryUI     = HistoryUI;
 
 /* ═══════════════════════ UI PAGOS ═══════════════════════ */
 
 const UI_PAGOS = {
-
     formatDate(iso) {
         if (!iso || iso.startsWith('0001')) return '-';
         return iso.substring(0, 10);
     },
-
     boolIcon(val) {
         return (val === true || val === 1 || val === '1')
             ? '<span class="text-green-500 font-black text-base">✅</span>'
             : '<span class="text-red-400 font-black text-base">✗</span>';
     },
-
     alertMessage(message, type = 'info') {
         const s = document.getElementById('statusMessage');
         if (!s) return;
@@ -240,13 +164,11 @@ const UI_PAGOS = {
         s.classList.remove('hidden');
         setTimeout(() => s.classList.add('hidden'), 5000);
     },
-
     updateSelectionUI() {
         const all     = Array.from(document.querySelectorAll('.cb-seleccion:not(:disabled)'));
         const checked = all.filter(cb => cb.checked);
         const counter = document.getElementById('selectedCount');
         const cbAll   = document.getElementById('cb-select-all');
-
         if (checked.length > 0) {
             counter.textContent = `${checked.length} seleccionado${checked.length > 1 ? 's' : ''}`;
             counter.classList.remove('hidden');
@@ -258,7 +180,6 @@ const UI_PAGOS = {
             cbAll.indeterminate = checked.length > 0 && checked.length < all.length;
         }
     },
-
     setSearchModeManual(mode) {
         STATE.searchMode = mode;
         const pSec = document.getElementById('palabraSection');
@@ -267,20 +188,14 @@ const UI_PAGOS = {
         const btnP = document.getElementById('btn-mode-palabra');
         const ON  = 'px-4 py-2 rounded-lg bg-primary-link text-white font-black text-[10px] uppercase shadow-md transition-all';
         const OFF = 'px-4 py-2 rounded-lg bg-white text-slate-400 font-black text-[10px] border uppercase transition-all';
-
         if (mode === 'palabra') {
-            pSec?.classList.remove('hidden');
-            cSec?.classList.add('hidden');
-            if (btnP) btnP.className = ON;
-            if (btnC) btnC.className = OFF;
+            pSec?.classList.remove('hidden'); cSec?.classList.add('hidden');
+            if (btnP) btnP.className = ON; if (btnC) btnC.className = OFF;
             document.getElementById('palabra')?.focus();
         } else {
-            pSec?.classList.add('hidden');
-            cSec?.classList.remove('hidden');
-            if (btnC) btnC.className = ON;
-            if (btnP) btnP.className = OFF;
+            pSec?.classList.add('hidden'); cSec?.classList.remove('hidden');
+            if (btnC) btnC.className = ON; if (btnP) btnP.className = OFF;
         }
-        // NO llamar handleSearch aquí — lo llama quien invoca setSearchModeManual
     }
 };
 
@@ -303,10 +218,19 @@ async function initPagoTit() {
 
 /* ═══════════════════════ DATA ═══════════════════════ */
 
-async function loadData() {
+/**
+ * Tamaño de lote por request. 500 cubre la mayoría de APIs sin timeout.
+ * Auméntalo a 1000 si tu backend lo permite.
+ */
+const API_BATCH = 500;
+
+function _setLoadingMsg(msg) {
     const tbody = document.getElementById('albaranResults');
-    if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center italic text-gray-400 animate-pulse font-bold uppercase tracking-widest">Sincronizando Liquidaciones...</td></tr>';
+    if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="p-10 text-center italic text-gray-400 animate-pulse font-bold uppercase tracking-widest">${msg}</td></tr>`;
+}
+
+async function loadData() {
+    _setLoadingMsg('Sincronizando Liquidaciones...');
 
     const cbAll = document.getElementById('cb-select-all');
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
@@ -316,45 +240,74 @@ async function loadData() {
         const token   = localStorage.getItem('token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-        // ── FIX: traer TODOS los registros sin límite artificial ──
-        // pageSize=0 o un valor muy alto según soporte de tu API.
-        // Si tu API soporta pageSize=0 como "sin límite", úsalo.
-        // Si no, usamos un número suficientemente grande o paginamos.
-        const res  = await fetch('/api/v1/albaranes/search?pageSize=0&page=1', { headers });
-        const json = await res.json();
+        // ── PÁGINA 1: SIN filtro cobrado — traer TODOS los albaranes ──
+        // Los filtros de estado (creado/enviado/pendiente/pagado) se aplican
+        // en handleSearch() client-side según el select "Estatus de Pago".
+        const res1  = await fetch(`/api/v1/albaranes/search?pageSize=${API_BATCH}&page=1`, { headers });
+        const json1 = await res1.json();
 
-        // Compatibilidad: la API puede devolver { data: [...], total: N } o directamente [...]
-        let data = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        console.debug('[loadData] Respuesta página 1:', {
+            keys     : Object.keys(json1),
+            total_alb: json1.total_albaranes,
+            total    : json1.total,
+            count    : json1.count,
+            data_len : (Array.isArray(json1.data) ? json1.data : json1)?.length
+        });
 
-        // Si la API devuelve un total mayor que lo recibido, paginar automáticamente
-        const totalServer = json.total ?? json.count ?? data.length;
-        if (totalServer > data.length && data.length > 0) {
-            // La API limita su respuesta: traer el resto en lotes
-            const batchSize = data.length;
-            const pages = Math.ceil(totalServer / batchSize);
-            for (let p = 2; p <= pages; p++) {
-                const r2   = await fetch(`/api/v1/albaranes/search?pageSize=${batchSize}&page=${p}`, { headers });
-                const j2   = await r2.json();
-                const chunk = Array.isArray(j2.data) ? j2.data : (Array.isArray(j2) ? j2 : []);
-                data = data.concat(chunk);
+        let data = Array.isArray(json1.data) ? json1.data
+                 : Array.isArray(json1)       ? json1
+                 : [];
+
+        const totalServer = json1.total_albaranes
+                         ?? json1.total
+                         ?? json1.count
+                         ?? json1.total_count
+                         ?? json1.totalCount
+                         ?? data.length;
+
+        const totalPages = Math.max(1, Math.ceil(totalServer / API_BATCH));
+
+        console.debug(`[loadData] totalServer=${totalServer} | API_BATCH=${API_BATCH} | totalPages=${totalPages}`);
+
+        // ── PÁGINAS 2..N en paralelo ──
+        if (totalPages > 1) {
+            _setLoadingMsg(`Cargando ${totalServer} registros... (${totalPages} lotes)`);
+
+            const requests = [];
+            for (let p = 2; p <= totalPages; p++) {
+                const url = `/api/v1/albaranes/search?pageSize=${API_BATCH}&page=${p}`;
+                requests.push(
+                    fetch(url, { headers })
+                        .then(r => r.json())
+                        .then(j => {
+                            const chunk = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
+                            console.debug(`[loadData] Página ${p}: ${chunk.length} registros`);
+                            return chunk;
+                        })
+                        .catch(err => { console.error(`[loadData] Error página ${p}:`, err); return []; })
+                );
             }
+
+            const chunks = await Promise.all(requests);
+            for (const chunk of chunks) data = data.concat(chunk);
         }
 
-        // Solo los cobrados (esta página gestiona liquidaciones a titulares)
-        STATE.allData = data.filter(a => a.cobrado === true || a.cobrado === 1 || a.cobrado === '1');
-        window.handleSearch(); // sin evento → no guarda en historial
+        console.debug(`[loadData] TOTAL cargado: ${data.length} albaranes`);
+
+        // STATE.allData = TODOS los albaranes (2445 en tu caso)
+        // El filtro de estado se aplica en handleSearch() según el select del formulario
+        STATE.allData = data;
+
+        window.handleSearch(); // aplica filtros del formulario y renderiza
     } catch (err) {
         console.error('loadData error:', err);
+        _setLoadingMsg('⚠️ Error al conectar con la base de datos');
         UI_PAGOS.alertMessage('Error al conectar con la base de datos', 'error');
     }
 }
 
 /* ═══════════════════════ SEARCH ═══════════════════════ */
 
-/**
- * Llamar con un MouseEvent/SubmitEvent para guardar en historial.
- * Llamar sin argumentos (o desde código) para filtrar sin guardar.
- */
 window.handleSearch = (e) => {
     if (e) e.preventDefault();
 
@@ -362,9 +315,7 @@ window.handleSearch = (e) => {
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
     document.getElementById('selectedCount')?.classList.add('hidden');
 
-    // ── Leer el valor del select de pago ──
-    // '' = Mostrar Todos, 'true' = Pagados, 'false' = Pendientes
-    const pagadoVal  = document.getElementById('pagado')?.value  ?? '';
+    const pagadoVal  = document.getElementById('pagado')?.value  ?? 'false';
     const fechaDesde = document.getElementById('fecha_desde')?.value || '';
     const fechaHasta = document.getElementById('fecha_hasta')?.value || '';
 
@@ -378,29 +329,31 @@ window.handleSearch = (e) => {
 
     let filtered = SearchEngine.applyFilters(STATE.allData, params);
 
-    // ── FIX: solo filtrar por pagado si NO es "mostrar todos" (valor vacío '') ──
-    if (pagadoVal !== '') {
-        const want = pagadoVal === 'true';
-        filtered = filtered.filter(alb => {
-            const p    = alb.pagado;
-            const paid = p === true || p === 1 || p === '1';
-            return want ? paid : !paid;
-        });
-    }
-    // Si pagadoVal === '' → se muestran TODOS sin filtrar por estado de pago
+    // ── Filtro de estado según lógica SQL del negocio ──
+    // El campo "Estatus de Pago" filtra sobre cobrado+pagado, no solo pagado:
+    //   'false' → Pendientes de pago al titular: cobrado=1, pagado=0
+    //   'true'  → Ya pagados al titular:         cobrado=1, pagado=1
+    //   ''      → Mostrar todos (sin filtro de estado)
+    const b = v => v === true || v === 1 || v === '1';
 
-    if (fechaDesde) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0, 10) >= fechaDesde);
-    if (fechaHasta) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0, 10) <= fechaHasta);
+    if (pagadoVal === 'false') {
+        // Pendientes: empresa ya cobró (cobrado=1) pero titular aún no cobró (pagado=0)
+        filtered = filtered.filter(alb => b(alb.cobrado) && !b(alb.pagado));
+    } else if (pagadoVal === 'true') {
+        // Pagados: empresa cobró (cobrado=1) y titular ya cobró (pagado=1)
+        filtered = filtered.filter(alb => b(alb.cobrado) && b(alb.pagado));
+    }
+    // pagadoVal === '' → mostrar TODOS sin filtro de estado
+
+    if (fechaDesde) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0,10) >= fechaDesde);
+    if (fechaHasta) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0,10) <= fechaHasta);
 
     STATE.filteredData = filtered;
     handleSort(STATE.sortKey, 'string', true);
     STATE.currentPage = 1;
     renderTable();
 
-    // Guardar sólo si lo disparó el usuario (e es un Event real)
-    if (e instanceof Event) {
-        SearchHistory.push(SearchHistory.capture());
-    }
+    if (e instanceof Event) SearchHistory.push(SearchHistory.capture());
 };
 
 /* ═══════════════════════ RENDER TABLE ═══════════════════════ */
@@ -416,17 +369,13 @@ function renderTable() {
     document.getElementById('selectedCount')?.classList.add('hidden');
 
     const total = STATE.filteredData.length;
-
-    // ── FIX: "Mostrar Todo" usa el total real de filteredData, nunca 99999 ──
     const effectivePageSize = STATE.showAll ? total : STATE.pageSize;
-
-    // Reasegurar currentPage dentro de límites
     const totalPages = Math.max(1, Math.ceil(total / (effectivePageSize || 1)));
     if (STATE.currentPage > totalPages) STATE.currentPage = totalPages;
 
-    const start    = (STATE.currentPage - 1) * effectivePageSize;
+    const start    = STATE.showAll ? 0 : (STATE.currentPage - 1) * effectivePageSize;
     const pageData = STATE.showAll
-        ? STATE.filteredData                          // todos sin slice
+        ? STATE.filteredData
         : STATE.filteredData.slice(start, start + effectivePageSize);
 
     if (!pageData.length) {
@@ -535,8 +484,8 @@ function updatePaginationUI() {
     const total      = STATE.filteredData.length;
     const effectivePageSize = STATE.showAll ? total : STATE.pageSize;
     const totalPages = Math.max(1, Math.ceil(total / (effectivePageSize || 1)));
-    const elRes      = document.getElementById('resultsCount');
-    const elPag      = document.getElementById('pageInfo');
+    const elRes = document.getElementById('resultsCount');
+    const elPag = document.getElementById('pageInfo');
     if (elRes) elRes.textContent = total;
     if (elPag) elPag.textContent = STATE.showAll
         ? `Página 1 / 1 (todos)`
@@ -552,9 +501,8 @@ function setupTableEvents() {
         recs.onchange = e => {
             const val = e.target.value;
             if (val === 'all') {
-                // ── "Mostrar Todo": sin paginación, todos los filteredData ──
                 STATE.showAll  = true;
-                STATE.pageSize = 25; // reset interno (no importa mientras showAll=true)
+                STATE.pageSize = 25;
             } else {
                 STATE.showAll  = false;
                 STATE.pageSize = parseInt(val, 10);
@@ -563,7 +511,6 @@ function setupTableEvents() {
             renderTable();
         };
     }
-
     document.getElementById('prevPageBtn').onclick = () => {
         if (!STATE.showAll && STATE.currentPage > 1) { STATE.currentPage--; renderTable(); }
     };
@@ -592,5 +539,4 @@ window.handleClearAllFilters = () => {
 
 window.handleLogout = () => { localStorage.removeItem('token'); window.location.href = '/login'; };
 
-/* ── Arrancar siempre desde DOMContentLoaded ── */
 document.addEventListener('DOMContentLoaded', initPagoTit);
