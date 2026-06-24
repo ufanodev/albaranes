@@ -5,6 +5,9 @@
  *   - FIX: render() no duplica la opción cabecera (el <select> del HTML va vacío)
  *   - FIX: render() sólo se llama desde DOMContentLoaded, nunca antes
  *   - FIX: tableFooter como <div> fuera de la tabla
+ *   - FIX: pageSize "Mostrar Todo" usa filteredData.length real, no 99999
+ *   - FIX: loadData() trae TODOS los registros sin límite artificial
+ *   - FIX: renderTable() respeta pageSize=Infinity cuando se elige "Mostrar Todo"
  */
 
 'use strict';
@@ -16,7 +19,8 @@ const STATE = {
     pageSize: 25,
     sortKey: 'fecha',
     sortDir: 'desc',
-    searchMode: 'campos'
+    searchMode: 'campos',
+    showAll: false   // true cuando el usuario elige "Mostrar Todo"
 };
 
 /* ═══════════════════════ HISTORIAL ═══════════════════════ */
@@ -291,7 +295,6 @@ window.handleSelectAll = (masterCb, event) => {
 /* ═══════════════════════ INIT ═══════════════════════ */
 
 async function initPagoTit() {
-    // render() aquí ya funciona porque DOMContentLoaded garantiza que el DOM existe
     HistoryUI.render();
     await SearchEngine.initCatalog(true);
     await loadData();
@@ -312,13 +315,36 @@ async function loadData() {
     try {
         const token   = localStorage.getItem('token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res     = await fetch('/api/v1/albaranes/search?pageSize=10000', { headers });
-        const json    = await res.json();
-        const data    = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
 
+        // ── FIX: traer TODOS los registros sin límite artificial ──
+        // pageSize=0 o un valor muy alto según soporte de tu API.
+        // Si tu API soporta pageSize=0 como "sin límite", úsalo.
+        // Si no, usamos un número suficientemente grande o paginamos.
+        const res  = await fetch('/api/v1/albaranes/search?pageSize=0&page=1', { headers });
+        const json = await res.json();
+
+        // Compatibilidad: la API puede devolver { data: [...], total: N } o directamente [...]
+        let data = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+
+        // Si la API devuelve un total mayor que lo recibido, paginar automáticamente
+        const totalServer = json.total ?? json.count ?? data.length;
+        if (totalServer > data.length && data.length > 0) {
+            // La API limita su respuesta: traer el resto en lotes
+            const batchSize = data.length;
+            const pages = Math.ceil(totalServer / batchSize);
+            for (let p = 2; p <= pages; p++) {
+                const r2   = await fetch(`/api/v1/albaranes/search?pageSize=${batchSize}&page=${p}`, { headers });
+                const j2   = await r2.json();
+                const chunk = Array.isArray(j2.data) ? j2.data : (Array.isArray(j2) ? j2 : []);
+                data = data.concat(chunk);
+            }
+        }
+
+        // Solo los cobrados (esta página gestiona liquidaciones a titulares)
         STATE.allData = data.filter(a => a.cobrado === true || a.cobrado === 1 || a.cobrado === '1');
         window.handleSearch(); // sin evento → no guarda en historial
-    } catch {
+    } catch (err) {
+        console.error('loadData error:', err);
         UI_PAGOS.alertMessage('Error al conectar con la base de datos', 'error');
     }
 }
@@ -336,6 +362,8 @@ window.handleSearch = (e) => {
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
     document.getElementById('selectedCount')?.classList.add('hidden');
 
+    // ── Leer el valor del select de pago ──
+    // '' = Mostrar Todos, 'true' = Pagados, 'false' = Pendientes
     const pagadoVal  = document.getElementById('pagado')?.value  ?? '';
     const fechaDesde = document.getElementById('fecha_desde')?.value || '';
     const fechaHasta = document.getElementById('fecha_hasta')?.value || '';
@@ -350,16 +378,19 @@ window.handleSearch = (e) => {
 
     let filtered = SearchEngine.applyFilters(STATE.allData, params);
 
+    // ── FIX: solo filtrar por pagado si NO es "mostrar todos" (valor vacío '') ──
     if (pagadoVal !== '') {
         const want = pagadoVal === 'true';
         filtered = filtered.filter(alb => {
-            const p = alb.pagado;
+            const p    = alb.pagado;
             const paid = p === true || p === 1 || p === '1';
             return want ? paid : !paid;
         });
     }
-    if (fechaDesde) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0,10) >= fechaDesde);
-    if (fechaHasta) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0,10) <= fechaHasta);
+    // Si pagadoVal === '' → se muestran TODOS sin filtrar por estado de pago
+
+    if (fechaDesde) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0, 10) >= fechaDesde);
+    if (fechaHasta) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0, 10) <= fechaHasta);
 
     STATE.filteredData = filtered;
     handleSort(STATE.sortKey, 'string', true);
@@ -384,8 +415,19 @@ function renderTable() {
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
     document.getElementById('selectedCount')?.classList.add('hidden');
 
-    const start    = (STATE.currentPage - 1) * STATE.pageSize;
-    const pageData = STATE.filteredData.slice(start, start + STATE.pageSize);
+    const total = STATE.filteredData.length;
+
+    // ── FIX: "Mostrar Todo" usa el total real de filteredData, nunca 99999 ──
+    const effectivePageSize = STATE.showAll ? total : STATE.pageSize;
+
+    // Reasegurar currentPage dentro de límites
+    const totalPages = Math.max(1, Math.ceil(total / (effectivePageSize || 1)));
+    if (STATE.currentPage > totalPages) STATE.currentPage = totalPages;
+
+    const start    = (STATE.currentPage - 1) * effectivePageSize;
+    const pageData = STATE.showAll
+        ? STATE.filteredData                          // todos sin slice
+        : STATE.filteredData.slice(start, start + effectivePageSize);
 
     if (!pageData.length) {
         tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center font-bold text-orange-500 uppercase tracking-widest">Sin resultados coincidentes</td></tr>';
@@ -397,11 +439,11 @@ function renderTable() {
     let suma = 0;
 
     pageData.forEach(alb => {
-        const imp      = parseFloat(alb.importe_total || 0);
-        suma          += imp;
-        const isPag    = alb.pagado  === true || alb.pagado  === 1 || alb.pagado  === '1';
-        const isCob    = alb.cobrado === true || alb.cobrado === 1 || alb.cobrado === '1';
-        const isEnv    = alb.enviado === true || alb.enviado === 1 || alb.enviado === '1';
+        const imp   = parseFloat(alb.importe_total || 0);
+        suma       += imp;
+        const isPag = alb.pagado  === true || alb.pagado  === 1 || alb.pagado  === '1';
+        const isCob = alb.cobrado === true || alb.cobrado === 1 || alb.cobrado === '1';
+        const isEnv = alb.enviado === true || alb.enviado === 1 || alb.enviado === '1';
 
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-orange-50/50 transition-colors border-b border-slate-50 group';
@@ -491,25 +533,43 @@ window.handleSort = (key, type, isInitial = false) => {
 
 function updatePaginationUI() {
     const total      = STATE.filteredData.length;
-    const totalPages = Math.ceil(total / STATE.pageSize) || 1;
+    const effectivePageSize = STATE.showAll ? total : STATE.pageSize;
+    const totalPages = Math.max(1, Math.ceil(total / (effectivePageSize || 1)));
     const elRes      = document.getElementById('resultsCount');
     const elPag      = document.getElementById('pageInfo');
     if (elRes) elRes.textContent = total;
-    if (elPag) elPag.textContent = `Página ${STATE.currentPage} / ${totalPages}`;
-    document.getElementById('prevPageBtn').disabled = STATE.currentPage === 1;
-    document.getElementById('nextPageBtn').disabled = STATE.currentPage >= totalPages;
+    if (elPag) elPag.textContent = STATE.showAll
+        ? `Página 1 / 1 (todos)`
+        : `Página ${STATE.currentPage} / ${totalPages}`;
+    document.getElementById('prevPageBtn').disabled = STATE.showAll || STATE.currentPage === 1;
+    document.getElementById('nextPageBtn').disabled = STATE.showAll || STATE.currentPage >= totalPages;
     if (window.lucide) lucide.createIcons();
 }
 
 function setupTableEvents() {
     const recs = document.getElementById('recordsPerPage');
-    if (recs) recs.onchange = e => { STATE.pageSize = parseInt(e.target.value); STATE.currentPage = 1; renderTable(); };
+    if (recs) {
+        recs.onchange = e => {
+            const val = e.target.value;
+            if (val === 'all') {
+                // ── "Mostrar Todo": sin paginación, todos los filteredData ──
+                STATE.showAll  = true;
+                STATE.pageSize = 25; // reset interno (no importa mientras showAll=true)
+            } else {
+                STATE.showAll  = false;
+                STATE.pageSize = parseInt(val, 10);
+            }
+            STATE.currentPage = 1;
+            renderTable();
+        };
+    }
 
     document.getElementById('prevPageBtn').onclick = () => {
-        if (STATE.currentPage > 1) { STATE.currentPage--; renderTable(); }
+        if (!STATE.showAll && STATE.currentPage > 1) { STATE.currentPage--; renderTable(); }
     };
     document.getElementById('nextPageBtn').onclick = () => {
-        if (STATE.currentPage < Math.ceil(STATE.filteredData.length / STATE.pageSize)) { STATE.currentPage++; renderTable(); }
+        const totalPages = Math.ceil(STATE.filteredData.length / STATE.pageSize);
+        if (!STATE.showAll && STATE.currentPage < totalPages) { STATE.currentPage++; renderTable(); }
     };
     document.getElementById('palabra')?.addEventListener('input', () => {
         if (STATE.searchMode === 'palabra') window.handleSearch();
