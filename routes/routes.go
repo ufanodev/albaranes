@@ -103,6 +103,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			admin.GET("/", func(c *gin.Context) { c.HTML(200, "admin.html", nil) })
 			admin.GET("/albaranes", func(c *gin.Context) { c.HTML(200, "admin.html", nil) })
 			admin.GET("/nuevo_albaran", func(c *gin.Context) { c.HTML(200, "admin_albaran_nuevo.html", nil) })
+			admin.GET("/busqueda_avanzada", func(c *gin.Context) { c.HTML(200, "admin_busqueda_avanzada.html", nil) })
 			admin.GET("/albaranes/view/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_view.html", nil) })
 			admin.GET("/albaranes/update/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_update.html", nil) })
 			admin.GET("/albaranes/borrar/:id", func(c *gin.Context) { c.HTML(200, "admin_albaran_borrar.html", nil) })

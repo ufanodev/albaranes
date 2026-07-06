@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏢 Administrador - Búsqueda Avanzada de Albaranes</title>
+
+    <script src="/js/security.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-pastel': '#FFDAB9',
+                        'primary-link': '#FF8C00',
+                        'black-pure': '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style type="text/tailwindcss">
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        @layer components {
+            body { font-family: 'Inter', sans-serif; @apply bg-slate-50 text-slate-900; }
+            .card { @apply bg-white p-6 rounded-xl shadow-lg border border-primary-pastel/50; }
+            .input-field { @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-link focus:border-primary-link transition duration-150 text-sm font-bold text-gray-700; }
+
+            .dropdown-content {
+                display: none;
+                position: absolute;
+                background-color: white;
+                min-width: 220px;
+                box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.1);
+                z-index: 1000;
+                border-radius: 0.75rem;
+                margin-top: 0.5rem;
+                border: 1px solid #fed7aa;
+            }
+            .dropdown.active .dropdown-content { display: block; }
+            .dropdown-content a {
+                color: #374151; padding: 12px 16px; text-decoration: none; display: block;
+                border-bottom: 1px solid #fff7ed; transition: all 0.2s; font-size: 0.875rem;
+            }
+            .dropdown-content a:hover { background-color: #FFDAB9; color: #000; font-weight: bold; }
+            .dropdown-content a:last-child { border-bottom: none; }
+
+            .field-group { @apply bg-slate-50 rounded-xl border border-slate-200 p-4; }
+            .field-group-title { @apply text-[10px] font-black uppercase tracking-widest text-primary-link mb-3 flex items-center gap-2; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+    <header class="bg-primary-link text-white shadow-xl sticky top-0 z-50">
+        <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="window.location.href='/admin/'">
+                    <span class="text-3xl">🏢</span>
+                    <h1 class="text-xl font-black uppercase tracking-tighter">Administrador</h1>
+                </div>
+
+                <nav class="hidden md:flex items-center space-x-4">
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Titulares</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/titulares">Gestión de Titulares</a>
+                            <a href="/admin/pago_tit">Pagos a Titulares</a>
+                        </div>
+                    </div>
+                    <div class="dropdown relative active">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Albaranes</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/">Listado Principal</a>
+                            <a href="/admin/nuevo_albaran">Crear Nuevo Albarán</a>
+                            <a href="/admin/busqueda_avanzada" class="bg-primary-pastel/40 font-black">🔍 Búsqueda Avanzada</a>
+                        </div>
+                    </div>
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <span>Empresas</span>
+                            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/empresas">Gestión de Empresas</a>
+                            <a href="/admin/pago_emp">Cobros a Empresas</a>
+                        </div>
+                    </div>
+                    <div class="dropdown relative">
+                        <button class="flex items-center space-x-1 px-3 py-2 rounded-lg hover:bg-orange-600 transition font-bold" onclick="toggleDropdown(this)">
+                            <i data-lucide="settings" class="h-4 w-4 mr-1"></i>
+                            <span>Sistema</span>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="/admin/usuarios">Usuarios del Sistema</a>
+                            <a href="/admin/conductor">Base de Conductores</a>
+                            <a href="/admin/backup">Copias de Seguridad</a>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 border-l border-orange-400 pl-4 ml-2">
+                        <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 p-2 rounded-xl shadow-lg transition active:scale-95" title="Cerrar Sesión">
+                            <i data-lucide="log-out" class="h-5 w-5 text-white"></i>
+                        </button>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="p-4 sm:p-6 lg:p-8">
+        <div class="max-w-[1800px] mx-auto space-y-6">
+
+            <div class="card bg-gradient-to-r from-white to-orange-50">
+                <h1 class="text-2xl font-black text-slate-800 flex items-center uppercase tracking-tighter">
+                    <span class="bg-primary-link p-2 rounded-lg mr-4 shadow-lg text-white">
+                        <i data-lucide="search-check" class="w-6 h-6"></i>
+                    </span>
+                    Búsqueda Avanzada de Albaranes
+                </h1>
+                <p class="text-xs text-slate-400 font-bold mt-2 ml-16 uppercase tracking-wide">
+                    Aplica estos filtros y se abrirá el listado principal ya filtrado
+                </p>
+            </div>
+
+            <form id="advancedSearchForm" class="card space-y-6">
+
+                <!-- Licencia / Empresa / Referencia / Matricula / Factura -->
+                <div class="field-group">
+                    <div class="field-group-title"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> Datos Generales</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Licencia</label>
+                            <select id="licenciaSelect" class="input-field text-xs h-10">
+                                <option value="">Todas las licencias</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Empresa</label>
+                            <select id="empresaSelect" class="input-field text-xs h-10">
+                                <option value="">Todas las empresas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Referencia</label>
+                            <input type="text" id="referencia" placeholder="Expediente..." class="input-field text-xs h-10 uppercase">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Matrícula</label>
+                            <input type="text" id="matricula" placeholder="0000-ABC" maxlength="15" class="input-field text-xs h-10 uppercase">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Nº Factura</label>
+                            <input type="text" id="num_factura" placeholder="Nº de factura..." maxlength="50" class="input-field text-xs h-10">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fechas del albaran -->
+                <div class="field-group">
+                    <div class="field-group-title"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> Fecha del Albarán</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Fecha desde</label>
+                            <input type="date" id="fecha_desde" class="input-field text-xs h-10">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Fecha hasta</label>
+                            <input type="date" id="fecha_hasta" class="input-field text-xs h-10">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagado -->
+                <div class="field-group">
+                    <div class="field-group-title"><i data-lucide="euro" class="w-3.5 h-3.5"></i> Situación de Pago (a titular)</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Pagado</label>
+                            <select id="pagado" class="input-field text-xs h-10">
+                                <option value="">🎯 Todos</option>
+                                <option value="true">✅ Sí, pagado</option>
+                                <option value="false">⏳ No pagado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Fecha pago desde</label>
+                            <input type="date" id="fecha_pago_desde" class="input-field text-xs h-10">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Fecha pago hasta</label>
+                            <input type="date" id="fecha_pago_hasta" class="input-field text-xs h-10">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cobrado -->
+                <div class="field-group">
+                    <div class="field-group-title"><i data-lucide="wallet" class="w-3.5 h-3.5"></i> Situación de Cobro (a empresa)</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Cobrado</label>
+                            <select id="cobrado" class="input-field text-xs h-10">
+                                <option value="">🎯 Todos</option>
+                                <option value="true">✅ Sí, cobrado</option>
+                                <option value="false">⏳ No cobrado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Fecha cobro desde</label>
+                            <input type="date" id="fecha_cobro_desde" class="input-field text-xs h-10">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1 ml-1">Fecha cobro hasta</label>
+                            <input type="date" id="fecha_cobro_hasta" class="input-field text-xs h-10">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones -->
+                <div class="flex flex-wrap gap-3 justify-end pt-2 border-t border-slate-100">
+                    <button type="button" id="btn-volver" onclick="handleVolver()" class="px-6 py-2.5 rounded-lg bg-slate-200 text-slate-600 text-[11px] font-black uppercase hover:bg-slate-300 transition flex items-center gap-2">
+                        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Volver
+                    </button>
+                    <button type="button" id="btn-limpiar" onclick="handleLimpiarCampos()" class="px-6 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-500 text-[11px] font-black uppercase hover:bg-slate-100 transition flex items-center gap-2">
+                        <i data-lucide="eraser" class="w-3.5 h-3.5"></i> Limpiar Campos
+                    </button>
+                    <button type="submit" id="btn-buscar" class="px-8 py-2.5 rounded-lg bg-primary-link text-white text-[11px] font-black uppercase hover:bg-orange-600 transition shadow-lg flex items-center gap-2">
+                        <i data-lucide="search" class="w-3.5 h-3.5"></i> Buscar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <div id="statusMessage" class="hidden"></div>
+
+    <script src="/js/search.js"></script>
+
+    <script>
+        function toggleDropdown(button) {
+            const dropdown = button.parentElement;
+            document.querySelectorAll('.dropdown').forEach(d => { if (d !== dropdown) d.classList.remove('active'); });
+            dropdown.classList.toggle('active');
+        }
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.dropdown')) {
+                document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+            }
+        });
+
+        // Vuelve al listado principal sin aplicar ningún filtro
+        function handleVolver() {
+            window.location.href = '/admin';
+        }
+
+        // Limpia todos los campos del formulario de búsqueda avanzada
+        function handleLimpiarCampos() {
+            document.getElementById('advancedSearchForm').reset();
+        }
+
+        // Recoge los filtros y redirige a /admin con los parámetros en la URL.
+        // admin.js (función applyURLParamsToUI) los lee al cargar, rellena el
+        // formulario principal y dispara la búsqueda automáticamente.
+        document.getElementById('advancedSearchForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const val = (id) => document.getElementById(id)?.value?.trim() || '';
+            const params = new URLSearchParams();
+
+            const campos = {
+                licencia: val('licenciaSelect'),
+                empresa: val('empresaSelect'),
+                referencia: val('referencia'),
+                matricula: val('matricula'),
+                num_factura: val('num_factura'),
+                fecha_desde: val('fecha_desde'),
+                fecha_hasta: val('fecha_hasta'),
+                pagado: val('pagado'),
+                fecha_pago_desde: val('fecha_pago_desde'),
+                fecha_pago_hasta: val('fecha_pago_hasta'),
+                cobrado: val('cobrado'),
+                fecha_cobro_desde: val('fecha_cobro_desde'),
+                fecha_cobro_hasta: val('fecha_cobro_hasta'),
+            };
+
+            Object.entries(campos).forEach(([key, value]) => {
+                if (value) params.set(key, value);
+            });
+
+            const query = params.toString();
+            window.location.href = query ? `/admin?${query}` : '/admin';
+        });
+
+        // Carga los combos de Licencia y Empresa reutilizando el mismo motor que admin.html
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await SearchEngine.initCatalog(true);
+            } catch (e) {
+                console.error('Error cargando catálogos de licencias/empresas:', e);
+            }
+            if (window.lucide) lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

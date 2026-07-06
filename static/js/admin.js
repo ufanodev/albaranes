@@ -104,6 +104,21 @@ function applyParamsToUI(cache) {
     APP.elements.searchForm.querySelector('[name="fecha_desde"]').value = cache.desde || "";
     APP.elements.searchForm.querySelector('[name="fecha_hasta"]').value = cache.hasta || "";
     APP.elements.palabraInput.value = cache.palabra || "";
+
+    // Filtros avanzados (llegan de /admin/busqueda_avanzada o de una búsqueda anterior con esos criterios)
+    setFieldIfExists('matricula', cache.matricula);
+    setFieldIfExists('num_factura', cache.num_factura);
+    setFieldIfExists('pagado', cache.pagado);
+    setFieldIfExists('cobrado', cache.cobrado);
+    setFieldIfExists('fecha_pago_desde', cache.fecha_pago_desde);
+    setFieldIfExists('fecha_pago_hasta', cache.fecha_pago_hasta);
+    setFieldIfExists('fecha_cobro_desde', cache.fecha_cobro_desde);
+    setFieldIfExists('fecha_cobro_hasta', cache.fecha_cobro_hasta);
+}
+
+function setFieldIfExists(name, value) {
+    const el = APP.elements.searchForm.querySelector(`[name="${name}"]`);
+    if (el) el.value = value || "";
 }
 
 function applySearchCache() {
@@ -114,20 +129,55 @@ function applySearchCache() {
 }
 
 // =================================================================================
+// 🔗 FILTROS AVANZADOS RECIBIDOS POR URL (desde /admin/busqueda_avanzada)
+// =================================================================================
+
+function applyURLParamsToUI() {
+    const qs = new URLSearchParams(window.location.search);
+    if ([...qs.keys()].length === 0) return false;
+
+    if (window.UI) window.UI.setSearchModeManual('campos');
+
+    if (qs.has('licencia')) document.getElementById('licenciaSelect').value = qs.get('licencia');
+    if (qs.has('empresa')) document.getElementById('empresaSelect').value = qs.get('empresa');
+    if (qs.has('estado')) document.getElementById('state').value = qs.get('estado');
+
+    const camposDirectos = [
+        'referencia', 'numero_albaran', 'fecha_desde', 'fecha_hasta',
+        'matricula', 'num_factura', 'pagado', 'cobrado',
+        'fecha_pago_desde', 'fecha_pago_hasta', 'fecha_cobro_desde', 'fecha_cobro_hasta'
+    ];
+    camposDirectos.forEach(name => {
+        if (!qs.has(name)) return;
+        const el = APP.elements.searchForm.querySelector(`[name="${name}"]`);
+        if (el) el.value = qs.get(name);
+    });
+
+    // Limpiamos la URL para que un refresco o "volver atrás" no repita la búsqueda por sorpresa.
+    window.history.replaceState({}, '', window.location.pathname);
+    return true;
+}
+
+// =================================================================================
 // 🚀 INICIO Y CARGA
 // =================================================================================
+
+const DEFAULT_LATEST_COUNT = 100;
 
 async function startAdmin() {
     try {
         await SearchEngine.initCatalog(true);
         renderHistoryCombo();
-        const teniaCache = applySearchCache();
-        await loadData();
+        const vieneDeURL = applyURLParamsToUI();
+        const tieneCache = !vieneDeURL && applySearchCache();
+        // Si no llega con filtros por URL (busqueda avanzada) ni con caché de una
+        // búsqueda anterior, la vista por defecto son los últimos 100 registros.
+        await loadData((vieneDeURL || tieneCache) ? handleSearch : showLatestDefault);
         setupEventListeners();
     } catch (e) { console.error(e); }
 }
 
-async function loadData() {
+async function loadData(afterLoad) {
     APP.elements.resultsBody.innerHTML = '<tr><td colspan="12" class="p-20 text-center italic text-slate-400">Consultando base de datos...</td></tr>';
     try {
         const res = await fetch('/api/v1/albaranes/search?pageSize=10000', {
@@ -135,9 +185,25 @@ async function loadData() {
         });
         const json = await res.json();
         APP.state.rawAlbaranes = json.data || json || [];
-        handleSearch();
+        if (typeof afterLoad === 'function') afterLoad();
+        else showLatestDefault();
     } catch (e) { console.error(e); }
 }
+
+// Vista por defecto: los N registros más recientes (por fecha), sin ningún filtro
+// aplicado. Se usa al entrar limpio en /admin/ y al pulsar "Limpiar Filtros".
+function showLatestDefault(n = DEFAULT_LATEST_COUNT) {
+    const ordenados = [...APP.state.rawAlbaranes].sort(
+        (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    );
+    APP.state.filteredAlbaranes = ordenados.slice(0, n);
+    APP.state.currentSort = { key: 'fecha', direction: 'desc' };
+    APP.state.currentPage = 1;
+    sessionStorage.removeItem(APP.cacheKey);
+    render();
+    if (window.refreshAdvancedFiltersBanner) window.refreshAdvancedFiltersBanner();
+}
+window.showLatestDefault = showLatestDefault;
 
 function handleSearch(e) {
     if (e) e.preventDefault();
@@ -150,7 +216,17 @@ function handleSearch(e) {
         num_albaran: APP.elements.searchForm.querySelector('[name="numero_albaran"]').value,
         desde: APP.elements.searchForm.querySelector('[name="fecha_desde"]').value,
         hasta: APP.elements.searchForm.querySelector('[name="fecha_hasta"]').value,
-        palabra: APP.elements.palabraInput.value
+        palabra: APP.elements.palabraInput.value,
+
+        // Filtros avanzados
+        matricula: getFieldValue('matricula'),
+        num_factura: getFieldValue('num_factura'),
+        pagado: getFieldValue('pagado'),
+        cobrado: getFieldValue('cobrado'),
+        fecha_pago_desde: getFieldValue('fecha_pago_desde'),
+        fecha_pago_hasta: getFieldValue('fecha_pago_hasta'),
+        fecha_cobro_desde: getFieldValue('fecha_cobro_desde'),
+        fecha_cobro_hasta: getFieldValue('fecha_cobro_hasta')
     };
 
     APP.state.filteredAlbaranes = SearchEngine.applyFilters(APP.state.rawAlbaranes, params);
@@ -158,6 +234,11 @@ function handleSearch(e) {
     handleSort(APP.state.currentSort.key, true);
     APP.state.currentPage = 1;
     render();
+}
+
+function getFieldValue(name) {
+    const el = APP.elements.searchForm.querySelector(`[name="${name}"]`);
+    return el ? el.value : "";
 }
 
 function render() {
@@ -356,7 +437,7 @@ window.handleClearAllFilters = () => {
     sessionStorage.removeItem(APP.cacheKey);
     APP.elements.searchForm.reset();
     document.getElementById('palabra').value = '';
-    handleSearch();
+    showLatestDefault();
 };
 
 window.UI = {

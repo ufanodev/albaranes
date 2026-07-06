@@ -6,6 +6,8 @@
  *   - FIX: matchPago usa _bool() en vez de comparación estricta === true/false
  *   - FIX: matchEstado usa _bool() en todos sus campos (enviado, cobrado, pagado)
  *   - FIX: applyFilters acepta pagado='true'/'false'/'' igual que admin_pago_tit.js
+ *   - NUEVO: soporte de filtros avanzados (matricula, num_factura, cobrado,
+ *            fecha_pago_desde/hasta, fecha_cobro_desde/hasta) para /admin/busqueda_avanzada
  */
 
 window.SearchEngine = {
@@ -75,7 +77,11 @@ window.SearchEngine = {
     applyFilters(data, params) {
         const {
             mode, empresa, licencia, ref, desde, hasta,
-            palabra, estado, pagado, num_albaran
+            palabra, estado, pagado, num_albaran,
+            // Filtros avanzados (búsqueda avanzada)
+            matricula, num_factura, cobrado,
+            fecha_pago_desde, fecha_pago_hasta,
+            fecha_cobro_desde, fecha_cobro_hasta
         } = params;
 
         const b = this._bool.bind(this); // alias corto
@@ -117,6 +123,26 @@ window.SearchEngine = {
             if (pagado === 'false' || pagado === 'no')  matchPago = !b(i.pagado);
             // pagado === '' → sin filtro, matchPago permanece true
 
+            /* ── matchCobrado: mismo criterio que matchPago pero sobre el campo cobrado ── */
+            let matchCobrado = true;
+            if (cobrado === 'true'  || cobrado === 'si')  matchCobrado =  b(i.cobrado);
+            if (cobrado === 'false' || cobrado === 'no')  matchCobrado = !b(i.cobrado);
+            // cobrado === '' → sin filtro, matchCobrado permanece true
+
+            /* ── matchMatricula / matchFactura: coincidencia parcial, insensible a mayúsculas ── */
+            const matchMatricula = !matricula   || (i.matricula   && String(i.matricula).toLowerCase().includes(String(matricula).toLowerCase()));
+            const matchFactura   = !num_factura || (i.num_factura && String(i.num_factura).toLowerCase().includes(String(num_factura).toLowerCase()));
+
+            /* ── Rango de fecha de pago (a titular) — columna fecha_pago ── */
+            const fPago             = i.fecha_pago ? String(i.fecha_pago).substring(0, 10) : '';
+            const matchFechaPagoDesde = !fecha_pago_desde || (fPago && fPago >= fecha_pago_desde);
+            const matchFechaPagoHasta = !fecha_pago_hasta || (fPago && fPago <= fecha_pago_hasta);
+
+            /* ── Rango de fecha de cobro (a empresa) — columna fecha_cobro ── */
+            const fCobro              = i.fecha_cobro ? String(i.fecha_cobro).substring(0, 10) : '';
+            const matchFechaCobroDesde = !fecha_cobro_desde || (fCobro && fCobro >= fecha_cobro_desde);
+            const matchFechaCobroHasta = !fecha_cobro_hasta || (fCobro && fCobro <= fecha_cobro_hasta);
+
             /* ── matchEstado: estados compuestos según lógica SQL del negocio ──
              *   creado   : enviado=0, cobrado=0, pagado=0
              *   enviado  : enviado=1, cobrado=0, pagado=0
@@ -138,7 +164,10 @@ window.SearchEngine = {
             }
 
             return matchEmpresa && matchLicencia && matchRef && matchAlbaran
-                && matchDesde   && matchHasta    && matchEstado && matchPago;
+                && matchDesde   && matchHasta    && matchEstado && matchPago
+                && matchCobrado && matchMatricula && matchFactura
+                && matchFechaPagoDesde  && matchFechaPagoHasta
+                && matchFechaCobroDesde && matchFechaCobroHasta;
         });
     },
 
