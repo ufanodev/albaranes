@@ -76,7 +76,7 @@
     <header class="bg-primary-link text-white shadow-xl sticky top-0 z-50">
         <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center py-4">
-                <div class="flex items-center space-x-3 cursor-pointer group" onclick="window.location.href='/admin/'">
+                <div class="flex items-center space-x-3 cursor-pointer group" onclick="sessionStorage.removeItem('admin_search_cache'); window.location.href='/admin/'">
                     <span class="text-3xl filter drop-shadow-md">🏢</span>
                     <div>
                         <h1 class="text-xl font-black uppercase tracking-tighter leading-none text-white">Administrador</h1>
@@ -112,6 +112,7 @@
                         <div class="dropdown-content">
                             <a href="/admin/empresas">Gestión de Empresas</a>
                             <a href="/admin/pago_emp" class="bg-orange-50 text-primary-link">Cobros a Empresas</a>
+                            <a href="/admin/busqueda_avanzada?destino=pago_emp">🔍 Búsqueda Avanzada</a>
                         </div>
                     </div>
                     <div class="dropdown relative">
@@ -163,6 +164,10 @@
                     <i data-lucide="search" class="w-3.5 h-3.5"></i> Buscar ahora
                 </button>
 
+                <button type="button" onclick="window.location.href='/admin/busqueda_avanzada?destino=pago_emp'" class="px-5 py-2 rounded-lg bg-slate-800 text-white text-[10px] font-black uppercase shadow-lg flex items-center gap-2 hover:bg-slate-700 transition active:scale-95">
+                    <i data-lucide="filter" class="w-3.5 h-3.5"></i> Búsqueda Avanzada
+                </button>
+
                 <!-- ── SELECT HISTORIAL ── -->
                 <select id="histSelect"
                         title="Búsquedas recientes"
@@ -207,10 +212,29 @@
                         <input type="date" name="fecha_hasta" class="input-field">
                     </div>
                 </div>
+
+                <!-- Filtros avanzados: se rellenan al llegar desde /admin/pago_emp/busqueda_avanzada
+                     (ver applyURLParamsToUI en admin_pago_emp.js) o al restaurarse desde el historial. -->
+                <input type="hidden" name="matricula">
+                <input type="hidden" name="num_factura">
+                <input type="hidden" name="fecha_cobro_desde">
+                <input type="hidden" name="fecha_cobro_hasta">
+                <input type="hidden" name="pagado">
+                <input type="hidden" name="fecha_pago_desde">
+                <input type="hidden" name="fecha_pago_hasta">
+
                 <div id="palabraSection" class="hidden bg-slate-50 p-5 rounded-2xl border border-slate-100">
                     <input type="text" id="palabra" name="palabra" placeholder="Escribe cualquier dato para filtrar al instante..." class="input-field py-3 font-bold text-sm bg-white">
                 </div>
             </form>
+
+            <div id="advancedFiltersBannerEmp" class="hidden mt-4 bg-slate-800 text-white p-3 rounded-2xl flex items-center justify-between gap-3">
+                <span class="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <i data-lucide="filter" class="w-3.5 h-3.5 text-primary-link"></i>
+                    Hay filtros avanzados activos (matrícula / factura / pagos / cobros)
+                </span>
+                <button type="button" onclick="handleClearAllFilters()" class="text-[10px] font-black uppercase underline hover:text-primary-link transition">Quitar</button>
+            </div>
         </div>
 
         <!-- BOTÓN MARCAR COBRADOS -->
@@ -299,6 +323,22 @@
             }
         });
         window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); });
+
+        // Muestra el banner de "filtros avanzados activos" cuando alguno de esos
+        // campos ocultos tiene valor (llegó por URL o por historial).
+        function refreshAdvancedFiltersBannerEmp() {
+            const form = document.getElementById('searchForm');
+            const banner = document.getElementById('advancedFiltersBannerEmp');
+            if (!form || !banner) return;
+            const campos = ['matricula', 'num_factura', 'fecha_cobro_desde', 'fecha_cobro_hasta',
+                             'pagado', 'fecha_pago_desde', 'fecha_pago_hasta'];
+            const activo = campos.some(name => {
+                const el = form.querySelector(`[name="${name}"]`);
+                return el && el.value;
+            });
+            banner.classList.toggle('hidden', !activo);
+        }
+        window.refreshAdvancedFiltersBannerEmp = refreshAdvancedFiltersBannerEmp;
     </script>
 </body>
 </html>

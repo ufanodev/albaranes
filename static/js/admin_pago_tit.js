@@ -48,7 +48,16 @@ const SearchHistory = {
             referencia : document.getElementById('referencia')?.value     || '',
             fecha_desde: document.getElementById('fecha_desde')?.value    || '',
             fecha_hasta: document.getElementById('fecha_hasta')?.value    || '',
-            palabra    : document.getElementById('palabra')?.value         || ''
+            palabra    : document.getElementById('palabra')?.value         || '',
+
+            // Filtros avanzados
+            matricula        : document.getElementById('matricula')?.value         || '',
+            num_factura      : document.getElementById('num_factura')?.value       || '',
+            cobrado          : document.getElementById('cobrado')?.value           || '',
+            fecha_pago_desde : document.getElementById('fecha_pago_desde')?.value  || '',
+            fecha_pago_hasta : document.getElementById('fecha_pago_hasta')?.value  || '',
+            fecha_cobro_desde: document.getElementById('fecha_cobro_desde')?.value || '',
+            fecha_cobro_hasta: document.getElementById('fecha_cobro_hasta')?.value || ''
         };
     },
     isBlank(snap) {
@@ -59,13 +68,19 @@ const SearchHistory = {
             !snap.referencia  &&
             !snap.fecha_desde &&
             !snap.fecha_hasta &&
-            snap.pagado === ''
+            snap.pagado === '' &&
+            !snap.matricula && !snap.num_factura && !snap.cobrado &&
+            !snap.fecha_pago_desde && !snap.fecha_pago_hasta &&
+            !snap.fecha_cobro_desde && !snap.fecha_cobro_hasta
         );
     },
     _sameFilters(a, b) {
         return a.mode === b.mode && a.licencia === b.licencia && a.empresa === b.empresa &&
                a.pagado === b.pagado && a.referencia === b.referencia &&
-               a.fecha_desde === b.fecha_desde && a.fecha_hasta === b.fecha_hasta && a.palabra === b.palabra;
+               a.fecha_desde === b.fecha_desde && a.fecha_hasta === b.fecha_hasta && a.palabra === b.palabra &&
+               a.matricula === b.matricula && a.num_factura === b.num_factura && a.cobrado === b.cobrado &&
+               a.fecha_pago_desde === b.fecha_pago_desde && a.fecha_pago_hasta === b.fecha_pago_hasta &&
+               a.fecha_cobro_desde === b.fecha_cobro_desde && a.fecha_cobro_hasta === b.fecha_cobro_hasta;
     },
     push(snap) {
         if (this.isBlank(snap)) return;
@@ -92,6 +107,10 @@ function _histLabel(item) {
     if (item.referencia)         parts.push(`EXP:${item.referencia}`);
     if (item.fecha_desde)        parts.push(`D:${item.fecha_desde.substring(5)}`);
     if (item.fecha_hasta)        parts.push(`H:${item.fecha_hasta.substring(5)}`);
+    if (item.matricula)          parts.push(`MAT:${item.matricula.toUpperCase()}`);
+    if (item.num_factura)        parts.push(`FAC:${item.num_factura}`);
+    if (item.cobrado === 'true')  parts.push('COBRADO EMP.');
+    if (item.cobrado === 'false') parts.push('NO COBRADO EMP.');
     return `${hm} · ${parts.length ? parts.join(' · ') : 'FILTRO: MANUAL'}`;
 }
 
@@ -133,6 +152,16 @@ const HistoryUI = {
         set('licenciaSelect', snap.licencia); set('empresa', snap.empresa); set('pagado', snap.pagado);
         set('referencia', snap.referencia);   set('fecha_desde', snap.fecha_desde);
         set('fecha_hasta', snap.fecha_hasta); set('palabra', snap.palabra);
+
+        // Filtros avanzados
+        set('matricula', snap.matricula);
+        set('num_factura', snap.num_factura);
+        set('cobrado', snap.cobrado);
+        set('fecha_pago_desde', snap.fecha_pago_desde);
+        set('fecha_pago_hasta', snap.fecha_pago_hasta);
+        set('fecha_cobro_desde', snap.fecha_cobro_desde);
+        set('fecha_cobro_hasta', snap.fecha_cobro_hasta);
+
         sel.selectedIndex = 0;
         window.handleSearch();
     }
@@ -207,12 +236,41 @@ window.handleSelectAll = (masterCb, event) => {
     UI_PAGOS.updateSelectionUI();
 };
 
+/* ═══════════════════════ FILTROS AVANZADOS POR URL ═══════════════════════
+ * Llegan desde /admin/busqueda_avanzada?destino=pago_tit como query params.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+function applyURLParamsToUI() {
+    const qs = new URLSearchParams(window.location.search);
+    if ([...qs.keys()].length === 0) return false;
+
+    if (window.UI_PAGOS) UI_PAGOS.setSearchModeManual('campos');
+
+    const setById = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+
+    if (qs.has('licencia')) setById('licenciaSelect', qs.get('licencia'));
+    if (qs.has('empresa'))  setById('empresa', qs.get('empresa'));
+
+    const directos = [
+        'referencia', 'fecha_desde', 'fecha_hasta', 'pagado',
+        'matricula', 'num_factura', 'cobrado',
+        'fecha_pago_desde', 'fecha_pago_hasta',
+        'fecha_cobro_desde', 'fecha_cobro_hasta'
+    ];
+    directos.forEach(name => { if (qs.has(name)) setById(name, qs.get(name)); });
+
+    // Limpiamos la URL para que un refresco no repita la búsqueda por sorpresa.
+    window.history.replaceState({}, '', window.location.pathname);
+    return true;
+}
+
 /* ═══════════════════════ INIT ═══════════════════════ */
 
 async function initPagoTit() {
     HistoryUI.render();
     await SearchEngine.initCatalog(true);
-    await loadData();
+    const vieneDeURL = applyURLParamsToUI();
+    await loadData(vieneDeURL);
     setupTableEvents();
 }
 
@@ -229,7 +287,7 @@ function _setLoadingMsg(msg) {
     if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="p-10 text-center italic text-gray-400 animate-pulse font-bold uppercase tracking-widest">${msg}</td></tr>`;
 }
 
-async function loadData() {
+async function loadData(forzarHistorial = false) {
     _setLoadingMsg('Sincronizando Liquidaciones...');
 
     const cbAll = document.getElementById('cb-select-all');
@@ -298,7 +356,7 @@ async function loadData() {
         // El filtro de estado se aplica en handleSearch() según el select del formulario
         STATE.allData = data;
 
-        window.handleSearch(); // aplica filtros del formulario y renderiza
+        window.handleSearch(null, { forzarHistorial }); // aplica filtros del formulario y renderiza
     } catch (err) {
         console.error('loadData error:', err);
         _setLoadingMsg('⚠️ Error al conectar con la base de datos');
@@ -308,8 +366,9 @@ async function loadData() {
 
 /* ═══════════════════════ SEARCH ═══════════════════════ */
 
-window.handleSearch = (e) => {
+window.handleSearch = (e, opciones = {}) => {
     if (e) e.preventDefault();
+    const { forzarHistorial = false } = opciones;
 
     const cbAll = document.getElementById('cb-select-all');
     if (cbAll) { cbAll.checked = false; cbAll.indeterminate = false; }
@@ -324,7 +383,16 @@ window.handleSearch = (e) => {
         licencia: document.getElementById('licenciaSelect')?.value || '',
         empresa : document.getElementById('empresa')?.value        || '',
         ref     : document.getElementById('referencia')?.value     || '',
-        palabra : document.getElementById('palabra')?.value        || ''
+        palabra : document.getElementById('palabra')?.value        || '',
+
+        // Filtros avanzados (los resuelve SearchEngine.applyFilters en search.js)
+        matricula        : document.getElementById('matricula')?.value         || '',
+        num_factura      : document.getElementById('num_factura')?.value       || '',
+        cobrado          : document.getElementById('cobrado')?.value           || '',
+        fecha_pago_desde : document.getElementById('fecha_pago_desde')?.value  || '',
+        fecha_pago_hasta : document.getElementById('fecha_pago_hasta')?.value  || '',
+        fecha_cobro_desde: document.getElementById('fecha_cobro_desde')?.value || '',
+        fecha_cobro_hasta: document.getElementById('fecha_cobro_hasta')?.value || ''
     };
 
     let filtered = SearchEngine.applyFilters(STATE.allData, params);
@@ -352,8 +420,9 @@ window.handleSearch = (e) => {
     handleSort(STATE.sortKey, 'string', true);
     STATE.currentPage = 1;
     renderTable();
+    if (window.refreshAdvancedFiltersBannerTit) window.refreshAdvancedFiltersBannerTit();
 
-    if (e instanceof Event) SearchHistory.push(SearchHistory.capture());
+    if (e instanceof Event || forzarHistorial) SearchHistory.push(SearchHistory.capture());
 };
 
 /* ═══════════════════════ RENDER TABLE ═══════════════════════ */

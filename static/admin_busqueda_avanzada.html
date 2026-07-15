@@ -127,7 +127,7 @@
                     </span>
                     Búsqueda Avanzada de Albaranes
                 </h1>
-                <p class="text-xs text-slate-400 font-bold mt-2 ml-16 uppercase tracking-wide">
+                <p id="destinoSubtitle" class="text-xs text-slate-400 font-bold mt-2 ml-16 uppercase tracking-wide">
                     Aplica estos filtros y se abrirá el listado principal ya filtrado
                 </p>
             </div>
@@ -258,9 +258,34 @@
             }
         });
 
-        // Vuelve al listado principal sin aplicar ningún filtro
+        // Ajusta el subtítulo según a dónde va a volver esta búsqueda
+        (function actualizarSubtitulo() {
+            const destino = new URLSearchParams(window.location.search).get('destino');
+            const el = document.getElementById('destinoSubtitle');
+            if (!el) return;
+            const textos = {
+                pago_emp: 'Aplica estos filtros y se abrirá el listado de Cobros a Empresas ya filtrado',
+                pago_tit: 'Aplica estos filtros y se abrirá el listado de Pagos a Titulares ya filtrado'
+            };
+            el.textContent = textos[destino] || 'Aplica estos filtros y se abrirá el listado principal ya filtrado';
+        })();
+
+        // El parámetro ?destino= decide a qué pantalla se vuelve y a dónde se
+        // redirige tras buscar. Sin parámetro (o cualquier valor no reconocido)
+        // se comporta como hasta ahora: listado principal de Albaranes.
+        const DESTINOS = {
+            pago_emp: '/admin/pago_emp',
+            pago_tit: '/admin/pago_tit',
+            admin: '/admin'
+        };
+        function getTargetUrl() {
+            const destino = new URLSearchParams(window.location.search).get('destino');
+            return DESTINOS[destino] || '/admin';
+        }
+
+        // Vuelve a la pantalla de origen sin aplicar ningún filtro
         function handleVolver() {
-            window.location.href = '/admin';
+            window.location.href = getTargetUrl();
         }
 
         // Limpia todos los campos del formulario de búsqueda avanzada
@@ -268,9 +293,10 @@
             document.getElementById('advancedSearchForm').reset();
         }
 
-        // Recoge los filtros y redirige a /admin con los parámetros en la URL.
-        // admin.js (función applyURLParamsToUI) los lee al cargar, rellena el
-        // formulario principal y dispara la búsqueda automáticamente.
+        // Recoge los filtros y redirige a la pantalla de origen (/admin o
+        // /admin/pago_emp) con los parámetros en la URL. El JS de esa pantalla
+        // (applyURLParamsToUI en admin.js / admin_pago_emp.js) los lee al
+        // cargar, rellena su formulario y dispara la búsqueda automáticamente.
         document.getElementById('advancedSearchForm').addEventListener('submit', function (e) {
             e.preventDefault();
 
@@ -293,12 +319,20 @@
                 fecha_cobro_hasta: val('fecha_cobro_hasta'),
             };
 
+            // "pagado" y "cobrado" tienen un valor por defecto NO vacío en las
+            // pantallas destino (pago_tit y pago_emp arrancan en "Pendientes").
+            // Si aquí se eligió "Todos" (valor ''), hay que enviarlo igualmente
+            // en la URL para que sobrescriba ese valor por defecto; si no,
+            // el destino se queda con su "Pendientes" de fábrica.
+            const SIEMPRE_INCLUIR = ['pagado', 'cobrado'];
+
             Object.entries(campos).forEach(([key, value]) => {
-                if (value) params.set(key, value);
+                if (value || SIEMPRE_INCLUIR.includes(key)) params.set(key, value);
             });
 
+            const base  = getTargetUrl();
             const query = params.toString();
-            window.location.href = query ? `/admin?${query}` : '/admin';
+            window.location.href = query ? `${base}?${query}` : base;
         });
 
         // Carga los combos de Licencia y Empresa reutilizando el mismo motor que admin.html
