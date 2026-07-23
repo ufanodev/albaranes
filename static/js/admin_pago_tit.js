@@ -350,7 +350,22 @@ async function loadData(forzarHistorial = false) {
             for (const chunk of chunks) data = data.concat(chunk);
         }
 
-        console.debug(`[loadData] TOTAL cargado: ${data.length} albaranes`);
+        console.debug(`[loadData] TOTAL cargado (antes de deduplicar): ${data.length} albaranes`);
+
+        // ── Deduplicar por id ──
+        // Salvaguarda ante respuestas del backend con filas repetidas (p.ej. un
+        // JOIN sin DISTINCT que multiplica el albarán por cada conductor/registro
+        // relacionado). Si esto se ve activarse a menudo, el problema real está
+        // en la consulta SQL de /api/v1/albaranes/search, no aquí.
+        const unicos = new Map();
+        data.forEach(alb => unicos.set(alb.id, alb));
+        const totalAntes = data.length;
+        data = Array.from(unicos.values());
+        if (data.length !== totalAntes) {
+            console.warn(`[loadData] ⚠️ Se detectaron ${totalAntes - data.length} filas duplicadas del backend (deduplicadas por id).`);
+        }
+
+        console.debug(`[loadData] TOTAL final: ${data.length} albaranes`);
 
         // STATE.allData = TODOS los albaranes (2445 en tu caso)
         // El filtro de estado se aplica en handleSearch() según el select del formulario
