@@ -1,14 +1,21 @@
 /**
  * ARCHIVO: static/js/admin_pago_tit.js
- * ACTUALIZADO: 24/06/2026
+ * ACTUALIZADO: 23/09/2026
+ *   - CAMBIO: handleBulkPay ya NO fuerza cobrado=true. Envía un payload quirúrgico
+ *     { pagado, fecha_pago } y el backend (UpdateAlbaranAdmin) solo toca esos campos,
+ *     por lo que el estado "cobrado" se conserva tal cual está en la BD.
+ *     Se puede pagar al titular sin haber cobrado antes a la empresa.
+ *   - CAMBIO: "Estatus de Pago" filtra solo por pagado (independiente de cobrado).
+ *     Para filtrar por cobrado usar el filtro avanzado.
+ *   - CAMBIO: aviso en la confirmación si hay albaranes seleccionados sin cobrar.
+ *   - FIX: loadData() hace una sola petición. /api/v1/albaranes/search devuelve
+ *     todos los registros sin paginar, así que pedir páginas 2..N descargaba
+ *     los mismos datos varias veces.
+ * 24/06/2026
  *   - FIX: isBlank() corregido — pagado por defecto no bloquea el guardado
  *   - FIX: render() no duplica la opción cabecera
  *   - FIX: tableFooter como <div> fuera de la tabla
  *   - FIX: pageSize "Mostrar Todo" usa filteredData.length real, no 99999
- *   - FIX: loadData() pagina la API en lotes de API_BATCH (500) en paralelo
- *   - FIX: totalServer detecta total_albaranes / total / count según API
- *   - FIX: cálculo de totalPages usa API_BATCH, no data.length (evita bug última página)
- *   - FIX: logs debug en consola para diagnosticar respuesta de la API
  */
 
 'use strict';
@@ -23,6 +30,9 @@ const STATE = {
     searchMode: 'campos',
     showAll: false
 };
+
+/** Normaliza booleanos que pueden venir como true / 1 / '1' */
+const asBool = v => v === true || v === 1 || v === '1';
 
 /* ═══════════════════════ HISTORIAL ═══════════════════════ */
 
@@ -178,7 +188,7 @@ const UI_PAGOS = {
         return iso.substring(0, 10);
     },
     boolIcon(val) {
-        return (val === true || val === 1 || val === '1')
+        return asBool(val)
             ? '<span class="text-green-500 font-black text-base">✅</span>'
             : '<span class="text-red-400 font-black text-base">✗</span>';
     },
@@ -276,12 +286,6 @@ async function initPagoTit() {
 
 /* ═══════════════════════ DATA ═══════════════════════ */
 
-/**
- * Tamaño de lote por request. 500 cubre la mayoría de APIs sin timeout.
- * Auméntalo a 1000 si tu backend lo permite.
- */
-const API_BATCH = 500;
-
 function _setLoadingMsg(msg) {
     const tbody = document.getElementById('albaranResults');
     if (tbody) tbody.innerHTML = `<tr><td colspan="14" class="p-10 text-center italic text-gray-400 animate-pulse font-bold uppercase tracking-widest">${msg}</td></tr>`;
@@ -298,65 +302,18 @@ async function loadData(forzarHistorial = false) {
         const token   = localStorage.getItem('token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-        // ── PÁGINA 1: SIN filtro cobrado — traer TODOS los albaranes ──
-        // Los filtros de estado (creado/enviado/pendiente/pagado) se aplican
-        // en handleSearch() client-side según el select "Estatus de Pago".
-        const res1  = await fetch(`/api/v1/albaranes/search?pageSize=${API_BATCH}&page=1`, { headers });
-        const json1 = await res1.json();
+        // El endpoint (SearchAlbaranes en albaran.go) devuelve TODOS los albaranes
+        // activos (estado=0) en una sola respuesta: no pagina. Una sola petición basta.
+        // Los filtros de estado se aplican client-side en handleSearch().
+        const res  = await fetch('/api/v1/albaranes/search', { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
 
-        console.debug('[loadData] Respuesta página 1:', {
-            keys     : Object.keys(json1),
-            total_alb: json1.total_albaranes,
-            total    : json1.total,
-            count    : json1.count,
-            data_len : (Array.isArray(json1.data) ? json1.data : json1)?.length
-        });
-
-        let data = Array.isArray(json1.data) ? json1.data
-                 : Array.isArray(json1)       ? json1
+        let data = Array.isArray(json.data) ? json.data
+                 : Array.isArray(json)      ? json
                  : [];
 
-        const totalServer = json1.total_albaranes
-                         ?? json1.total
-                         ?? json1.count
-                         ?? json1.total_count
-                         ?? json1.totalCount
-                         ?? data.length;
-
-        const totalPages = Math.max(1, Math.ceil(totalServer / API_BATCH));
-
-        console.debug(`[loadData] totalServer=${totalServer} | API_BATCH=${API_BATCH} | totalPages=${totalPages}`);
-
-        // ── PÁGINAS 2..N en paralelo ──
-        if (totalPages > 1) {
-            _setLoadingMsg(`Cargando ${totalServer} registros... (${totalPages} lotes)`);
-
-            const requests = [];
-            for (let p = 2; p <= totalPages; p++) {
-                const url = `/api/v1/albaranes/search?pageSize=${API_BATCH}&page=${p}`;
-                requests.push(
-                    fetch(url, { headers })
-                        .then(r => r.json())
-                        .then(j => {
-                            const chunk = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
-                            console.debug(`[loadData] Página ${p}: ${chunk.length} registros`);
-                            return chunk;
-                        })
-                        .catch(err => { console.error(`[loadData] Error página ${p}:`, err); return []; })
-                );
-            }
-
-            const chunks = await Promise.all(requests);
-            for (const chunk of chunks) data = data.concat(chunk);
-        }
-
-        console.debug(`[loadData] TOTAL cargado (antes de deduplicar): ${data.length} albaranes`);
-
-        // ── Deduplicar por id ──
-        // Salvaguarda ante respuestas del backend con filas repetidas (p.ej. un
-        // JOIN sin DISTINCT que multiplica el albarán por cada conductor/registro
-        // relacionado). Si esto se ve activarse a menudo, el problema real está
-        // en la consulta SQL de /api/v1/albaranes/search, no aquí.
+        // ── Deduplicar por id (salvaguarda) ──
         const unicos = new Map();
         data.forEach(alb => unicos.set(alb.id, alb));
         const totalAntes = data.length;
@@ -365,10 +322,8 @@ async function loadData(forzarHistorial = false) {
             console.warn(`[loadData] ⚠️ Se detectaron ${totalAntes - data.length} filas duplicadas del backend (deduplicadas por id).`);
         }
 
-        console.debug(`[loadData] TOTAL final: ${data.length} albaranes`);
+        console.debug(`[loadData] TOTAL cargado: ${data.length} albaranes`);
 
-        // STATE.allData = TODOS los albaranes (2445 en tu caso)
-        // El filtro de estado se aplica en handleSearch() según el select del formulario
         STATE.allData = data;
 
         window.handleSearch(null, { forzarHistorial }); // aplica filtros del formulario y renderiza
@@ -412,21 +367,18 @@ window.handleSearch = (e, opciones = {}) => {
 
     let filtered = SearchEngine.applyFilters(STATE.allData, params);
 
-    // ── Filtro de estado según lógica SQL del negocio ──
-    // El campo "Estatus de Pago" filtra sobre cobrado+pagado, no solo pagado:
-    //   'false' → Pendientes de pago al titular: cobrado=1, pagado=0
-    //   'true'  → Ya pagados al titular:         cobrado=1, pagado=1
-    //   ''      → Mostrar todos (sin filtro de estado)
-    const b = v => v === true || v === 1 || v === '1';
-
+    // ── Filtro de estado ──
+    // "Estatus de Pago" se refiere SOLO al pago al titular (pagado).
+    // El cobro a la empresa (cobrado) es independiente: se puede pagar al
+    // titular antes de haber cobrado. Para filtrar por cobrado → filtro avanzado.
+    //   'false' → Pendientes de pago al titular: pagado=0
+    //   'true'  → Ya pagados al titular:         pagado=1
+    //   ''      → Todos
     if (pagadoVal === 'false') {
-        // Pendientes: empresa ya cobró (cobrado=1) pero titular aún no cobró (pagado=0)
-        filtered = filtered.filter(alb => b(alb.cobrado) && !b(alb.pagado));
+        filtered = filtered.filter(alb => !asBool(alb.pagado));
     } else if (pagadoVal === 'true') {
-        // Pagados: empresa cobró (cobrado=1) y titular ya cobró (pagado=1)
-        filtered = filtered.filter(alb => b(alb.cobrado) && b(alb.pagado));
+        filtered = filtered.filter(alb => asBool(alb.pagado));
     }
-    // pagadoVal === '' → mostrar TODOS sin filtro de estado
 
     if (fechaDesde) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0,10) >= fechaDesde);
     if (fechaHasta) filtered = filtered.filter(a => a.fecha && a.fecha.substring(0,10) <= fechaHasta);
@@ -474,15 +426,15 @@ function renderTable() {
     pageData.forEach(alb => {
         const imp   = parseFloat(alb.importe_total || 0);
         suma       += imp;
-        const isPag = alb.pagado  === true || alb.pagado  === 1 || alb.pagado  === '1';
-        const isCob = alb.cobrado === true || alb.cobrado === 1 || alb.cobrado === '1';
-        const isEnv = alb.enviado === true || alb.enviado === 1 || alb.enviado === '1';
+        const isPag = asBool(alb.pagado);
+        const isCob = asBool(alb.cobrado);
+        const isEnv = asBool(alb.enviado);
 
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-orange-50/50 transition-colors border-b border-slate-50 group';
         tr.innerHTML = `
             <td class="p-3 text-center">
-                <input type="checkbox" value="${alb.id}" data-licencia="${alb.licencia_ref}"
+                <input type="checkbox" value="${alb.id}"
                     class="cb-seleccion h-4 w-4 rounded border-gray-300 cursor-pointer accent-orange-500"
                     ${isPag ? 'disabled checked' : ''}
                     onchange="UI_PAGOS.updateSelectionUI()">
@@ -521,7 +473,14 @@ function renderTable() {
 window.handleBulkPay = async () => {
     const boxes = Array.from(document.querySelectorAll('.cb-seleccion:checked:not(:disabled)'));
     if (!boxes.length) return UI_PAGOS.alertMessage('Selecciona registros pendientes para liquidar', 'error');
-    if (!confirm(`¿Confirmar liquidación de ${boxes.length} albarán(es)?`)) return;
+
+    const porId     = new Map(STATE.allData.map(a => [String(a.id), a]));
+    const sinCobrar = boxes.filter(cb => { const a = porId.get(cb.value); return a && !asBool(a.cobrado); }).length;
+
+    const aviso = sinCobrar
+        ? `\n\n⚠️ ${sinCobrar} de ellos aún NO están cobrados a la empresa (seguirán como no cobrados).`
+        : '';
+    if (!confirm(`¿Confirmar liquidación de ${boxes.length} albarán(es)?${aviso}`)) return;
 
     UI_PAGOS.alertMessage(`Procesando ${boxes.length} pago(s)...`, 'info');
     const token    = localStorage.getItem('token');
@@ -530,10 +489,12 @@ window.handleBulkPay = async () => {
 
     for (const cb of boxes) {
         try {
+            // Payload quirúrgico: UpdateAlbaranAdmin solo actualiza pagado y fecha_pago.
+            // "cobrado" NO se envía → se conserva tal cual está en la BD.
             const res = await fetch(`/api/v1/albaranes/id/${cb.value}`, {
                 method : 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body   : JSON.stringify({ pagado: true, cobrado: true, fecha_pago: fechaHoy, licencia_ref: parseInt(cb.dataset.licencia) || 0 })
+                body   : JSON.stringify({ pagado: true, fecha_pago: fechaHoy })
             });
             if (!res.ok) errores++;
         } catch { errores++; }
