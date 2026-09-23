@@ -279,18 +279,25 @@
                                     <span class="text-[7px] text-slate-400 font-bold uppercase tracking-wider leading-none">Todo</span>
                                 </div>
                             </th>
-                            <th class="w-16"  onclick="handleSort('id', 'number')">Nº ↕</th>
-                            <th class="w-36"  onclick="handleSort('numero_albaran', 'string')">Nº Albarán ↕</th>
-                            <th class="w-24"  onclick="handleSort('licencia_ref', 'string')">Licencia ↕</th>
-                            <th class="w-28"  onclick="handleSort('fecha', 'date')">Fecha ↓</th>
-                            <th class="w-36"  onclick="handleSort('empresa_ref', 'string')">Empresa ↕</th>
-                            <th class="w-28"  onclick="handleSort('referencia', 'string')">Exp ↕</th>
-                            <th class="w-32"  onclick="handleSort('num_factura', 'string')">Fac ↕</th>
+                            <th class="w-16"         onclick="handleSort('id', 'number')">Nº ↕</th>
+                            <!-- −30 % (antes w-36 = 144px) -->
+                            <th class="w-[100px]"    onclick="handleSort('numero_albaran', 'string')">Nº Albarán ↕</th>
+                            <!-- −30 % (antes w-24 = 96px) -->
+                            <th class="w-[68px]"     onclick="handleSort('licencia_ref', 'string')">Licencia ↕</th>
+                            <!-- −30 % (antes w-28 = 112px) -->
+                            <th class="w-[78px]"     onclick="handleSort('fecha', 'date')">Fecha ↓</th>
+                            <!-- ×2 (antes w-36 = 144px) -->
+                            <th class="w-72"         onclick="handleSort('empresa_ref', 'string')">Empresa ↕</th>
+                            <!-- ×2 (antes w-28 = 112px) -->
+                            <th class="w-56"         onclick="handleSort('referencia', 'string')">Exp ↕</th>
+                            <!-- ×2 (antes w-32 = 128px) -->
+                            <th class="w-64"         onclick="handleSort('num_factura', 'string')">Fac ↕</th>
                             <th class="w-28 text-right" onclick="handleSort('importe_total', 'number')">Importe ↕</th>
                             <th class="w-14 text-center !cursor-default hover:!bg-slate-900">Env</th>
                             <th class="w-14 text-center !cursor-default hover:!bg-slate-900">Cob</th>
                             <th class="w-14 text-center !cursor-default hover:!bg-slate-900">Pag</th>
-                            <th>Observaciones</th>
+                            <!-- −30 % (antes automático ≈ 490px) -->
+                            <th class="w-[345px]">Observaciones</th>
                             <th class="w-16 text-center !cursor-default hover:!bg-slate-900">Ver</th>
                         </tr>
                     </thead>
