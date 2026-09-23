@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,11 +12,116 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// ============================================================
+// CONFIGURACIÓN
+// ============================================================
+
+// ExcelData permite pasar las cabeceras en un orden concreto.
+type ExcelData struct {
+	Headers []string
+	Rows    []TitularData
+}
+
+// Columnas que nunca se exportan al Excel
+var columnasExcluidas = map[string]bool{
+	"licencia_ref": true,
+	"empresa_ref":  true,
+}
+
+// Columnas que deben quedarse como texto (no perder ceros a la izquierda)
+var columnasTexto = map[string]bool{
+	"licencia": true,
+	"cp":       true,
+	"nif":      true,
+	"dni":      true,
+	"telefono": true,
+}
+
+// ============================================================
+// CONSULTA DE ALBARANES
+// ============================================================
+
+// a.* trae todas las columnas de albaranes. Las dos columnas finales se llaman
+// igual que licencia y empresa_nombre y, al escanear, sobrescriben a las originales.
+// COALESCE mantiene el valor guardado en albaranes si la referencia no existe.
+const queryAlbaranesExcel = `
+SELECT a.*,
+       COALESCE(l.licencia, a.licencia)       AS licencia,
+       COALESCE(e.nombre,   a.empresa_nombre) AS empresa_nombre
+FROM albaranes a
+LEFT JOIN licencias l ON l.id = a.licencia_ref
+LEFT JOIN empresas  e ON e.id = a.empresa_ref
+`
+
+// GetAlbaranesExcel devuelve los albaranes con licencia y empresa resueltas.
+// where debe empezar por " WHERE ..." y/o " ORDER BY ..." (o ir vacío).
+func GetAlbaranesExcel(db *sql.DB, where string, args ...interface{}) (ExcelData, error) {
+	var out ExcelData
+
+	rows, err := db.Query(queryAlbaranesExcel+where, args...)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return out, err
+	}
+
+	// Cabeceras en el orden del SELECT, sin duplicados
+	seen := make(map[string]bool)
+	for _, c := range cols {
+		if !seen[c] {
+			seen[c] = true
+			out.Headers = append(out.Headers, c)
+		}
+	}
+
+	for rows.Next() {
+		vals := make([]sql.NullString, len(cols))
+		ptrs := make([]interface{}, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return out, err
+		}
+
+		row := make(TitularData, len(cols))
+		for i, c := range cols {
+			// Las columnas repetidas (licencia, empresa_nombre) llegan después
+			// en el SELECT, así que se queda el valor del JOIN.
+			row[c] = vals[i].String
+		}
+		out.Rows = append(out.Rows, row)
+	}
+	return out, rows.Err()
+}
+
+// GenerateAlbaranesXLSX consulta los albaranes y genera el Excel en un solo paso.
+func GenerateAlbaranesXLSX(db *sql.DB, reportName string, where string, args ...interface{}) (string, error) {
+	data, err := GetAlbaranesExcel(db, where, args...)
+	if err != nil {
+		return "", err
+	}
+	return GenerateTitularesXLSX(reportName, data)
+}
+
+// ============================================================
+// GENERADOR DE EXCEL
+// ============================================================
+
 // GenerateTitularesXLSX genera un Excel con sumatorio en la última línea.
 func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) {
 	var lista []TitularData
+	var headers []string
 
 	switch v := data.(type) {
+	case ExcelData:
+		lista, headers = v.Rows, v.Headers
+	case *ExcelData:
+		lista, headers = v.Rows, v.Headers
 	case []TitularData:
 		lista = v
 	case []interface{}:
@@ -23,7 +129,11 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 			if m, ok := item.(map[string]interface{}); ok {
 				convertedMap := make(TitularData)
 				for k, val := range m {
-					convertedMap[k] = fmt.Sprintf("%v", val)
+					if val == nil {
+						convertedMap[k] = ""
+					} else {
+						convertedMap[k] = fmt.Sprintf("%v", val)
+					}
 				}
 				lista = append(lista, convertedMap)
 			}
@@ -35,12 +145,26 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 	if len(lista) == 0 {
 		return "", fmt.Errorf("no hay datos para generar el XLSX")
 	}
+	if len(headers) == 0 {
+		headers = GetHeaders(lista)
+	}
+
+	// Quitar columnas excluidas
+	var filtradas []string
+	for _, h := range headers {
+		if !columnasExcluidas[strings.ToLower(h)] {
+			filtradas = append(filtradas, h)
+		}
+	}
+	headers = filtradas
+	if len(headers) == 0 {
+		return "", fmt.Errorf("no quedan columnas para exportar")
+	}
 
 	f := excelize.NewFile()
+	defer f.Close()
 	sheetName := "Reporte"
 	f.SetSheetName("Sheet1", sheetName)
-
-	headers := GetHeaders(lista)
 
 	// --- ESTILOS ---
 	headerStyle, _ := f.NewStyle(&excelize.Style{
@@ -65,12 +189,13 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 	var granTotal float64
 	totalColIndex := -1
 
-	// 5. Renderizar Cabecera
+	// Cabecera
 	for i, header := range headers {
-		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		colName, _ := excelize.ColumnNumberToName(i + 1)
+		cell := colName + "1"
 		f.SetCellValue(sheetName, cell, header)
 		f.SetCellStyle(sheetName, cell, cell, headerStyle)
-		f.SetColWidth(sheetName, cell[:len(cell)-1], cell[:len(cell)-1], 20)
+		f.SetColWidth(sheetName, colName, colName, 20)
 
 		// Identificar columna numérica
 		upH := strings.ToUpper(header)
@@ -79,7 +204,7 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 		}
 	}
 
-	// 6. Renderizar Filas de Datos
+	// Filas de datos
 	lastRowNum := 1
 	for rowNum, rowData := range lista {
 		currentRow := rowNum + 2
@@ -87,10 +212,12 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 			cell, _ := excelize.CoordinatesToCellName(colIndex+1, currentRow)
 			value := rowData[header]
 
-			if floatValue, err := tryConvertToFloat(value); err == nil {
+			if columnasTexto[strings.ToLower(header)] {
+				f.SetCellStr(sheetName, cell, value)
+			} else if floatValue, err := tryConvertToFloat(value); err == nil {
 				f.SetCellValue(sheetName, cell, floatValue)
 				// Si es la columna de importe, sumar al gran total
-				if (colIndex + 1) == totalColIndex {
+				if colIndex+1 == totalColIndex {
 					granTotal += floatValue
 				}
 			} else {
@@ -104,24 +231,38 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 		lastRowNum = currentRow
 	}
 
-	// --- 7. FILA DE TOTAL FINAL ---
+	// Fila de total final
 	if totalColIndex != -1 {
 		totalRow := lastRowNum + 1
+		labelCol := totalColIndex - 1
+		if labelCol < 1 { // si el total es la primera columna
+			labelCol = totalColIndex + 1
+		}
 
-		// Recorrer todas las columnas para aplicar el estilo a la fila final
 		for i := 1; i <= len(headers); i++ {
 			cell, _ := excelize.CoordinatesToCellName(i, totalRow)
 			f.SetCellStyle(sheetName, cell, cell, totalStyle)
 
-			if i == totalColIndex-1 {
+			switch i {
+			case labelCol:
 				f.SetCellValue(sheetName, cell, "TOTAL:")
-			} else if i == totalColIndex {
+			case totalColIndex:
 				f.SetCellValue(sheetName, cell, granTotal)
 			}
 		}
 	}
 
-	// 8. Guardar Archivo
+	// Congelar la cabecera y añadir autofiltro
+	f.SetPanes(sheetName, &excelize.Panes{
+		Freeze:      true,
+		YSplit:      1,
+		TopLeftCell: "A2",
+		ActivePane:  "bottomLeft",
+	})
+	lastCol, _ := excelize.ColumnNumberToName(len(headers))
+	f.AutoFilter(sheetName, fmt.Sprintf("A1:%s%d", lastCol, lastRowNum), nil)
+
+	// Guardar archivo
 	reportClean := strings.ReplaceAll(reportName, " ", "_")
 	if err := os.MkdirAll(DocumentsDir, 0755); err != nil {
 		return "", err
@@ -142,8 +283,7 @@ func tryConvertToFloat(s string) (float64, error) {
 	if strings.EqualFold(s, "Sí") || strings.EqualFold(s, "No") || s == "-" || s == "" {
 		return 0, fmt.Errorf("no numérico")
 	}
-	cleanStr := strings.ReplaceAll(s, " €", "")
-	cleanStr = strings.ReplaceAll(cleanStr, "€", "")
+	cleanStr := strings.ReplaceAll(s, "€", "")
 	cleanStr = strings.ReplaceAll(cleanStr, " ", "")
 	cleanStr = strings.ReplaceAll(cleanStr, ",", ".")
 	return strconv.ParseFloat(cleanStr, 64)
