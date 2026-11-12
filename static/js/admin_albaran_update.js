@@ -1,7 +1,10 @@
 /**
  * ARCHIVO: static/js/admin_albaran_update.js
  * DESCRIPCIÓN: Edición total de albaranes para Administrador.
- * ACTUALIZADO: 04/06/2026
+ * ACTUALIZADO: 12/11/2026
+ *   - FIX: km_nacionales y km_internacionales se normalizan como número.
+ *   - FIX: campos numéricos vacíos no se envían (el backend conserva el valor actual).
+ *   04/06/2026
  *   - FIX: empresa_ref se fuerza desde el select id='empresa'.
  *   - FIX: fecha se fuerza desde el input directamente.
  *   - FIX: nombre_pasajero se envía como 'nombre_pasajero'.
@@ -167,11 +170,13 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
 
     // Normalizar Números decimales
     const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales',
+                  'km_nacionales', 'km_internacionales',
                   'importe_suplidos', 'importe_total', 'hora_total'];
     nums.forEach(f => {
-        if (payload[f] !== undefined && payload[f] !== '') {
-            payload[f] = parseFloat(String(payload[f]).replace(',', '.')) || 0;
-        }
+        if (payload[f] === undefined) return;               // no está en el form: no tocar
+        const raw = String(payload[f]).trim().replace(',', '.');
+        if (raw === '') { delete payload[f]; return; }      // vacío: el backend conserva el valor
+        payload[f] = parseFloat(raw) || 0;
     });
 
     // hora_total: forzar entero (minutos totales de espera)

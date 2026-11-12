@@ -1,7 +1,11 @@
 /**
  * ARCHIVO: static/js/albaran_update.js
  * DESCRIPCIÓN: Lógica de actualización para usuarios (Titulares).
- * ACTUALIZADO: 15/04/2026 - FIX: Compatibilidad con corrección horaria dinámica del Backend.
+ * ACTUALIZADO: 12/11/2026
+ *   - FIX: se envían km_nacionales y km_internacionales (antes faltaban y el backend los ponía a 0).
+ *   - FIX: adjuntos (bool) y adjuntos_ref (texto) con los nombres que espera el backend.
+ *   - FIX: si un input no existe en el HTML, el campo no se envía (no rompe ni pone a 0).
+ *   15/04/2026 - FIX: Compatibilidad con corrección horaria dinámica del Backend.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -55,7 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
  * Mantiene el formato numérico y sexagesimal en los inputs al perder el foco
  */
 function initUpdateFormatters() {
-    const fields = ['importe_suplidos', 'importe_total', 'km_totales', 'hora_total'];
+    const fields = ['importe_suplidos', 'importe_total', 'km_totales',
+                    'km_nacionales', 'km_internacionales', 'hora_total'];
     fields.forEach(name => {
         const input = document.querySelector(`[name="${name}"]`);
         if (input) {
@@ -107,40 +112,64 @@ async function handleFormSubmit(e) {
         return (el && el.value) ? el.value : "";
     };
 
+    // Helpers seguros: si el input no existe devuelven undefined
+    // y JSON.stringify omite la clave (el backend conserva el valor actual).
+    const txt = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value : undefined;
+    };
+    const num = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return undefined;
+        const raw = String(el.value).trim().replace(',', '.');
+        if (raw === '') return undefined;
+        return parseFloat(raw) || 0;
+    };
+    const chk = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.checked : undefined;
+    };
+
     const payload = {
-        "fecha":            document.getElementById('fecha').value,
+        "fecha":            txt('fecha'),
         "hora_ini":         getTimeValue('hora_ini'),
         "hora_fin":         getTimeValue('hora_fin'),
         "espera_ini":       getTimeValue('espera_ini'),
         "espera_fin":       getTimeValue('espera_fin'),
-        "nombre_pasajero":  document.getElementById('nombre_pasajero').value,
-        "referencia":       document.getElementById('referencia').value,
-        "origen":           document.getElementById('origen').value,
-        "parada":           document.getElementById('parada').value,
-        "destino":          document.getElementById('destino').value,
-        "tlf_pasajero":     document.getElementById('tlf_pasajero').value,
-        "dni_pasajero":     document.getElementById('dni_pasajero').value,
-        "matricula":        document.getElementById('matricula').value,
-        "observaciones":    document.getElementById('observaciones').value,
-        "autorizado_por":   document.getElementById('autorizado_por').value,
-        "asalariado":       document.getElementById('asalariado').value,
-        "adjuntos":         document.getElementById('adjuntos_ref').value,
+        "nombre_pasajero":  txt('nombre_pasajero'),
+        "referencia":       txt('referencia'),
+        "origen":           txt('origen'),
+        "parada":           txt('parada'),
+        "destino":          txt('destino'),
+        "tlf_pasajero":     txt('tlf_pasajero'),
+        "dni_pasajero":     txt('dni_pasajero'),
+        "matricula":        txt('matricula'),
+        "observaciones":    txt('observaciones'),
+        "autorizado_por":   txt('autorizado_por'),
+        "asalariado":       txt('asalariado'),
+
+        // Adjuntos: el backend espera 'adjuntos' (bool) y 'adjuntos_ref' (texto)
+        "adjuntos":         chk('adjuntos_bool'),
+        "adjuntos_ref":     txt('adjuntos_ref'),
 
         // Números
-        "empresa_ref":      parseInt(document.getElementById('empresa').value) || 0,
-        "km_totales":       parseFloat(document.getElementById('km_totales').value.replace(',','.')) || 0,
-        "importe_total":    parseFloat(document.getElementById('importe_total').value.replace(',','.')) || 0,
-        "importe_suplidos": parseFloat(document.getElementById('importe_suplidos').value.replace(',','.')) || 0,
-        "hora_total":       parseFloat(document.getElementById('hora_total').value.replace(',','.')) || 0,
-        "num_plazas":       parseInt(document.getElementById('num_plazas').value) || 4,
+        "empresa_ref":      parseInt(txt('empresa')) || 0,
+        "km_totales":       num('km_totales'),
+        "km_nacionales":    num('km_nacionales'),
+        "km_internacionales": num('km_internacionales'),
+        "importe_total":    num('importe_total'),
+        "importe_suplidos": num('importe_suplidos'),
+        "hora_total":       num('hora_total'),
+        "num_plazas":       parseInt(txt('num_plazas')) || 4,
 
         // Booleanos
-        "urbano":           document.getElementById('urbano').checked,
-        "diurno":           document.getElementById('diurno').checked,
-        "noct_fest":        document.getElementById('noct_fest').checked,
-        "remolque":         document.getElementById('remolque').checked,
-        "adjuntos_bool":    document.getElementById('adjuntos_bool').checked
+        "urbano":           chk('urbano'),
+        "diurno":           chk('diurno'),
+        "noct_fest":        chk('noct_fest'),
+        "remolque":         chk('remolque')
     };
+
+    console.log("📤 [UPDATE] Payload enviado:", JSON.stringify(payload, null, 2));
 
     btn.disabled = true;
     try {

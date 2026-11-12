@@ -1,7 +1,11 @@
 /**
  * ARCHIVO: static/js/albaran_cargar.js
  * FUNCIÓN: Motor universal de inyección de datos para todas las vistas.
- * ACTUALIZADO: 22/04/2026 - FIX: Formato forzado DD/MM/YYYY literal.
+ * ACTUALIZADO: 12/11/2026
+ *   - FIX: los checkbox reciben siempre el valor booleano original del servidor.
+ *     Antes, el checkbox name="adjuntos" se marcaba según el texto de adjuntos_ref
+ *     (cualquier referencia escrita = marcado), ignorando el valor real de 'adjuntos'.
+ *   22/04/2026 - FIX: Formato forzado DD/MM/YYYY literal.
  */
 
 const AlbaranLoader = {
@@ -63,7 +67,10 @@ const AlbaranLoader = {
         Object.keys(mappedData).forEach(key => {
             const elements = document.querySelectorAll(`#${key}, [name="${key}"]`);
             elements.forEach(el => {
-                this.assignValue(el, mappedData[key], key);
+                // Los checkbox usan el valor original del servidor (bool),
+                // no el valor remapeado (p.ej. adjuntos → texto de adjuntos_ref).
+                const value = (el.type === 'checkbox' && key in data) ? data[key] : mappedData[key];
+                this.assignValue(el, value, key);
             });
         });
 
