@@ -159,6 +159,18 @@ function applyURLParamsToUI() {
 }
 
 // =================================================================================
+// 📅 FORMATO DE FECHA EUROPEO (dd/mm/yyyy)
+// Se trabaja sobre el texto "YYYY-MM-DD..." que devuelve la API, sin pasar por
+// new Date(), para evitar desfases de un día por zona horaria.
+// =================================================================================
+function formatFechaEU(valor, vacio = '-') {
+    if (!valor) return vacio;
+    const m = String(valor).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : vacio;
+}
+window.formatFechaEU = formatFechaEU;
+
+// =================================================================================
 // 🚀 INICIO Y CARGA
 // =================================================================================
 
@@ -261,7 +273,7 @@ function render() {
         const row = `
             <tr class="hover:bg-orange-50/40 transition-colors group">
                 <td class="px-3 py-3 font-bold">${a.numero_albaran || 'N/A'}</td>
-                <td class="px-3 py-3 font-bold text-slate-500">${a.fecha ? a.fecha.substring(0,10) : '-'}</td>
+                <td class="px-3 py-3 font-bold text-slate-500">${formatFechaEU(a.fecha)}</td>
                 <td class="px-3 py-3 font-black text-blue-600 uppercase tracking-tighter">${SearchEngine.getLicenciaNumero(a)}</td>
                 <td class="px-3 py-3 font-bold uppercase truncate">${SearchEngine.getEmpresaNombre(a)}</td>
                 <td class="px-3 py-3 text-slate-400 italic font-black uppercase text-[9px]">${a.referencia || '-'}</td>
@@ -329,7 +341,7 @@ window.handleGeneratePDF = () => {
     if (datos.length === 0) return;
     const dataClean = datos.map(a => ({
         "Nº ALBARAN": a.numero_albaran,
-        "FECHA":      a.fecha ? a.fecha.substring(0,10) : "-",
+        "FECHA":      formatFechaEU(a.fecha),
         "LICENCIA":   SearchEngine.getLicenciaNumero(a),
         "EMPRESA":    SearchEngine.getEmpresaNombre(a),
         "EXPEDIENTE": a.referencia || "-",
@@ -343,7 +355,7 @@ window.handleGenerateXLSX = () => {
     if (datos.length === 0) return;
 
     const fmtHora  = (v) => { if (!v) return '-'; const d = new Date(v); return isNaN(d) ? '-' : d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); };
-    const fmtFecha = (v) => v ? String(v).substring(0, 10) : '-';
+    const fmtFecha = (v) => formatFechaEU(v);
     const fmtBool  = (v) => v ? 'Sí' : 'No';
     const fmtNum   = (v) => parseFloat(v || 0);
 
