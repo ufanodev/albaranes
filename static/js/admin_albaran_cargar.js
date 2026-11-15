@@ -1,6 +1,9 @@
 /**
  * ARCHIVO: static/js/admin_albaran_cargar.js
- * ACTUALIZADO: 04/06/2026
+ * ACTUALIZADO: 15/11/2026
+ *   - CAMBIO: fechas de visualización en formato dd/mm/yyyy sin new Date()
+ *     (los <input type="date"> siguen recibiendo yyyy-mm-dd, lo exige el navegador)
+ * 04/06/2026
  *
  * El backend devuelve horas como "2026-05-26T05:16:00+02:00"
  * Ya viene en hora Madrid con offset explícito → extraemos HH:mm tras la T directamente.
@@ -20,14 +23,17 @@ function populateForm(data) {
 
     // ─── Helpers ────────────────────────────────────────────────────────────
 
+    /**
+     * Fecha ISO → dd/mm/yyyy por manipulación de texto (sin new Date()),
+     * así no hay desplazamientos de día por zona horaria.
+     *   "2026-05-26T05:16:00+02:00" → "26/05/2026"
+     *   "2026-05-26"                → "26/05/2026"
+     *   "0001-01-01..." / vacío     → "-"
+     */
     const formatEuroDate = (isoStr) => {
-        if (!isoStr) return "-";
-        try {
-            const cleanDate = isoStr.split('T')[0];
-            const d = new Date(cleanDate);
-            if (isNaN(d.getTime())) return isoStr;
-            return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        } catch (e) { return "-"; }
+        if (!isoStr || typeof isoStr !== 'string' || isoStr.startsWith('0001')) return "-";
+        const m = isoStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[3]}/${m[2]}/${m[1]}` : isoStr;
     };
 
     /**
@@ -55,7 +61,8 @@ function populateForm(data) {
         if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) {
             if (el.type === 'date')  { el.value = value ? value.split('T')[0] : ''; return; }
             if (el.type === 'time' || isTime) { el.value = extractTimeForInput(value); return; }
-            if (isDate && value)     { el.value = value.split('T')[0]; }
+            // Input de texto: si es solo lectura (vista) → dd/mm/yyyy; si es editable → ISO para el backend
+            if (isDate && value)     { el.value = (el.readOnly || el.disabled) ? formatEuroDate(value) : value.split('T')[0]; }
             else                     { el.value = (value !== null && value !== undefined && value !== '') ? value : ''; }
         } else {
             let display = (value !== null && value !== undefined && value !== '') ? value : "-";

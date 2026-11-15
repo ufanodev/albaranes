@@ -1,6 +1,9 @@
 /**
  * ARCHIVO: static/js/admin_pago_tit.js
- * ACTUALIZADO: 23/09/2026
+ * ACTUALIZADO: 15/11/2026
+ *   - CAMBIO: fechas en formato dd/mm/yyyy (tabla, PDF e historial) vía fmtFechaES().
+ *     Ordenación y filtros siguen usando el ISO original.
+ * 23/09/2026
  *   - CAMBIO: handleBulkPay ya NO fuerza cobrado=true. Envía un payload quirúrgico
  *     { pagado, fecha_pago } y el backend (UpdateAlbaranAdmin) solo toca esos campos,
  *     por lo que el estado "cobrado" se conserva tal cual está en la BD.
@@ -33,6 +36,19 @@ const STATE = {
 
 /** Normaliza booleanos que pueden venir como true / 1 / '1' */
 const asBool = v => v === true || v === 1 || v === '1';
+
+/**
+ * Fecha ISO → dd/mm/yyyy (texto puro, sin new Date() → sin saltos de zona horaria).
+ *   "2026-05-26T05:16:00+02:00" → "26/05/2026"   ·   "0001-..." / vacío → "-"
+ */
+const fmtFechaES = iso => {
+    if (!iso || typeof iso !== 'string' || iso.startsWith('0001')) return '-';
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+};
+
+/** "2026-05-26" → "26/05" (etiquetas cortas del historial) */
+const fmtFechaCorta = iso => fmtFechaES(iso).substring(0, 5);
 
 /* ═══════════════════════ HISTORIAL ═══════════════════════ */
 
@@ -115,8 +131,8 @@ function _histLabel(item) {
     if (item.pagado === 'false') parts.push('PENDIENTES');
     if (item.pagado === 'true')  parts.push('PAGADOS');
     if (item.referencia)         parts.push(`EXP:${item.referencia}`);
-    if (item.fecha_desde)        parts.push(`D:${item.fecha_desde.substring(5)}`);
-    if (item.fecha_hasta)        parts.push(`H:${item.fecha_hasta.substring(5)}`);
+    if (item.fecha_desde)        parts.push(`D:${fmtFechaCorta(item.fecha_desde)}`);
+    if (item.fecha_hasta)        parts.push(`H:${fmtFechaCorta(item.fecha_hasta)}`);
     if (item.matricula)          parts.push(`MAT:${item.matricula.toUpperCase()}`);
     if (item.num_factura)        parts.push(`FAC:${item.num_factura}`);
     if (item.cobrado === 'true')  parts.push('COBRADO EMP.');
@@ -184,8 +200,7 @@ window.HistoryUI     = HistoryUI;
 
 const UI_PAGOS = {
     formatDate(iso) {
-        if (!iso || iso.startsWith('0001')) return '-';
-        return iso.substring(0, 10);
+        return fmtFechaES(iso);
     },
     boolIcon(val) {
         return asBool(val)
@@ -545,7 +560,7 @@ function setupTableEvents() {
     if (recs) {
         recs.onchange = e => {
             const val = e.target.value;
-            if (val === 'all') {
+            if (val === 'all' || val === '99999') {
                 STATE.showAll  = true;
                 STATE.pageSize = 25;
             } else {
@@ -570,7 +585,107 @@ function setupTableEvents() {
 
 /* ═══════════════════════ EXPORT / MISC ═══════════════════════ */
 
-window.handleExportPDF   = () => { if (!STATE.filteredData.length) return alert('No hay datos'); Oficina.generarPDF('Liquidacion_Titulares',   STATE.filteredData); };
+/**
+ * PDF generado aquí mismo con jsPDF + autoTable (cargados en el <head>).
+ * Antes delegaba en Oficina.generarPDF(), que no existe / no acepta este
+ * formato de datos en esta página, y el botón no hacía nada.
+ */
+window.handleExportPDF = () => {
+    const datos = STATE.filteredData;
+    if (!datos.length) return UI_PAGOS.alertMessage('No hay datos para imprimir', 'error');
+
+    const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!JsPDF) {
+        console.error('[PDF] jsPDF no está cargado');
+        return UI_PAGOS.alertMessage('Error: librería jsPDF no cargada', 'error');
+    }
+
+    try {
+        const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        if (typeof doc.autoTable !== 'function') {
+            console.error('[PDF] jspdf-autotable no está cargado');
+            return UI_PAGOS.alertMessage('Error: plugin autoTable no cargado', 'error');
+        }
+
+        const fmtEUR = n => n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR';
+        const siNo   = v => asBool(v) ? 'SÍ' : 'NO';
+
+        // Cabecera
+        const pagadoVal = document.getElementById('pagado')?.value ?? 'false';
+        const estado = pagadoVal === 'false' ? 'Pendientes de pago'
+                     : pagadoVal === 'true'  ? 'Ya pagados' : 'Todos';
+        const filtros = [`Estado: ${estado}`];
+        const lic = document.getElementById('licenciaSelect')?.value;
+        const emp = document.getElementById('empresa');
+        const fd  = document.getElementById('fecha_desde')?.value;
+        const fh  = document.getElementById('fecha_hasta')?.value;
+        if (lic) filtros.push(`Licencia: ${document.getElementById('licenciaSelect').selectedOptions[0]?.text || lic}`);
+        if (emp?.value) filtros.push(`Empresa: ${emp.selectedOptions[0]?.text || emp.value}`);
+        if (fd) filtros.push(`Desde: ${fmtFechaES(fd)}`);
+        if (fh) filtros.push(`Hasta: ${fmtFechaES(fh)}`);
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Liquidación y Pagos a Titulares', 14, 14);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(filtros.join('   ·   '), 14, 20);
+        doc.text(`Generado: ${new Date().toLocaleString('es-ES')}   ·   Registros: ${datos.length}`, 14, 25);
+
+        // Cuerpo
+        let total = 0;
+        const body = datos.map(alb => {
+            const imp = parseFloat(alb.importe_total || 0) || 0;
+            total += imp;
+            return [
+                alb.id,
+                alb.numero_albaran || '-',
+                SearchEngine.getLicenciaNumero(alb) || '-',
+                UI_PAGOS.formatDate(alb.fecha),
+                SearchEngine.getEmpresaNombre(alb) || '-',
+                alb.referencia || '-',
+                alb.num_factura || '-',
+                fmtEUR(imp),
+                siNo(alb.cobrado),
+                siNo(alb.pagado),
+                alb.observaciones || ''
+            ];
+        });
+
+        doc.autoTable({
+            startY: 29,
+            head: [['Nº', 'Albarán', 'Licencia', 'Fecha', 'Empresa', 'Exp', 'Factura', 'Importe', 'Cob', 'Pag', 'Observaciones']],
+            body,
+            foot: [[{ content: 'TOTAL', colSpan: 7, styles: { halign: 'right' } }, fmtEUR(total), '', '', '']],
+            showFoot: 'lastPage',
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+            footStyles: { fillColor: [255, 140, 0], textColor: 255, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            columnStyles: {
+                0: { cellWidth: 12 },
+                3: { cellWidth: 20 },
+                7: { halign: 'right', cellWidth: 26 },
+                8: { halign: 'center', cellWidth: 11 },
+                9: { halign: 'center', cellWidth: 11 },
+                10: { cellWidth: 55 }
+            },
+            didDrawPage: () => {
+                const h = doc.internal.pageSize.getHeight();
+                const w = doc.internal.pageSize.getWidth();
+                doc.setFontSize(7);
+                doc.text(`Página ${doc.internal.getNumberOfPages()}`, w - 14, h - 6, { align: 'right' });
+            }
+        });
+
+        const hoy = new Date().toISOString().substring(0, 10);
+        doc.save(`Liquidacion_Titulares_${hoy}.pdf`);
+    } catch (err) {
+        console.error('[PDF] Error generando PDF:', err);
+        UI_PAGOS.alertMessage('Error al generar el PDF (ver consola)', 'error');
+    }
+};
 window.handleExportXLSX  = () => { if (!STATE.filteredData.length) return alert('No hay datos'); Oficina.generarExcel('Liquidacion_Titulares', STATE.filteredData); };
 window.handleGeneratePDF  = window.handleExportPDF;
 window.handleGenerateXLSX = window.handleExportXLSX;

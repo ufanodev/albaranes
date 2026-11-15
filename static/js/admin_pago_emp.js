@@ -1,11 +1,27 @@
 /**
  * ARCHIVO: static/js/admin_pago_emp.js
- * ACTUALIZADO: 24/06/2026
+ * ACTUALIZADO: 15/11/2026
+ *   - CAMBIO: fechas en formato dd/mm/yyyy (tabla, PDF e historial) vía fmtFechaES().
+ *     Ordenación y filtros siguen usando el ISO original.
+ * 24/06/2026
  *   - NEW: Historial de búsquedas persistente (localStorage, máx. 15 entradas)
  *          — mismo patrón que admin_pago_tit.js
  */
 
 'use strict';
+
+/**
+ * Fecha ISO → dd/mm/yyyy (texto puro, sin new Date() → sin saltos de zona horaria).
+ *   "2026-05-26T05:16:00+02:00" → "26/05/2026"   ·   "0001-..." / vacío → "-"
+ */
+const fmtFechaES = iso => {
+    if (!iso || typeof iso !== 'string' || iso.startsWith('0001')) return '-';
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+};
+
+/** "2026-05-26" → "26/05" (etiquetas cortas del historial) */
+const fmtFechaCorta = iso => fmtFechaES(iso).substring(0, 5);
 
 const STATE = {
     allData: [],
@@ -94,8 +110,8 @@ function _histLabel(item) {
     if (item.cobrado === 'false') parts.push('PENDIENTES');
     if (item.cobrado === 'true')  parts.push('COBRADOS');
     if (item.referencia)         parts.push(`EXP:${item.referencia}`);
-    if (item.fecha_desde)        parts.push(`D:${item.fecha_desde.substring(5)}`);
-    if (item.fecha_hasta)        parts.push(`H:${item.fecha_hasta.substring(5)}`);
+    if (item.fecha_desde)        parts.push(`D:${fmtFechaCorta(item.fecha_desde)}`);
+    if (item.fecha_hasta)        parts.push(`H:${fmtFechaCorta(item.fecha_hasta)}`);
     if (item.matricula)          parts.push(`MAT:${item.matricula.toUpperCase()}`);
     if (item.num_factura)        parts.push(`FAC:${item.num_factura}`);
     if (item.pagado === 'true')  parts.push('PAGADO A TIT.');
@@ -184,8 +200,7 @@ window.HistoryUI     = HistoryUI;
 
 const UI_EMP = {
     formatDate(iso) {
-        if (!iso || iso.startsWith('0001')) return '-';
-        return iso.substring(0, 10);
+        return fmtFechaES(iso);
     },
     boolIcon(val) {
         return (val === true || val === 1 || val === '1')
@@ -479,7 +494,108 @@ function updatePaginationUI() {
 
 /* ═══════════════════════ EXPORT / MISC ═══════════════════════ */
 
-window.handleGeneratePDF  = () => { if (!STATE.allData.length) return alert('No hay datos'); Oficina.generarPDF('Cobros_Empresas',   STATE.allData); };
+/**
+ * PDF generado aquí mismo con jsPDF + autoTable (cargados en el <head>).
+ * Antes delegaba en Oficina.generarPDF(), que no funcionaba en esta página.
+ * STATE.allData ya contiene los registros filtrados (ver handleSearch).
+ */
+window.handleGeneratePDF = () => {
+    const datos = STATE.allData;
+    if (!datos.length) return UI_EMP.alertMessage('No hay datos para imprimir', 'error');
+
+    const JsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!JsPDF) {
+        console.error('[PDF] jsPDF no está cargado');
+        return UI_EMP.alertMessage('Error: librería jsPDF no cargada', 'error');
+    }
+
+    try {
+        const doc = new JsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        if (typeof doc.autoTable !== 'function') {
+            console.error('[PDF] jspdf-autotable no está cargado');
+            return UI_EMP.alertMessage('Error: plugin autoTable no cargado', 'error');
+        }
+
+        const asBool = v => v === true || v === 1 || v === '1';
+        const fmtEUR = n => n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR';
+        const siNo   = v => asBool(v) ? 'SÍ' : 'NO';
+
+        // Cabecera con filtros activos
+        const form = document.getElementById('searchForm');
+        const fld  = name => form?.querySelector(`[name="${name}"]`);
+        const txt  = name => { const el = fld(name); return el?.selectedOptions?.[0]?.text || el?.value || ''; };
+
+        const cobradoVal = fld('cobrado')?.value ?? '';
+        const estado = cobradoVal === 'false' ? 'Pendientes de cobro'
+                     : cobradoVal === 'true'  ? 'Ya cobrados' : 'Todos';
+        const filtros = [`Estado: ${estado}`];
+        if (fld('licencia_ref')?.value) filtros.push(`Licencia: ${txt('licencia_ref')}`);
+        if (fld('empresa_ref')?.value)  filtros.push(`Empresa: ${txt('empresa_ref')}`);
+        if (fld('fecha_desde')?.value)  filtros.push(`Desde: ${fmtFechaES(fld('fecha_desde').value)}`);
+        if (fld('fecha_hasta')?.value)  filtros.push(`Hasta: ${fmtFechaES(fld('fecha_hasta').value)}`);
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Cobros a Empresas', 14, 14);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(filtros.join('   ·   '), 14, 20);
+        doc.text(`Generado: ${new Date().toLocaleString('es-ES')}   ·   Registros: ${datos.length}`, 14, 25);
+
+        // Cuerpo
+        let total = 0;
+        const body = datos.map(alb => {
+            const imp = parseFloat(alb.importe_total || 0) || 0;
+            total += imp;
+            return [
+                alb.id,
+                alb.numero_albaran || '-',
+                SearchEngine.getLicenciaNumero(alb) || '-',
+                UI_EMP.formatDate(alb.fecha),
+                SearchEngine.getEmpresaNombre(alb) || '-',
+                alb.referencia || '-',
+                alb.num_factura || '-',
+                fmtEUR(imp),
+                siNo(alb.cobrado),
+                siNo(alb.pagado),
+                alb.observaciones || ''
+            ];
+        });
+
+        doc.autoTable({
+            startY: 29,
+            head: [['Nº', 'Albarán', 'Licencia', 'Fecha', 'Empresa', 'Exp', 'Factura', 'Importe', 'Cob', 'Pag', 'Observaciones']],
+            body,
+            foot: [[{ content: 'TOTAL', colSpan: 7, styles: { halign: 'right' } }, fmtEUR(total), '', '', '']],
+            showFoot: 'lastPage',
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+            headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+            footStyles: { fillColor: [255, 140, 0], textColor: 255, fontStyle: 'bold' },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            columnStyles: {
+                0: { cellWidth: 12 },
+                3: { cellWidth: 20 },
+                7: { halign: 'right', cellWidth: 26 },
+                8: { halign: 'center', cellWidth: 11 },
+                9: { halign: 'center', cellWidth: 11 },
+                10: { cellWidth: 55 }
+            },
+            didDrawPage: () => {
+                const h = doc.internal.pageSize.getHeight();
+                const w = doc.internal.pageSize.getWidth();
+                doc.setFontSize(7);
+                doc.text(`Página ${doc.internal.getNumberOfPages()}`, w - 14, h - 6, { align: 'right' });
+            }
+        });
+
+        const hoy = new Date().toISOString().substring(0, 10);
+        doc.save(`Cobros_Empresas_${hoy}.pdf`);
+    } catch (err) {
+        console.error('[PDF] Error generando PDF:', err);
+        UI_EMP.alertMessage('Error al generar el PDF (ver consola)', 'error');
+    }
+};
 window.handleGenerateXLSX = () => { if (!STATE.allData.length) return alert('No hay datos'); Oficina.generarExcel('Cobros_Empresas', STATE.allData); };
 
 window.handleClearAllFilters = () => {
