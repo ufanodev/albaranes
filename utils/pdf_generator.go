@@ -12,10 +12,12 @@ import (
 	"github.com/jung-kurt/gofpdf"
 )
 
-// Orden preferido de columnas (las que no estén aquí se colocan justo antes de TOTAL)
+// Orden preferido de columnas. Las que no estén aquí se colocan justo antes de
+// OBSERVACIONES, que siempre es la última.
 var ordenColumnas = []string{
-	"Nº ALBARÁN", "FECHA", "LIC", "EMPRESA", "EXPEDIENTE",
-	"Nº FACTURA", "OBSERVACIONES", "TOTAL",
+	"Nº ALBARÁN", "FECHA", "LIC", "LICENCIA", "EMPRESA", "EXPEDIENTE", "Nº FACTURA",
+	"IMPORTE", "TOTAL", "ESTADO", "REF.", "CONDUCTOR",
+	"OBSERVACIONES", // siempre la última
 }
 
 // Peso relativo del ancho de cada columna (por defecto 1.0)
@@ -23,11 +25,16 @@ var pesoColumnas = map[string]float64{
 	"Nº ALBARÁN":    1.7,
 	"FECHA":         0.9,
 	"LIC":           0.5,
+	"LICENCIA":      0.8,
 	"EMPRESA":       1.6,
 	"EXPEDIENTE":    1.1,
 	"Nº FACTURA":    1.2,
-	"OBSERVACIONES": 3.2,
+	"IMPORTE":       0.9,
 	"TOTAL":         0.9,
+	"ESTADO":        0.8,
+	"REF.":          1.0,
+	"CONDUCTOR":     1.4,
+	"OBSERVACIONES": 3.2,
 }
 
 const maxLineasCelda = 6
@@ -258,7 +265,7 @@ func ordenarHeaders(headers []string) []string {
 	for i, h := range ordenColumnas {
 		pos[h] = i * 2
 	}
-	desconocida := pos["TOTAL"] - 1
+	desconocida := pos["OBSERVACIONES"] - 1
 	p := func(h string) int {
 		if v, ok := pos[normHeader(h)]; ok {
 			return v
@@ -266,7 +273,13 @@ func ordenarHeaders(headers []string) []string {
 		return desconocida
 	}
 	out := append([]string(nil), headers...)
-	sort.SliceStable(out, func(a, b int) bool { return p(out[a]) < p(out[b]) })
+	sort.SliceStable(out, func(a, b int) bool {
+		pa, pb := p(out[a]), p(out[b])
+		if pa != pb {
+			return pa < pb
+		}
+		return out[a] < out[b] // desempate alfabético: siempre el mismo orden
+	})
 	return out
 }
 
@@ -295,7 +308,13 @@ func parseImporte(s string) float64 {
 			b.WriteRune(c)
 		}
 	}
-	v := b.String()
+	n, _ := strconv.ParseFloat(normalizarDecimal(b.String()), 64)
+	return n
+}
+
+// normalizarDecimal deja el número en formato Go: "1.234,56" -> "1234.56", "1,234.56" -> "1234.56".
+// La usan también los generadores de Excel.
+func normalizarDecimal(v string) string {
 	lc, ld := strings.LastIndex(v, ","), strings.LastIndex(v, ".")
 	switch {
 	case lc > ld: // coma decimal
@@ -304,8 +323,7 @@ func parseImporte(s string) float64 {
 	case ld > lc && lc != -1: // punto decimal con comas de miles
 		v = strings.ReplaceAll(v, ",", "")
 	}
-	n, _ := strconv.ParseFloat(v, 64)
-	return n
+	return v
 }
 
 // formatEUR devuelve "€1,234.56" (mismo estilo que la tabla)

@@ -281,6 +281,15 @@ func fechaCorta(row map[string]interface{}) string {
 	return ""
 }
 
+// fechaDMY devuelve la fecha del albarán como DD/MM/YYYY (igual que la pantalla).
+func fechaDMY(row map[string]interface{}) string {
+	f := fechaCorta(row) // "2026-11-12"
+	if t, err := time.Parse(dateFormat, f); err == nil {
+		return t.Format("02/01/2006")
+	}
+	return f
+}
+
 // ---------------------------------------------------------------------
 // SECCIÓN: EXPORTACIÓN ADMIN
 // Campos: Nº Albarán, Fecha, Licencia, Empresa, Ref, Importe, Estado
@@ -299,7 +308,7 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 	for _, row := range body.Data {
 		lista = append(lista, utils.TitularData{
 			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
-			"FECHA":      fechaCorta(row),
+			"FECHA":      fechaDMY(row),
 			"LICENCIA":   strFromInterface(row["licencia_numero"]),
 			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
 			"REF.":       strFromInterface(row["referencia"]),
@@ -363,13 +372,14 @@ func ExportAlbaranesTitularPDF(c *gin.Context, db *gorm.DB) {
 	var lista []utils.TitularData
 	for _, row := range body.Data {
 		lista = append(lista, utils.TitularData{
-			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
-			"FECHA":      fechaCorta(row),
-			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
-			"REF.":       strFromInterface(row["referencia"]),
-			"CONDUCTOR":  strFromInterface(row["asalariado"]),
-			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
-			"ESTADO":     estadoFromRow(row),
+			"Nº ALBARÁN":    strFromInterface(row["numero_albaran"]),
+			"FECHA":         fechaDMY(row),
+			"EMPRESA":       strFromInterface(row["empresa_nombre"]),
+			"REF.":          strFromInterface(row["referencia"]),
+			"CONDUCTOR":     strFromInterface(row["asalariado"]),
+			"IMPORTE":       fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
+			"ESTADO":        estadoFromRow(row),
+			"OBSERVACIONES": strings.TrimSpace(strFromInterface(row["observaciones"])),
 		})
 	}
 
@@ -381,29 +391,57 @@ func ExportAlbaranesTitularPDF(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{"url": path})
 }
 
+// ExportAlbaranesTitularXLSX exporta TODOS los campos de los albaranes filtrados en pantalla.
+// Del navegador solo se usan los IDs; los datos se leen de la BD y únicamente de la
+// licencia del usuario (JWT), así nadie puede alterar importes ni ver otras licencias.
+// Acepta {"ids":[1,2,...]} o el formato actual {"data":[{"id":1,...}, ...]}.
 func ExportAlbaranesTitularXLSX(c *gin.Context, db *gorm.DB) {
+	licID := getUintFromContext(c, "licencia_id")
+	if licID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión sin licencia"})
+		return
+	}
+
 	var body struct {
+		IDs  []uint                   `json:"ids"`
 		Data []map[string]interface{} `json:"data"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil || len(body.Data) == 0 {
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
+		return
+	}
+
+	ids := body.IDs
+	for _, row := range body.Data {
+		if id := uint(floatFromInterface(row["id"])); id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Sin datos"})
 		return
 	}
 
-	var lista []utils.TitularData
-	for _, row := range body.Data {
-		lista = append(lista, utils.TitularData{
-			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
-			"FECHA":      fechaCorta(row),
-			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
-			"REF.":       strFromInterface(row["referencia"]),
-			"CONDUCTOR":  strFromInterface(row["asalariado"]),
-			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
-			"ESTADO":     estadoFromRow(row),
-		})
+	sqlDB, err := db.DB()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
-	path, err := utils.GenerateTitularesXLSX("ALBARANES TITULAR", lista)
+	// IN (...) filtra; ORDER BY FIELD(...) mantiene el mismo orden que la pantalla
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	args := make([]interface{}, 0, 2*len(ids)+1)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	args = append(args, licID)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	where := " WHERE a.id IN (" + ph + ") AND a.licencia_ref = ? AND a.estado = 0" +
+		" ORDER BY FIELD(a.id, " + ph + ")"
+
+	path, err := utils.GenerateAlbaranesXLSX(sqlDB, "ALBARANES TITULAR", where, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

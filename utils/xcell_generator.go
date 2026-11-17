@@ -26,6 +26,59 @@ type ExcelData struct {
 var columnasExcluidas = map[string]bool{
 	"licencia_ref": true,
 	"empresa_ref":  true,
+	"estado":       true, // borrado lógico: siempre 0 en lo exportado
+}
+
+// Columnas de hora que se guardan en UTC (ver formatDateTimeWithOffset en el
+// controlador). En el Excel se muestran en hora de Madrid, como en pantalla.
+var columnasHora = map[string]bool{
+	"hora":          true,
+	"hora_ini":      true,
+	"hora_fin":      true,
+	"espera_ini":    true,
+	"espera_fin":    true,
+	"tiempo_espera": true,
+}
+
+// Columnas que suman en la fila TOTAL (en mayúsculas)
+var columnasSuma = map[string]bool{
+	"TOTAL":         true,
+	"IMPORTE":       true,
+	"TOTAL EUR":     true,
+	"IMPORTE_TOTAL": true,
+	"IMPORTE TOTAL": true,
+}
+
+var zonaMadrid, _ = time.LoadLocation("Europe/Madrid")
+
+// horaLocal convierte "2026-11-12 09:30:00" (UTC) en "10:30" (Madrid).
+// Si no reconoce el formato, devuelve el valor tal cual.
+func horaLocal(v string) string {
+	if v == "" || zonaMadrid == nil {
+		return v
+	}
+	for _, layout := range []string{"2006-01-02 15:04:05", time.RFC3339Nano} {
+		if t, err := time.ParseInLocation(layout, v, time.UTC); err == nil {
+			return t.In(zonaMadrid).Format("15:04")
+		}
+	}
+	return v
+}
+
+// fechaLegible acorta "2026-11-12T00:00:00Z" (driver con parseTime=true) a
+// "2026-11-12", o a "2026-11-12 10:30" si lleva hora. Otros valores, tal cual.
+func fechaLegible(v string) string {
+	if !strings.Contains(v, "T") || zonaMadrid == nil {
+		return v
+	}
+	t, err := time.Parse(time.RFC3339Nano, v)
+	if err != nil {
+		return v
+	}
+	if t.Hour() == 0 && t.Minute() == 0 && t.Second() == 0 {
+		return t.Format("2006-01-02")
+	}
+	return t.In(zonaMadrid).Format("2006-01-02 15:04")
 }
 
 // Columnas que deben quedarse como texto (no perder ceros a la izquierda)
@@ -92,7 +145,13 @@ func GetAlbaranesExcel(db *sql.DB, where string, args ...interface{}) (ExcelData
 		for i, c := range cols {
 			// Las columnas repetidas (licencia, empresa_nombre) llegan después
 			// en el SELECT, así que se queda el valor del JOIN.
-			row[c] = vals[i].String
+			v := vals[i].String
+			if columnasHora[c] {
+				v = horaLocal(v)
+			} else {
+				v = fechaLegible(v)
+			}
+			row[c] = v
 		}
 		out.Rows = append(out.Rows, row)
 	}
@@ -173,9 +232,15 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 		Alignment: &excelize.Alignment{Horizontal: "center"},
 	})
 
-	rowAltStyle, _ := f.NewStyle(&excelize.Style{
-		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"#F3F4F6"}},
-	})
+	altFill := excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"#F3F4F6"}}
+	rowAltStyle, _ := f.NewStyle(&excelize.Style{Fill: altFill})
+
+	// Fechas reales de Excel mostradas como dd/mm/yyyy (se pueden ordenar y filtrar)
+	fmtFecha, fmtFechaHora := "dd/mm/yyyy", "dd/mm/yyyy hh:mm"
+	fechaStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &fmtFecha})
+	fechaAltStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &fmtFecha, Fill: altFill})
+	fechaHoraStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &fmtFechaHora})
+	fechaHoraAltStyle, _ := f.NewStyle(&excelize.Style{CustomNumFmt: &fmtFechaHora, Fill: altFill})
 
 	totalStyle, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true},
@@ -198,8 +263,7 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 		f.SetColWidth(sheetName, colName, colName, 20)
 
 		// Identificar columna numérica
-		upH := strings.ToUpper(header)
-		if upH == "TOTAL" || upH == "IMPORTE" || upH == "TOTAL EUR" {
+		if columnasSuma[strings.ToUpper(strings.TrimSpace(header))] {
 			totalColIndex = i + 1
 		}
 	}
@@ -211,8 +275,25 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 		for colIndex, header := range headers {
 			cell, _ := excelize.CoordinatesToCellName(colIndex+1, currentRow)
 			value := rowData[header]
+			alt := rowNum%2 == 0
+			estilo := 0
+			if alt {
+				estilo = rowAltStyle
+			}
 
-			if columnasTexto[strings.ToLower(header)] {
+			if t, conHora, ok := parseFechaExcel(value); ok && esColumnaFecha(header) {
+				f.SetCellValue(sheetName, cell, t)
+				switch {
+				case conHora && alt:
+					estilo = fechaHoraAltStyle
+				case conHora:
+					estilo = fechaHoraStyle
+				case alt:
+					estilo = fechaAltStyle
+				default:
+					estilo = fechaStyle
+				}
+			} else if columnasTexto[strings.ToLower(header)] {
 				f.SetCellStr(sheetName, cell, value)
 			} else if floatValue, err := tryConvertToFloat(value); err == nil {
 				f.SetCellValue(sheetName, cell, floatValue)
@@ -224,8 +305,8 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 				f.SetCellValue(sheetName, cell, value)
 			}
 
-			if rowNum%2 == 0 {
-				f.SetCellStyle(sheetName, cell, cell, rowAltStyle)
+			if estilo != 0 {
+				f.SetCellStyle(sheetName, cell, cell, estilo)
 			}
 		}
 		lastRowNum = currentRow
@@ -278,13 +359,45 @@ func GenerateTitularesXLSX(reportName string, data interface{}) (string, error) 
 	return "/documentos/" + fileName, nil
 }
 
-// tryConvertToFloat intenta convertir strings a números para el Excel
+// esColumnaFecha: columnas que se escriben como fecha real de Excel.
+func esColumnaFecha(h string) bool {
+	h = strings.ToLower(strings.TrimSpace(h))
+	return strings.Contains(h, "fecha") || h == "created_at" || h == "updated_at"
+}
+
+// parseFechaExcel reconoce "2026-11-12", "2026-11-12 10:30" y "2026-11-12 10:30:00".
+// conHora indica si la hora no es 00:00 (para usar el formato dd/mm/yyyy hh:mm).
+func parseFechaExcel(v string) (time.Time, bool, bool) {
+	v = strings.TrimSpace(v)
+	for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02 15:04"} {
+		if t, err := time.Parse(layout, v); err == nil {
+			return t, t.Hour() != 0 || t.Minute() != 0 || t.Second() != 0, true
+		}
+	}
+	if len(v) >= 10 {
+		if t, err := time.Parse("2006-01-02", v[:10]); err == nil {
+			return t, false, true
+		}
+	}
+	return time.Time{}, false, false
+}
+
+// tryConvertToFloat convierte importes y números a float ("€1,234.56", "1.234,56 €", "0.35").
+// Devuelve error (=> se guarda como texto) si hay letras, fechas, horas
+// o ceros a la izquierda tipo "000123".
 func tryConvertToFloat(s string) (float64, error) {
-	if strings.EqualFold(s, "Sí") || strings.EqualFold(s, "No") || s == "-" || s == "" {
+	limpio := strings.NewReplacer("€", "", " ", "", " ", "").Replace(strings.TrimSpace(s))
+	if limpio == "" || limpio == "-" {
 		return 0, fmt.Errorf("no numérico")
 	}
-	cleanStr := strings.ReplaceAll(s, "€", "")
-	cleanStr = strings.ReplaceAll(cleanStr, " ", "")
-	cleanStr = strings.ReplaceAll(cleanStr, ",", ".")
-	return strconv.ParseFloat(cleanStr, 64)
+	for _, c := range limpio {
+		if !((c >= '0' && c <= '9') || c == ',' || c == '.' || c == '-') {
+			return 0, fmt.Errorf("no numérico")
+		}
+	}
+	// Códigos con ceros a la izquierda: se mantienen como texto
+	if len(limpio) > 1 && limpio[0] == '0' && limpio[1] >= '0' && limpio[1] <= '9' {
+		return 0, fmt.Errorf("código con ceros")
+	}
+	return strconv.ParseFloat(normalizarDecimal(limpio), 64)
 }
