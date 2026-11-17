@@ -1,7 +1,10 @@
 /**
  * ARCHIVO: static/js/admin_albaran_update.js
  * DESCRIPCIÓN: Edición total de albaranes para Administrador.
- * ACTUALIZADO: 17/11/2026
+ * ACTUALIZADO: 17/11/2026 (b)
+ *   - FIX: 'adjuntos' se envía como booleano (antes llegaba "on" o no llegaba).
+ *   - ADD: adjuntos_ref (referencia de adjuntos).
+ *   17/11/2026
  *   - FIX: el desfase horario ya no es fijo (+2h). Se calcula el offset real de
  *          Europe/Madrid para la fecha del albarán (+1h invierno / +2h verano).
  *   12/11/2026
@@ -167,7 +170,7 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     });
 
     // Normalizar Checkboxes
-    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'cobrado', 'pagado', 'finalizado'];
+    const bools = ['urbano', 'diurno', 'noct_fest', 'remolque', 'cobrado', 'pagado', 'finalizado', 'adjuntos'];
     bools.forEach(name => {
         const el = e.target.querySelector(`[name="${name}"]`);
         payload[name] = el ? el.checked : false;
@@ -196,6 +199,9 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
         ? fechaCobro.value : null;
     payload.fecha_pago  = (document.getElementById('pagado')?.checked && fechaPago?.value)
         ? fechaPago.value : null;
+
+    // Referencia de adjuntos: texto libre (vacío = sin referencia)
+    payload.adjuntos_ref = (document.getElementById('adjuntos_ref')?.value || '').trim();
 
     // Admin siempre marca como enviado
     payload.enviado = true;

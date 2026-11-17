@@ -1,7 +1,13 @@
 /**
  * ARCHIVO: static/js/admin_albaran_nuevo.js
  * DESCRIPCIÓN: Lógica de inserción administrativa rápida con soporte para facturación.
- * ACTUALIZADO: 23/04/2026 - REFACTOR: Soporte para bloque de facturación y liquidación.
+ * ACTUALIZADO: 17/11/2026
+ *   - FIX: checkbox 'adjuntos' (bool) + 'adjuntos_ref' (texto), igual que en edición.
+ *   - FIX: checkboxes desmarcados se envían como false (FormData los omitía).
+ *   - FIX: fechas vacías (fecha_cobro / fecha_pago) se envían como null, no "-".
+ *   - FIX: hora_total = minutos enteros (igual que en edición), no HH.mm.
+ *   - ADD: km_ini, km_fin, fecha_pago.
+ * 23/04/2026 - REFACTOR: Soporte para bloque de facturación y liquidación.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -84,8 +90,11 @@ async function handleInsertMaestro(event) {
         const valStr = value.toString().trim();
 
         if (input.type === 'checkbox') {
-            data[key] = input.checked;
-        } 
+            return; // se tratan todos abajo (incluidos los desmarcados)
+        }
+        else if (input.type === 'date') {
+            data[key] = valStr === "" ? null : valStr;
+        }
         else if (input.type === 'number') {
             data[key] = valStr === "" ? 0 : parseFloat(valStr);
         } 
@@ -97,6 +106,11 @@ async function handleInsertMaestro(event) {
         }
     });
 
+    // Checkboxes: true/false siempre (FormData omite los desmarcados)
+    form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => {
+        data[cb.name] = cb.checked;
+    });
+
     // 2. MAPEADO DE LÓGICA DE NEGOCIO
     data.cliente = data.nombre_pasajero || "-";
     delete data.nombre_pasajero;
@@ -105,10 +119,11 @@ async function handleInsertMaestro(event) {
     data.licencia_ref = parseInt(document.getElementById('licencia_ref').value) || 0;
     data.empresa_ref = parseInt(document.getElementById('empresa_ref').value) || 0;
     
-    // Manejo especial de adjuntos (Checkbox + Ref)
-    data.adjuntos_ref = data.adjuntos || "";
-    data.adjuntos = !!data.adjuntos_bool; // Boolean real
-    delete data.adjuntos_bool;
+    // Adjuntos: checkbox (bool) + referencia (texto)
+    data.adjuntos_ref = (data.adjuntos_ref && data.adjuntos_ref !== "-") ? data.adjuntos_ref : "";
+
+    // Espera total: minutos enteros
+    data.hora_total = Math.min(360, Math.max(0, Math.round(data.hora_total || 0)));
 
     // Forzado de tipos técnicos
     data.num_plazas = parseInt(data.num_plazas) || 4;
@@ -187,9 +202,9 @@ function initFormattersEspera() {
     const horaTotal = document.querySelector('input[name="hora_total"]');
     if (horaTotal) {
         horaTotal.addEventListener('blur', () => {
-            let val = parseFloat(horaTotal.value.replace(',', '.')) || 0;
-            // Aseguramos formato decimal de dos puntos
-            horaTotal.value = val.toFixed(2);
+            if (horaTotal.value === '') return;
+            const val = Math.round(parseFloat(String(horaTotal.value).replace(',', '.')) || 0);
+            horaTotal.value = Math.min(360, Math.max(0, val)); // minutos enteros
         });
     }
 }

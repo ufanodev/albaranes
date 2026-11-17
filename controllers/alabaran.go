@@ -1,7 +1,12 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 17/11/2026
+ * ACTUALIZADO: 17/11/2026 (b)
+ *   - FIX: km_ini y km_fin se guardan (antes no estaban en INSERT ni UPDATE).
+ *   - FIX: CreateAlbaran guarda cobrado, pagado, num_factura, fecha_cobro y fecha_pago.
+ *   - FIX: execUpdateSQL conserva adjuntos / adjuntos_ref si no vienen en el payload.
+ *   - FIX: boolOrFalse acepta 1/"1"/"true"/"on"; intOrZero acepta strings.
+ *   17/11/2026
  *   - FIX: se embebe la base de zonas horarias (time/tzdata). Así Europe/Madrid
  *     carga siempre y nunca se usa el respaldo de -2h fijo (erróneo en invierno).
  *   - FIX: execUpdateSQL conserva el valor actual de importes, km, hora_total,
@@ -161,6 +166,10 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 			structKey = "Urbano"
 		case "remolque":
 			structKey = "Remolque"
+		case "km_ini":
+			structKey = "KmIni"
+		case "km_fin":
+			structKey = "KmFin"
 		case "km_totales":
 			structKey = "KmTotales"
 		case "km_nacionales":
@@ -493,10 +502,13 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
         numero_albaran, fecha, licencia_ref, empresa_ref, licencia, empresa_nombre,
         referencia, asalariado, hora, hora_ini, hora_fin, hora_total, espera_ini, 
         espera_fin, dni_pasajero, tlf_pasajero, matricula, cliente, origen, parada, 
-        destino, urbano, diurno, noct_fest, km_totales, km_nacionales, km_internacionales,
+        destino, urbano, diurno, noct_fest, km_ini, km_fin, km_totales, km_nacionales, km_internacionales,
         importe_suplidos, importe_total, autorizado_por, remolque, num_plazas, 
-        observaciones, adjuntos, adjuntos_ref, finalizado, festivo, estado, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW(), NOW())`
+        observaciones, adjuntos, adjuntos_ref, finalizado, festivo,
+        cobrado, pagado, num_factura, fecha_cobro, fecha_pago,
+        estado, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, 0, NOW(), NOW())`
 
 	err := db.Exec(query,
 		strFromInterface(cleanInput["NumeroAlbaran"]),
@@ -523,6 +535,8 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		boolOrFalse(cleanInput, "Urbano"),
 		boolOrFalse(cleanInput, "Diurno"),
 		boolOrFalse(cleanInput, "NoctFest"),
+		floatOrZero(cleanInput, "KmIni"),
+		floatOrZero(cleanInput, "KmFin"),
 		floatOrZero(cleanInput, "KmTotales"),
 		floatOrZero(cleanInput, "KmNacionales"),
 		floatOrZero(cleanInput, "KmInternacionales"),
@@ -536,6 +550,11 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		strOrEmpty(cleanInput, "AdjuntosRef"),
 		boolOrFalse(cleanInput, "Finalizado"),
 		boolOrFalse(cleanInput, "Festivo"),
+		boolOrFalse(cleanInput, "Cobrado"),
+		boolOrFalse(cleanInput, "Pagado"),
+		strPtrOrNil(cleanInput, "NumFactura"),
+		timePtrOrNil(cleanInput, "FechaCobro"),
+		timePtrOrNil(cleanInput, "FechaPago"),
 	).Error
 
 	if err != nil {
@@ -673,6 +692,8 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
             referencia = ?, asalariado = ?, dni_pasajero = ?, tlf_pasajero = ?,
             matricula = ?, cliente = ?, origen = ?, parada = ?, destino = ?, 
             empresa_ref = IF(?, ?, empresa_ref), empresa_nombre = ?,
+            km_ini = IF(?, ?, km_ini),
+            km_fin = IF(?, ?, km_fin),
             km_totales = IF(?, ?, km_totales),
             km_nacionales = IF(?, ?, km_nacionales),
             km_internacionales = IF(?, ?, km_internacionales),
@@ -681,7 +702,10 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
             hora_total = IF(?, ?, hora_total),
             num_plazas = IF(?, ?, num_plazas),
             urbano = ?, diurno = ?, noct_fest = ?,
-            remolque = ?, adjuntos = ?, adjuntos_ref = ?, autorizado_por = ?,
+            remolque = ?,
+            adjuntos = IF(?, ?, adjuntos),
+            adjuntos_ref = IF(?, ?, adjuntos_ref),
+            autorizado_por = ?,
             observaciones = ?,
             enviado = IF(?, ?, enviado),
             cobrado = IF(?, ?, cobrado),
@@ -714,6 +738,8 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		strPtrOrNil(cleanInput, "Destino"),
 		has("EmpresaRef"), intOrZero(cleanInput, "EmpresaRef"),
 		strOrEmpty(cleanInput, "EmpresaNombre"),
+		has("KmIni"), floatOrZero(cleanInput, "KmIni"),
+		has("KmFin"), floatOrZero(cleanInput, "KmFin"),
 		has("KmTotales"), floatOrZero(cleanInput, "KmTotales"),
 		has("KmNacionales"), floatOrZero(cleanInput, "KmNacionales"),
 		has("KmInternacionales"), floatOrZero(cleanInput, "KmInternacionales"),
@@ -725,8 +751,8 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		boolOrFalse(cleanInput, "Diurno"),
 		boolOrFalse(cleanInput, "NoctFest"),
 		boolOrFalse(cleanInput, "Remolque"),
-		boolOrFalse(cleanInput, "Adjuntos"),
-		strOrEmpty(cleanInput, "AdjuntosRef"),
+		has("Adjuntos"), boolOrFalse(cleanInput, "Adjuntos"),
+		has("AdjuntosRef"), strOrEmpty(cleanInput, "AdjuntosRef"),
 		strPtrOrNil(cleanInput, "AutorizadoPor"),
 		strPtrOrNil(cleanInput, "Observaciones"),
 		has("Enviado"), boolOrFalse(cleanInput, "Enviado"),
@@ -835,13 +861,25 @@ func intOrZero(m map[string]interface{}, key string) int {
 		return int(v)
 	case int:
 		return v
+	case string:
+		var n int
+		fmt.Sscanf(strings.TrimSpace(v), "%d", &n)
+		return n
 	}
 	return 0
 }
 
 func boolOrFalse(m map[string]interface{}, key string) bool {
-	if v, ok := m[key].(bool); ok {
+	switch v := m[key].(type) {
+	case bool:
 		return v
+	case float64:
+		return v != 0
+	case int:
+		return v != 0
+	case string:
+		s := strings.ToLower(strings.TrimSpace(v))
+		return s == "1" || s == "true" || s == "on"
 	}
 	return false
 }

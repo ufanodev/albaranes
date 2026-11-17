@@ -1,234 +1,198 @@
 /**
  * ARCHIVO: static/js/admin_albaran_cargar.js
- * ACTUALIZADO: 15/11/2026
- *   - CAMBIO: fechas de visualización en formato dd/mm/yyyy sin new Date()
- *     (los <input type="date"> siguen recibiendo yyyy-mm-dd, lo exige el navegador)
- * 04/06/2026
+ * ACTUALIZADO: 17/11/2026
+ *   - Vista y edición comparten el MISMO HTML; este mapper rellena ambos.
+ *     En vista (body[data-mode="view"]) los date/time se convierten a texto
+ *     y se muestran como dd/mm/yyyy y HH:mm.
+ *   - ADD: km_nacionales, km_internacionales, adjuntos.
+ *   - FIX: num_plazas no se cargaba (el <select> no tenía id).
+ *   - FIX: km_* se formatean siempre a 2 decimales.
+ *   - FIX: lectura tolerante de claves (snake_case, camelCase, PascalCase)
+ *          por si el JSON de Go no lleva tags.
+ *   - FIX: booleanos tinyint: 0/1, "0"/"1", true/false ("0" ya no cuenta como true).
+ *   - FIX: fecha_cobro / fecha_pago se habilitan si cobrado / pagado vienen marcados.
+ *   - FIX: empresa / licencia: si la opción no existe aún en el select, se crea.
  *
- * El backend devuelve horas como "2026-05-26T05:16:00+02:00"
- * Ya viene en hora Madrid con offset explícito → extraemos HH:mm tras la T directamente.
- * No usamos new Date() para horas → evita cualquier conversión de zona horaria.
- *
- * CAMBIOS:
- *   - ADD: hora_total (minutos totales de espera, entero)
- *   - ADD: fecha_pago en sección 6
- *   - ADD: renderBadge para cobrado, pagado, finalizado (nuevos IDs del HTML)
- *   - FIX: eliminada referencia a status_badges_container (ya no existe en el HTML)
- *   - FIX: empresa_nombre_view para vista de solo lectura
+ * Horas: el backend devuelve "2026-05-26T05:16:00+02:00" (hora Madrid).
+ * Se extrae HH:mm tras la T por texto, sin new Date().
  */
 
 function populateForm(data) {
     if (!data) return;
     console.log("📦 [ADMIN MAPPER] Procesando albarán:", data);
 
-    // ─── Helpers ────────────────────────────────────────────────────────────
+    const isView = document.body && document.body.dataset.mode === 'view';
 
-    /**
-     * Fecha ISO → dd/mm/yyyy por manipulación de texto (sin new Date()),
-     * así no hay desplazamientos de día por zona horaria.
-     *   "2026-05-26T05:16:00+02:00" → "26/05/2026"
-     *   "2026-05-26"                → "26/05/2026"
-     *   "0001-01-01..." / vacío     → "-"
-     */
+    // ─── Lectura tolerante de claves ────────────────────────────────────────
+    const toCamel  = (k) => k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const toPascal = (k) => { const c = toCamel(k); return c.charAt(0).toUpperCase() + c.slice(1); };
+    const get = (...keys) => {
+        for (const k of keys) {
+            for (const variant of [k, toCamel(k), toPascal(k)]) {
+                const v = data[variant];
+                if (v !== undefined && v !== null) return v;
+            }
+        }
+        return null;
+    };
+
+    // ─── Helpers de formato ─────────────────────────────────────────────────
+    const isZeroDate = (s) => !s || typeof s !== 'string' || s.startsWith('0001');
+
     const formatEuroDate = (isoStr) => {
-        if (!isoStr || typeof isoStr !== 'string' || isoStr.startsWith('0001')) return "-";
+        if (isZeroDate(isoStr)) return '';
         const m = isoStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
         return m ? `${m[3]}/${m[2]}/${m[1]}` : isoStr;
     };
 
-    /**
-     * FIX DEFINITIVO: El backend devuelve "2026-05-26T05:16:00+02:00"
-     * La hora tras la T ya es hora Madrid → extraemos HH:mm sin conversión.
-     *   "2026-05-26T05:16:00+02:00" → "05:16" ✅
-     *   "05:16:00"                  → "05:16" ✅
-     *   "05:16"                     → "05:16" ✅
-     */
-    const extractTimeForInput = (timeStr) => {
-        if (!timeStr) return "";
-        if (typeof timeStr === 'string') {
-            const tIdx = timeStr.indexOf('T');
-            if (tIdx !== -1) return timeStr.substring(tIdx + 1, tIdx + 6);
-            return timeStr.substring(0, 5);
-        }
-        return "";
+    const isoDate = (isoStr) => isZeroDate(isoStr) ? '' : isoStr.substring(0, 10);
+
+    const extractTime = (timeStr) => {
+        if (!timeStr || typeof timeStr !== 'string') return '';
+        const tIdx = timeStr.indexOf('T');
+        if (tIdx !== -1) return timeStr.substring(tIdx + 1, tIdx + 6);
+        return timeStr.substring(0, 5);
     };
 
-    const formatTimeDisplay = (t) => extractTimeForInput(t) || "--:--";
+    const toBool = (v) => v === true || v === 1 || v === '1' || v === 'true' || v === 'on';
 
-    const setVal = (id, value, isDate = false, isTime = false) => {
-        const el = document.getElementById(id);
+    const toDec = (v) => {
+        if (v === null || v === undefined || v === '') return '';
+        const n = parseFloat(String(v).replace(',', '.'));
+        return isNaN(n) ? '' : n.toFixed(2);
+    };
+
+    // Primer valor no vacío (para etiquetas de los combos)
+    const firstText = (...vals) => vals.find(v => v !== null && v !== undefined && String(v).trim() !== '') ?? '';
+    const lic = data.licencia_data || data.LicenciaData || {};
+    const emp = data.empresa_data  || data.EmpresaData  || {};
+
+    // ─── Setters ────────────────────────────────────────────────────────────
+    const $ = (id) => document.getElementById(id);
+
+    const setText = (id, value) => {
+        const el = $(id);
         if (!el) return;
-        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) {
-            if (el.type === 'date')  { el.value = value ? value.split('T')[0] : ''; return; }
-            if (el.type === 'time' || isTime) { el.value = extractTimeForInput(value); return; }
-            // Input de texto: si es solo lectura (vista) → dd/mm/yyyy; si es editable → ISO para el backend
-            if (isDate && value)     { el.value = (el.readOnly || el.disabled) ? formatEuroDate(value) : value.split('T')[0]; }
-            else                     { el.value = (value !== null && value !== undefined && value !== '') ? value : ''; }
-        } else {
-            let display = (value !== null && value !== undefined && value !== '') ? value : "-";
-            if (isDate && value) display = formatEuroDate(value);
-            if (isTime && value) display = formatTimeDisplay(value);
-            el.textContent = display;
-        }
+        el.value = (value !== null && value !== undefined) ? value : '';
     };
 
-    const setCheck = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.checked = !!val;
-    };
-
-    /**
-     * Badge de estado activo/inactivo para cobrado, pagado, finalizado.
-     * Busca el elemento por id y le aplica clases según color y estado.
-     */
-    const renderBadge = (id, activo, label, color) => {
-        const el = document.getElementById(id);
+    // Fecha: <input type="date"> → yyyy-mm-dd ; texto (vista) → dd/mm/yyyy
+    const setDate = (id, value) => {
+        const el = $(id);
         if (!el) return;
-        const palettes = {
-            blue:  { on: 'border-blue-400 bg-blue-100 text-blue-800',   off: 'border-slate-200 bg-slate-100 text-slate-400' },
-            green: { on: 'border-green-400 bg-green-100 text-green-800', off: 'border-slate-200 bg-slate-100 text-slate-400' },
-            teal:  { on: 'border-teal-400 bg-teal-100 text-teal-800',   off: 'border-slate-200 bg-slate-100 text-slate-400' },
+        el.value = el.type === 'date' ? isoDate(value) : formatEuroDate(value);
+    };
+
+    const setTime = (id, value) => {
+        const el = $(id);
+        if (el) el.value = extractTime(value);
+    };
+
+    const setNum = (id, value) => {
+        const el = $(id);
+        if (el) el.value = toDec(value);
+    };
+
+    const setCheck = (id, value) => {
+        const el = $(id);
+        if (el) el.checked = toBool(value);
+    };
+
+    // Selecciona un valor en un <select>; si la opción no existe la crea.
+    const setSelect = (id, value, label) => {
+        const el = $(id);
+        if (!el || value === null || value === undefined || value === '') return;
+        const val = String(value);
+        el.dataset.selected = val; // por si otro script recarga las opciones después
+        let opt = Array.from(el.options).find(o => o.value === val);
+        if (!opt) {
+            opt = new Option(label || val, val);
+            el.add(opt);
+        }
+        el.value = val;
+    };
+
+    // ─── 1. CABECERA / CONTROL ──────────────────────────────────────────────
+    setText('albaran_id', get('id', 'ID'));
+    const headerNum = $('header_num');
+    if (headerNum) headerNum.textContent = `#${get('numero_albaran') ?? ''}`;
+
+    setSelect('licencia_ref', get('licencia_ref'),
+              String(firstText(lic.licencia, lic.Licencia, get('licencia'))).toUpperCase());
+    setText('n_albaran', get('numero_albaran'));
+    setDate('fecha',     get('fecha'));
+    setTime('hora_ini',  get('hora_ini'));
+    setTime('hora_fin',  get('hora_fin'));
+
+    // ─── 2. FACTURACIÓN / CLIENTE ───────────────────────────────────────────
+    setSelect('empresa', get('empresa_ref'),
+              String(firstText(emp.nombre, emp.Nombre, get('empresa_nombre'))).toUpperCase());
+    setText('nombre_pasajero', get('nombre_pasajero', 'cliente'));
+    setText('tlf_pasajero',    get('tlf_pasajero'));
+    setText('dni_pasajero',    get('dni_pasajero'));
+    setText('matricula',       get('matricula'));
+
+    // ─── 3. ITINERARIO ──────────────────────────────────────────────────────
+    setText('origen',     get('origen'));
+    setText('parada',     get('parada'));
+    setText('destino',    get('destino'));
+    setText('referencia', get('referencia'));
+    setTime('espera_ini', get('espera_ini'));
+    setTime('espera_fin', get('espera_fin'));
+
+    const horaTotal = parseInt(get('hora_total'), 10) || 0;
+    setText('hora_total', horaTotal > 0 ? horaTotal : (isView ? '0' : ''));
+
+    // ─── 4. KILOMETRAJE ─────────────────────────────────────────────────────
+    setNum('km_ini',             get('km_ini'));
+    setNum('km_fin',             get('km_fin'));
+    setNum('km_totales',         get('km_totales'));
+    setNum('km_nacionales',      get('km_nacionales'));
+    setNum('km_internacionales', get('km_internacionales'));
+
+    const plazas = parseInt(get('num_plazas', 'plazas'), 10);
+    if (plazas > 0) setSelect('num_plazas', plazas, `${plazas} Plazas`);
+
+    setCheck('urbano',    get('urbano'));
+    setCheck('diurno',    get('diurno'));
+    setCheck('noct_fest', get('noct_fest'));
+    setCheck('remolque',  get('remolque'));
+
+    // ─── 5. ECONOMÍA ────────────────────────────────────────────────────────
+    setText('asalariado',     get('asalariado'));
+    setText('autorizado_por', get('autorizado_por'));
+    $('importe_suplidos') && ($('importe_suplidos').value = toDec(get('importe_suplidos')) || '0.00');
+    $('importe_total')    && ($('importe_total').value    = toDec(get('importe_total'))    || '0.00');
+
+    // ─── 6. ADMINISTRACIÓN ──────────────────────────────────────────────────
+    setText('num_factura', get('num_factura'));
+    setCheck('cobrado',    get('cobrado'));
+    setCheck('pagado',     get('pagado'));
+    setCheck('finalizado', get('finalizado'));
+    setCheck('adjuntos',   get('adjuntos'));
+    setText('adjuntos_ref', get('adjuntos_ref'));
+    setDate('fecha_cobro', get('fecha_cobro'));
+    setDate('fecha_pago',  get('fecha_pago'));
+
+    // En edición: la fecha va habilitada si su checkbox está marcado
+    if (!isView) {
+        // (admin_albaran_update.js vuelve a sincronizar con syncFechasFacturacion)
+        const syncFecha = (chkId, fechaId) => {
+            const chk = $(chkId), f = $(fechaId);
+            if (chk && f) f.disabled = !chk.checked;
         };
-        const p = palettes[color] || palettes.blue;
-        const icon = activo ? 'check-circle-2' : 'circle';
-        el.className = `badge-status ${activo ? p.on : p.off}`;
-        el.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i> ${label}`;
-    };
-
-    // ─── 1. CABECERA E IDs ───────────────────────────────────────────────────
-
-    const hiddenId = document.getElementById('albaran_id');
-    if (hiddenId) hiddenId.value = data.id || data.ID || '';
-
-    setVal('header_num', `#${data.numero_albaran}`);
-    setVal('licencia_ref', data.licencia_ref);
-    setVal('n_albaran',   data.numero_albaran);
-    setVal('fecha',       data.fecha, true);
-    setVal('hora_ini',    data.hora_ini,  false, true);
-    setVal('hora_fin',    data.hora_fin,  false, true);
-
-    // ─── 2. CLIENTE / FACTURACIÓN ────────────────────────────────────────────
-
-    // Select editable (update)
-    const empresaSelect = document.getElementById('empresa');
-    if (empresaSelect && data.empresa_ref) empresaSelect.value = data.empresa_ref;
-
-    // Input de solo lectura (vista)
-    const empresaView = document.getElementById('empresa_nombre_view');
-    if (empresaView) empresaView.value = data.empresa_nombre || data.empresa || '';
-
-    setVal('nombre_pasajero', data.cliente || data.nombre_pasajero);
-    setVal('tlf_pasajero',    data.tlf_pasajero);
-    setVal('dni_pasajero',    data.dni_pasajero);
-    setVal('matricula',       data.matricula);
-
-    // ─── 3. ITINERARIO ───────────────────────────────────────────────────────
-
-    setVal('origen',     data.origen);
-    setVal('parada',     data.parada);
-    setVal('destino',    data.destino);
-    setVal('referencia', data.referencia);
-    setVal('espera_ini', data.espera_ini, false, true);
-    setVal('espera_fin', data.espera_fin, false, true);
-
-    // hora_total: entero (minutos). Si es 0 o null mostramos vacío en edición, "—" en vista.
-    const horaTotalEl = document.getElementById('hora_total');
-    if (horaTotalEl) {
-        const val = parseInt(data.hora_total) || 0;
-        horaTotalEl.value = val > 0 ? val : '';
+        syncFecha('cobrado', 'fecha_cobro');
+        syncFecha('pagado',  'fecha_pago');
     }
-
-    // ─── 4. KILOMETRAJE ──────────────────────────────────────────────────────
-
-    setVal('km_ini',     data.km_ini);
-    setVal('km_fin',     data.km_fin);
-    setVal('km_totales', data.km_totales);
-
-    setCheck('urbano',    data.urbano);
-    setCheck('diurno',    data.diurno);
-    setCheck('noct_fest', data.noct_fest);
-    setCheck('remolque',  data.remolque);
-
-    const plazasEl = document.getElementById('num_plazas');
-    if (plazasEl && data.num_plazas) plazasEl.value = data.num_plazas;
-
-    // Badges visuales de tipo de servicio (sección 4 de la vista)
-    const syncBadge = (id, active) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const p = el.parentElement;
-        if (active) {
-            p.classList.add('bg-orange-100', 'border-orange-300', 'text-orange-700', 'opacity-100');
-            p.classList.remove('bg-slate-100', 'opacity-80');
-        } else {
-            p.classList.remove('bg-orange-100', 'border-orange-300', 'text-orange-700', 'opacity-100');
-            p.classList.add('bg-slate-100', 'opacity-80');
-        }
-    };
-    syncBadge('urbano_val',    data.urbano);
-    syncBadge('diurno_val',    data.diurno);
-    syncBadge('noct_fest_val', data.noct_fest);
-    syncBadge('remolque_val',  data.remolque);
-
-    // ─── 5. ECONOMÍA ─────────────────────────────────────────────────────────
-
-    setVal('asalariado',    data.asalariado);
-    setVal('autorizado_por',data.autorizado_por);
-
-    const suplEl = document.getElementById('importe_suplidos');
-    if (suplEl) suplEl.value = (parseFloat(data.importe_suplidos) || 0).toFixed(2);
-
-    // Importe total: input en update, span en vista
-    const totalInput = document.getElementById('importe_total');
-    if (totalInput) totalInput.value = (parseFloat(data.importe_total) || 0).toFixed(2);
-    const totalView = document.getElementById('importe_total_view');
-    if (totalView) totalView.textContent = (parseFloat(data.importe_total) || 0).toFixed(2);
-
-    // ─── 6. ADMIN EXCLUSIVO ──────────────────────────────────────────────────
-
-    // Nº Factura: input en update, div en vista
-    setVal('num_factura',      data.num_factura);
-    const numFactView = document.getElementById('num_factura_view');
-    if (numFactView) numFactView.textContent = data.num_factura || '—';
-
-    // Fecha cobro: input date en update, div en vista
-    const fechaCobroInput = document.getElementById('fecha_cobro');
-    if (fechaCobroInput && fechaCobroInput.tagName === 'INPUT') {
-        fechaCobroInput.value = data.fecha_cobro ? data.fecha_cobro.split('T')[0] : '';
-    }
-    const fechaCobroView = document.getElementById('fecha_cobro_view');
-    if (fechaCobroView) fechaCobroView.textContent = data.fecha_cobro ? formatEuroDate(data.fecha_cobro) : '—';
-
-    // Fecha pago: input date en update, div en vista
-    const fechaPagoInput = document.getElementById('fecha_pago');
-    if (fechaPagoInput && fechaPagoInput.tagName === 'INPUT') {
-        fechaPagoInput.value = data.fecha_pago ? data.fecha_pago.split('T')[0] : '';
-    }
-    const fechaPagoView = document.getElementById('fecha_pago_view');
-    if (fechaPagoView) fechaPagoView.textContent = data.fecha_pago ? formatEuroDate(data.fecha_pago) : '—';
-
-    // Checkboxes (update)
-    setCheck('cobrado',   data.cobrado);
-    setCheck('pagado',    data.pagado);
-    setCheck('finalizado',data.finalizado);
-
-    // Badges de estado (vista)
-    renderBadge('badge_cobrado',    data.cobrado,    'Cobrado (Empresa)',  'blue');
-    renderBadge('badge_pagado',     data.pagado,     'Pagado (Conductor)', 'green');
-    renderBadge('badge_finalizado', data.finalizado, 'Servicio Cerrado',   'teal');
 
     // Observaciones
-    setVal('observaciones',      data.observaciones);
-    const obsView = document.getElementById('observaciones_view');
-    if (obsView) obsView.textContent = data.observaciones || '—';
-
-    // ─── Fin ─────────────────────────────────────────────────────────────────
+    setText('observaciones', get('observaciones'));
 
     if (window.lucide) lucide.createIcons();
 
-    console.log("✅ [ADMIN MAPPER] hora_ini:", extractTimeForInput(data.hora_ini),
-                "| hora_fin:", extractTimeForInput(data.hora_fin),
-                "| hora_total:", data.hora_total);
+    console.log("✅ [ADMIN MAPPER] km:", get('km_ini'), get('km_fin'), get('km_totales'),
+                get('km_nacionales'), get('km_internacionales'),
+                "| plazas:", get('num_plazas'), "| adjuntos:", get('adjuntos'));
 }
 
 window.populateForm  = populateForm;

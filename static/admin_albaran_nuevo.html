@@ -6,7 +6,7 @@
     <title>Nuevo Albarán Maestro - Administración</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
-    <script src="/js/admin_albaran_nuevo.js" defer></script>
+    <script src="/js/admin_albaran_nuevo.js?v=20261117b" defer></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         tailwind.config = { 
@@ -52,7 +52,7 @@
             </button>
         </div>
 
-        <form id="albaranForm" class="p-6 md:p-10 space-y-8" onsubmit="handleAction('crear', event)">
+        <form id="albaranForm" class="p-6 md:p-10 space-y-8">
             
             <div class="space-y-4">
                 <h2 class="section-header">1. Identificación del Servicio</h2>
@@ -126,8 +126,8 @@
                         <input type="text" name="destino" class="input-field" placeholder="Lugar de llegada">
                     </div>
                     <div class="md:col-span-4">
-                        <label class="label-style text-orange-600">Espera Total (HH.mm)</label>
-                        <input type="text" inputmode="decimal" name="hora_total" class="input-field font-bold text-orange-600" placeholder="0.00">
+                        <label class="label-style text-orange-600">Espera Total (min)</label>
+                        <input type="number" inputmode="numeric" name="hora_total" min="0" max="360" step="1" class="input-field font-bold text-orange-600 text-right" placeholder="0">
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Espera Inicio</label>
@@ -162,21 +162,29 @@
                         </label>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                        <div class="md:col-span-3">
+                        <div class="md:col-span-2">
+                            <label class="label-style">Km Inicio</label>
+                            <input type="number" step="0.01" name="km_ini" class="input-field text-right" placeholder="0.00">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="label-style">Km Fin</label>
+                            <input type="number" step="0.01" name="km_fin" class="input-field text-right" placeholder="0.00">
+                        </div>
+                        <div class="md:col-span-2">
                             <label class="label-style text-primary-link font-black">Kms Totales *</label>
                             <input type="number" step="0.01" name="km_totales" required class="input-field bg-white border-primary-link text-right" placeholder="0.00">
                         </div>
-                        <div class="md:col-span-3">
+                        <div class="md:col-span-2">
                             <label class="label-style">Kms Nacionales</label>
                             <input type="number" step="0.01" name="km_nacionales" class="input-field text-right" placeholder="0.00">
                         </div>
-                        <div class="md:col-span-3">
+                        <div class="md:col-span-2">
                             <label class="label-style">Kms Internacionales</label>
                             <input type="number" step="0.01" name="km_internacionales" class="input-field text-right" placeholder="0.00">
                         </div>
-                        <div class="md:col-span-3">
+                        <div class="md:col-span-2">
                             <label class="label-style">Plazas Vehículo</label>
-                            <select name="num_plazas" class="input-field font-bold">
+                            <select name="num_plazas" id="num_plazas" class="input-field font-bold">
                                 <option value="4" selected>4 Plazas</option>
                                 <option value="5">5 Plazas</option>
                                 <option value="6">6 Plazas</option>
@@ -194,7 +202,7 @@
                     <div class="md:col-span-9 space-y-6">
                         
                         <div class="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-200 shadow-lg space-y-6">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 <div>
                                     <label class="label-style text-blue-500">Nº Factura</label>
                                     <input type="text" name="num_factura" class="input-field bg-white border-blue-200 font-bold" placeholder="Pendiente">
@@ -202,6 +210,10 @@
                                 <div>
                                     <label class="label-style text-blue-500">Fecha Cobro</label>
                                     <input type="date" name="fecha_cobro" class="input-field bg-white border-blue-200">
+                                </div>
+                                <div>
+                                    <label class="label-style text-green-600">Fecha Pago</label>
+                                    <input type="date" name="fecha_pago" class="input-field bg-white border-green-200">
                                 </div>
                             </div>
                             <div class="flex flex-wrap gap-3 pt-4 border-t border-blue-100">
@@ -218,11 +230,11 @@
                                     <span class="text-[10px] font-black uppercase text-teal-800">Finalizado</span>
                                 </label>
                                 <label class="checkbox-inline flex-1 border-blue-200 bg-blue-50">
-                                    <input type="checkbox" name="adjuntos_bool" class="w-4 h-4 text-blue-600">
+                                    <input type="checkbox" name="adjuntos" class="w-5 h-5 accent-amber-600">
                                     <span class="text-[10px] font-black uppercase text-blue-800">Adjuntos</span>
                                 </label>
                                 <div class="flex-[2]">
-                                    <input type="text" name="adjuntos" class="input-field h-full" placeholder="Ref. Adjuntos">
+                                    <input type="text" name="adjuntos_ref" class="input-field h-full" placeholder="Ref. Adjuntos">
                                 </div>
                             </div>
                         </div>
