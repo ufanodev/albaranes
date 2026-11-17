@@ -1,7 +1,15 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 28/05/2026
+ * ACTUALIZADO: 17/11/2026
+ *   - FIX: se embebe la base de zonas horarias (time/tzdata). Así Europe/Madrid
+ *     carga siempre y nunca se usa el respaldo de -2h fijo (erróneo en invierno).
+ *   - FIX: execUpdateSQL conserva el valor actual de importes, km, hora_total,
+ *     num_plazas, empresa_ref, estados (enviado/cobrado/pagado/finalizado) y
+ *     fechas de cobro/pago cuando el campo NO viene en el payload (antes se
+ *     ponían a 0 / false / NULL).
+ *   - FIX: execUpdateSQL ahora guarda fecha_pago (antes se ignoraba).
+ *   28/05/2026
  *   - AÑADIDO: ExportAlbaranesPDF, ExportAlbaranesXLSX (admin)
  *   - AÑADIDO: ExportAlbaranesTitularPDF, ExportAlbaranesTitularXLSX (titular, JWT)
  *   - FIX: GenerateGenericXLSX → GenerateTitularesXLSX (nombre real de la función)
@@ -19,6 +27,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	_ "time/tzdata" // zonas horarias embebidas: no depende del tzdata del servidor
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -195,6 +204,13 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		}
 
 		if strings.Contains(strings.ToLower(key), "fecha") {
+			// fecha_cobro / fecha_pago con null o "" = borrar la fecha explícitamente
+			if key == "fecha_pago" || key == "fecha_cobro" {
+				if str, ok := value.(string); !ok || strings.TrimSpace(str) == "" {
+					clean[structKey] = nil
+					continue
+				}
+			}
 			if str, ok := value.(string); ok && str != "" {
 				soloFecha := str
 				if len(str) > 10 {
@@ -656,13 +672,30 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
             fecha = ?, hora_ini = ?, hora_fin = ?, espera_ini = ?, espera_fin = ?, 
             referencia = ?, asalariado = ?, dni_pasajero = ?, tlf_pasajero = ?,
             matricula = ?, cliente = ?, origen = ?, parada = ?, destino = ?, 
-            empresa_ref = ?, empresa_nombre = ?, km_totales = ?, km_nacionales = ?,
-            km_internacionales = ?, importe_total = ?, importe_suplidos = ?,
-            hora_total = ?, num_plazas = ?, urbano = ?, diurno = ?, noct_fest = ?, 
+            empresa_ref = IF(?, ?, empresa_ref), empresa_nombre = ?,
+            km_totales = IF(?, ?, km_totales),
+            km_nacionales = IF(?, ?, km_nacionales),
+            km_internacionales = IF(?, ?, km_internacionales),
+            importe_total = IF(?, ?, importe_total),
+            importe_suplidos = IF(?, ?, importe_suplidos),
+            hora_total = IF(?, ?, hora_total),
+            num_plazas = IF(?, ?, num_plazas),
+            urbano = ?, diurno = ?, noct_fest = ?,
             remolque = ?, adjuntos = ?, adjuntos_ref = ?, autorizado_por = ?,
-            observaciones = ?, enviado = ?, cobrado = ?, pagado = ?, 
-            num_factura = ?, finalizado = ?, fecha_cobro = ?, updated_at = NOW()
+            observaciones = ?,
+            enviado = IF(?, ?, enviado),
+            cobrado = IF(?, ?, cobrado),
+            pagado = IF(?, ?, pagado),
+            num_factura = ?,
+            finalizado = IF(?, ?, finalizado),
+            fecha_cobro = IF(?, ?, fecha_cobro),
+            fecha_pago = IF(?, ?, fecha_pago),
+            updated_at = NOW()
         WHERE id = ?`
+
+	// "col = IF(?, ?, col)": primer parámetro = ¿vino el campo en el payload?
+	// Si no vino, la columna conserva su valor actual.
+	has := func(key string) bool { _, ok := cleanInput[key]; return ok }
 
 	params := []interface{}{
 		timePtrOrNil(cleanInput, "Fecha"),
@@ -679,15 +712,15 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		strPtrOrNil(cleanInput, "Origen"),
 		strPtrOrNil(cleanInput, "Parada"),
 		strPtrOrNil(cleanInput, "Destino"),
-		intOrZero(cleanInput, "EmpresaRef"),
+		has("EmpresaRef"), intOrZero(cleanInput, "EmpresaRef"),
 		strOrEmpty(cleanInput, "EmpresaNombre"),
-		floatOrZero(cleanInput, "KmTotales"),
-		floatOrZero(cleanInput, "KmNacionales"),
-		floatOrZero(cleanInput, "KmInternacionales"),
-		floatOrZero(cleanInput, "ImporteTotal"),
-		floatOrZero(cleanInput, "ImporteSuplidos"),
-		floatOrZero(cleanInput, "HoraTotal"),
-		intOrZero(cleanInput, "NumPlazas"),
+		has("KmTotales"), floatOrZero(cleanInput, "KmTotales"),
+		has("KmNacionales"), floatOrZero(cleanInput, "KmNacionales"),
+		has("KmInternacionales"), floatOrZero(cleanInput, "KmInternacionales"),
+		has("ImporteTotal"), floatOrZero(cleanInput, "ImporteTotal"),
+		has("ImporteSuplidos"), floatOrZero(cleanInput, "ImporteSuplidos"),
+		has("HoraTotal"), floatOrZero(cleanInput, "HoraTotal"),
+		has("NumPlazas"), intOrZero(cleanInput, "NumPlazas"),
 		boolOrFalse(cleanInput, "Urbano"),
 		boolOrFalse(cleanInput, "Diurno"),
 		boolOrFalse(cleanInput, "NoctFest"),
@@ -696,12 +729,13 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		strOrEmpty(cleanInput, "AdjuntosRef"),
 		strPtrOrNil(cleanInput, "AutorizadoPor"),
 		strPtrOrNil(cleanInput, "Observaciones"),
-		boolOrFalse(cleanInput, "Enviado"),
-		boolOrFalse(cleanInput, "Cobrado"),
-		boolOrFalse(cleanInput, "Pagado"),
+		has("Enviado"), boolOrFalse(cleanInput, "Enviado"),
+		has("Cobrado"), boolOrFalse(cleanInput, "Cobrado"),
+		has("Pagado"), boolOrFalse(cleanInput, "Pagado"),
 		strOrEmpty(cleanInput, "NumFactura"),
-		boolOrFalse(cleanInput, "Finalizado"),
-		timePtrOrNil(cleanInput, "FechaCobro"),
+		has("Finalizado"), boolOrFalse(cleanInput, "Finalizado"),
+		has("FechaCobro"), timePtrOrNil(cleanInput, "FechaCobro"),
+		has("FechaPago"), timePtrOrNil(cleanInput, "FechaPago"),
 		id,
 	}
 

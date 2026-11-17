@@ -1,7 +1,10 @@
 /**
  * ARCHIVO: static/js/admin_albaran_update.js
  * DESCRIPCIÓN: Edición total de albaranes para Administrador.
- * ACTUALIZADO: 12/11/2026
+ * ACTUALIZADO: 17/11/2026
+ *   - FIX: el desfase horario ya no es fijo (+2h). Se calcula el offset real de
+ *          Europe/Madrid para la fecha del albarán (+1h invierno / +2h verano).
+ *   12/11/2026
  *   - FIX: km_nacionales y km_internacionales se normalizan como número.
  *   - FIX: campos numéricos vacíos no se envían (el backend conserva el valor actual).
  *   04/06/2026
@@ -143,21 +146,23 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     const empresaEl = document.getElementById('empresa');
     if (empresaEl && empresaEl.value) payload.empresa_ref = empresaEl.value;
 
-    // Horas HH:mm: sumar 2h para compensar offset UTC del backend.
-    // espera_ini y espera_fin son HH:mm → pasan por addTwoHours.
+    // Horas HH:mm: sumar el offset real de España (Europe/Madrid) respecto a UTC
+    // para compensar el backend. Antes era +120 fijo (solo válido en verano).
+    // espera_ini y espera_fin son HH:mm → pasan por addOffset.
     // hora_total es número entero → NO pasa por aquí.
-    const addTwoHours = (timeStr) => {
+    const offsetMin = madridOffsetMin(payload.fecha);
+    const addOffset = (timeStr) => {
         if (!timeStr) return null;
         const [h, m] = timeStr.split(':').map(Number);
-        const total = h * 60 + m + 120;
-        const newH = Math.floor(total / 60) % 24;
+        const total = (((h * 60 + m + offsetMin) % 1440) + 1440) % 1440;
+        const newH = Math.floor(total / 60);
         const newM = total % 60;
         return String(newH).padStart(2, '0') + ':' + String(newM).padStart(2, '0');
     };
     const times = ['hora_ini', 'hora_fin', 'espera_ini', 'espera_fin'];
     times.forEach(t => {
         const el = document.getElementById(t);
-        if (el && el.value) payload[t] = addTwoHours(el.value);
+        if (el && el.value) payload[t] = addOffset(el.value);
         else delete payload[t];
     });
 
@@ -224,6 +229,27 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
         showStatus(err.message, "error");
     }
 };
+
+/**
+ * Minutos de diferencia entre Europe/Madrid y UTC en la fecha indicada (YYYY-MM-DD).
+ * Devuelve 60 en horario de invierno y 120 en horario de verano.
+ * No depende de la zona horaria del navegador ni del servidor.
+ */
+function madridOffsetMin(fechaStr) {
+    // Mediodía UTC para no caer nunca en la hora exacta del cambio de horario
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(fechaStr || '')
+        ? new Date(`${fechaStr}T12:00:00Z`)
+        : new Date();
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Madrid', hourCycle: 'h23',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+    }).formatToParts(d);
+    const get = type => Number(parts.find(p => p.type === type).value);
+    const madridAsUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
+    const utcSinSegundos = Math.floor(d.getTime() / 60000) * 60000;
+    return Math.round((madridAsUTC - utcSinSegundos) / 60000);
+}
 
 function initCalculosKms() {
     const v1 = document.querySelector('[name="km_ini"]');
