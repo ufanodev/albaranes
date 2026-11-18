@@ -6,9 +6,9 @@
     <title>Actualizar Albarán - Administración</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/js/security.js"></script>
-    <script src="/js/albaran_cargar.js?v=20261117b"></script>
-    <script src="/js/admin_albaran_cargar.js?v=20261117b"></script>
-    <script src="/js/admin_albaran_update.js?v=20261117b" defer></script>
+    <script src="/js/albaran_cargar.js?v=20261118"></script>
+    <script src="/js/admin_albaran_cargar.js?v=20261118"></script>
+    <script src="/js/admin_albaran_update.js?v=20261118" defer></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         tailwind.config = { theme: { extend: { colors: { 'primary-pastel': '#FFDAB9', 'primary-link': '#FF8C00' } } } }
@@ -140,10 +140,8 @@
                         <input type="time" name="espera_fin" id="espera_fin" class="input-field">
                     </div>
                     <div class="md:col-span-3">
-                        <label class="label-style text-orange-600">Espera Total (min)</label>
-                        <input type="number" inputmode="numeric" name="hora_total" id="hora_total"
-                            min="0" max="360" step="1"
-                            class="input-field font-bold text-orange-600 text-right" placeholder="0">
+                        <label class="label-style text-orange-600 font-black">Espera Total (HH:MM)</label>
+                        <input type="time" name="tiempo_espera" id="tiempo_espera" class="input-field font-bold text-orange-600">
                     </div>
                 </div>
             </div>

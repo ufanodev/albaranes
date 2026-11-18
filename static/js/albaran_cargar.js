@@ -1,7 +1,13 @@
 /**
  * ARCHIVO: static/js/albaran_cargar.js
  * FUNCIÓN: Motor universal de inyección de datos para todas las vistas.
- * ACTUALIZADO: 12/11/2026
+ * ACTUALIZADO: 18/11/2026
+ *   - tiempo_espera (Espera Total HH:MM) se trata como campo de hora.
+ *   - FIX HORAS: formatTime muestra la hora LITERAL (HH:MM) que viene del servidor,
+ *     sin convertir a Europe/Madrid. Desde el 18/11/2026 el backend guarda la hora
+ *     tal cual la introduce el taxista; si aquí se convertía, se veía 1h más (2h en
+ *     verano) y, en EDITAR, al guardar se grababa esa hora desplazada.
+ *   12/11/2026
  *   - FIX: los checkbox reciben siempre el valor booleano original del servidor.
  *     Antes, el checkbox name="adjuntos" se marcaba según el texto de adjuntos_ref
  *     (cualquier referencia escrita = marcado), ignorando el valor real de 'adjuntos'.
@@ -27,30 +33,11 @@ const AlbaranLoader = {
     },
 
     formatTime(isoValue) {
-        if (!isoValue) return "--:--";
-        
-        if (typeof isoValue === 'string' && isoValue.includes(':') && isoValue.length === 5) {
-            return isoValue;
-        }
-
-        try {
-            const date = new Date(isoValue);
-            if (isNaN(date.getTime())) {
-                if (typeof isoValue === 'string' && isoValue.includes(':')) {
-                    return isoValue.substring(0, 5);
-                }
-                return "--:--";
-            }
-
-            return date.toLocaleTimeString('es-ES', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                hour12: false,
-                timeZone: 'Europe/Madrid' 
-            });
-        } catch (e) { 
-            return "--:--"; 
-        }
+        if (!isoValue || String(isoValue).startsWith('0001-01-01')) return "--:--"; // fecha cero de Go = vacío
+        // Hora literal: "17:00", "2026-11-18T17:00:00Z", "2026-11-18T17:00:00+01:00",
+        // "2026-11-18 17:00:00" -> "17:00". Sin conversión de zona horaria.
+        const m = String(isoValue).match(/(\d{1,2}):(\d{2})/);
+        return m ? `${m[1].padStart(2, '0')}:${m[2]}` : "--:--";
     },
 
     /**
@@ -88,7 +75,7 @@ const AlbaranLoader = {
     assignValue(el, value, key) {
         const isInput = ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName);
         const isDateField = key.toLowerCase().includes('fecha');
-        const isTimeField = (key.toLowerCase().includes('hora') || key.toLowerCase().includes('espera_')) && key !== 'hora_total';
+        const isTimeField = (key.toLowerCase().includes('hora') || key.toLowerCase().includes('espera_') || key === 'tiempo_espera') && key !== 'hora_total';
 
         let val = (value === null || value === undefined) ? '' : value;
 

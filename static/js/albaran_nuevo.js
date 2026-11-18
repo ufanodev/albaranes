@@ -1,7 +1,9 @@
 /**
  * ARCHIVO: static/js/albaran_nuevo.js
  * DESCRIPCIÓN: Lógica maestra para la creación de albaranes.
- * ACTUALIZADO: 15/04/2026 - FIX: Fecha local y compatibilidad con corrección horaria Backend.
+ * ACTUALIZADO: 18/11/2026 - Espera Total (HH:MM) -> tiempo_espera. El taxista la introduce;
+ *              hora_total lo rellena el servidor a partir de tiempo_espera.
+ *              15/04/2026 - FIX: Fecha local y compatibilidad con corrección horaria Backend.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -100,7 +102,7 @@ async function cargarEmpresas() {
  * Formatea decimales y valida la lógica sexagesimal (.59 máx)
  */
 function initFormatters() {
-    const numFields = ['importe_suplidos', 'importe_total', 'km_totales', 'km_nacionales', 'km_internacionales', 'hora_total'];
+    const numFields = ['importe_suplidos', 'importe_total', 'km_totales', 'km_nacionales', 'km_internacionales'];
     
     numFields.forEach(name => {
         const input = document.querySelector(`input[name="${name}"]`);
@@ -114,16 +116,7 @@ function initFormatters() {
                     return;
                 }
 
-                // Lógica Sexagesimal para Espera Total
-                if (name === 'hora_total') {
-                    let horas = Math.floor(val);
-                    let minutos = Math.round((val - horas) * 100);
-                    if (minutos > 59) minutos = 59;
-                    const minStr = minutos < 10 ? "0" + minutos : minutos;
-                    input.value = `${horas}.${minStr}`;
-                } else {
-                    input.value = val.toFixed(2);
-                }
+                input.value = val.toFixed(2);
             });
         }
     });
@@ -170,15 +163,12 @@ async function handleAction(action, event) {
         plainData[field] = parseFloat(raw) || 0.0;
     });
 
-    const horaRaw = String(plainData['hora_total'] ?? '0').replace(',', '.');
-    plainData['hora_total'] = parseFloat(horaRaw) || 0.0;
-
     plainData.km_ini = 0.0;
     plainData.km_fin = 0.0;
     plainData.importe_espera = 0.0;
 
     // 4. Limpieza de tiempos vacíos
-    ['hora_fin', 'espera_ini', 'espera_fin'].forEach(f => {
+    ['hora_fin', 'espera_ini', 'espera_fin', 'tiempo_espera'].forEach(f => {
         if (!plainData[f]) delete plainData[f];
     });
 

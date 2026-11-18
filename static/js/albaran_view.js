@@ -1,7 +1,9 @@
 /**
  * ARCHIVO: static/js/albaran_view.js
  * DESCRIPCIÓN: Lógica de visualización (Solo Lectura) con traducción de datos y motor universal.
- * ACTUALIZADO: 27/03/2026 - FIX: Sincronización total con AlbaranLoader y visualización de 0.35.
+ * ACTUALIZADO: 18/11/2026 - Espera Total (HH:MM) = Espera Fin - Espera Inicio (ver /js/espera.js).
+ *              Albaranes antiguos sin horas de espera: se muestra hora_total convertido.
+ *              27/03/2026 - FIX: Sincronización total con AlbaranLoader y visualización de 0.35.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -78,6 +80,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             showError("Error interno: Motor de carga no disponible.");
         }
 
+        // 3b. Espera Total (HH:MM)
+        pintarEsperaTotal(data);
+
         // 4. LIMPIEZA DE INTERFAZ
         document.getElementById('loadingIndicator')?.classList.add('hidden');
         
@@ -89,6 +94,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         showError(error.message);
     }
 });
+
+/**
+ * Espera Total (HH:MM): Fin - Inicio; si no hay horas, el hora_total guardado (legado).
+ */
+function pintarEsperaTotal(data) {
+    const el = document.getElementById('espera_total_calc');
+    if (!el || !window.Espera) return;
+    let d = Espera.minutos(data.espera_ini, data.espera_fin);
+    if (d === null) d = Espera.desdeHoraTotal(data.hora_total);
+    el.textContent = d === null ? '00:00' : Espera.aHHMM(d);
+}
 
 /**
  * Muestra un bloque de error visual en la página si algo falla

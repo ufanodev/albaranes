@@ -1,7 +1,13 @@
 /**
  * ARCHIVO: static/js/admin_albaran_update.js
  * DESCRIPCIÓN: Edición total de albaranes para Administrador.
- * ACTUALIZADO: 17/11/2026 (b)
+ * ACTUALIZADO: 18/11/2026
+ *   - FIX HORAS: las horas se envían TAL CUAL (HH:mm). Se elimina la suma del
+ *     offset de Madrid: desde el 18/11/2026 el backend guarda la hora literal y
+ *     esa suma desplazaba +1h/+2h en cada edición.
+ *   - Espera Total (HH:MM) -> tiempo_espera (como en el panel del taxista).
+ *     hora_total ya no se envía: lo rellena el servidor a partir de tiempo_espera.
+ *   17/11/2026 (b)
  *   - FIX: 'adjuntos' se envía como booleano (antes llegaba "on" o no llegaba).
  *   - ADD: adjuntos_ref (referencia de adjuntos).
  *   17/11/2026
@@ -149,24 +155,12 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     const empresaEl = document.getElementById('empresa');
     if (empresaEl && empresaEl.value) payload.empresa_ref = empresaEl.value;
 
-    // Horas HH:mm: sumar el offset real de España (Europe/Madrid) respecto a UTC
-    // para compensar el backend. Antes era +120 fijo (solo válido en verano).
-    // espera_ini y espera_fin son HH:mm → pasan por addOffset.
-    // hora_total es número entero → NO pasa por aquí.
-    const offsetMin = madridOffsetMin(payload.fecha);
-    const addOffset = (timeStr) => {
-        if (!timeStr) return null;
-        const [h, m] = timeStr.split(':').map(Number);
-        const total = (((h * 60 + m + offsetMin) % 1440) + 1440) % 1440;
-        const newH = Math.floor(total / 60);
-        const newM = total % 60;
-        return String(newH).padStart(2, '0') + ':' + String(newM).padStart(2, '0');
-    };
-    const times = ['hora_ini', 'hora_fin', 'espera_ini', 'espera_fin'];
+    // Horas HH:mm: se envían tal cual (el backend guarda la hora literal).
+    // Vacías: se envían "" para que el campo quede vacío en la BD.
+    const times = ['hora_ini', 'hora_fin', 'espera_ini', 'espera_fin', 'tiempo_espera'];
     times.forEach(t => {
         const el = document.getElementById(t);
-        if (el && el.value) payload[t] = addOffset(el.value);
-        else delete payload[t];
+        if (el) payload[t] = el.value || "";
     });
 
     // Normalizar Checkboxes
@@ -179,18 +173,13 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
     // Normalizar Números decimales
     const nums = ['empresa_ref', 'num_plazas', 'km_ini', 'km_fin', 'km_totales',
                   'km_nacionales', 'km_internacionales',
-                  'importe_suplidos', 'importe_total', 'hora_total'];
+                  'importe_suplidos', 'importe_total'];
     nums.forEach(f => {
         if (payload[f] === undefined) return;               // no está en el form: no tocar
         const raw = String(payload[f]).trim().replace(',', '.');
         if (raw === '') { delete payload[f]; return; }      // vacío: el backend conserva el valor
         payload[f] = parseFloat(raw) || 0;
     });
-
-    // hora_total: forzar entero (minutos totales de espera)
-    if (payload.hora_total !== undefined) {
-        payload.hora_total = Math.min(360, Math.max(0, Math.round(payload.hora_total)));
-    }
 
     // Fechas cobro/pago: solo si el check está activo y hay valor, si no null
     const fechaCobro = document.getElementById('fecha_cobro');
@@ -235,27 +224,6 @@ document.getElementById('albaranForm').onsubmit = async (e) => {
         showStatus(err.message, "error");
     }
 };
-
-/**
- * Minutos de diferencia entre Europe/Madrid y UTC en la fecha indicada (YYYY-MM-DD).
- * Devuelve 60 en horario de invierno y 120 en horario de verano.
- * No depende de la zona horaria del navegador ni del servidor.
- */
-function madridOffsetMin(fechaStr) {
-    // Mediodía UTC para no caer nunca en la hora exacta del cambio de horario
-    const d = /^\d{4}-\d{2}-\d{2}$/.test(fechaStr || '')
-        ? new Date(`${fechaStr}T12:00:00Z`)
-        : new Date();
-    const parts = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/Madrid', hourCycle: 'h23',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit'
-    }).formatToParts(d);
-    const get = type => Number(parts.find(p => p.type === type).value);
-    const madridAsUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
-    const utcSinSegundos = Math.floor(d.getTime() / 60000) * 60000;
-    return Math.round((madridAsUTC - utcSinSegundos) / 60000);
-}
 
 function initCalculosKms() {
     const v1 = document.querySelector('[name="km_ini"]');

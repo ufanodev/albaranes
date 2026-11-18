@@ -1,7 +1,10 @@
 /**
  * ARCHIVO: static/js/admin_albaran_nuevo.js
  * DESCRIPCIÓN: Lógica de inserción administrativa rápida con soporte para facturación.
- * ACTUALIZADO: 17/11/2026
+ * ACTUALIZADO: 18/11/2026
+ *   - Espera Total (HH:MM) -> tiempo_espera (como en el panel del taxista).
+ *     hora_total ya no se envía: lo rellena el servidor a partir de tiempo_espera.
+ *   17/11/2026
  *   - FIX: checkbox 'adjuntos' (bool) + 'adjuntos_ref' (texto), igual que en edición.
  *   - FIX: checkboxes desmarcados se envían como false (FormData los omitía).
  *   - FIX: fechas vacías (fecha_cobro / fecha_pago) se envían como null, no "-".
@@ -27,7 +30,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 3. Inicializar Lógicas de cálculo y eventos
     initCalculosKms();
-    initFormattersEspera();
     
     // El listener del formulario
     document.getElementById('albaranForm')?.addEventListener('submit', handleInsertMaestro);
@@ -122,9 +124,6 @@ async function handleInsertMaestro(event) {
     // Adjuntos: checkbox (bool) + referencia (texto)
     data.adjuntos_ref = (data.adjuntos_ref && data.adjuntos_ref !== "-") ? data.adjuntos_ref : "";
 
-    // Espera total: minutos enteros
-    data.hora_total = Math.min(360, Math.max(0, Math.round(data.hora_total || 0)));
-
     // Forzado de tipos técnicos
     data.num_plazas = parseInt(data.num_plazas) || 4;
     
@@ -193,18 +192,4 @@ function initCalculosKms() {
     
     v1?.addEventListener('input', calc); 
     v2?.addEventListener('input', calc);
-}
-
-/**
- * Formateador para el campo de espera (decimal/HH.mm)
- */
-function initFormattersEspera() {
-    const horaTotal = document.querySelector('input[name="hora_total"]');
-    if (horaTotal) {
-        horaTotal.addEventListener('blur', () => {
-            if (horaTotal.value === '') return;
-            const val = Math.round(parseFloat(String(horaTotal.value).replace(',', '.')) || 0);
-            horaTotal.value = Math.min(360, Math.max(0, val)); // minutos enteros
-        });
-    }
 }

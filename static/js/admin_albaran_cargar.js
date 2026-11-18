@@ -1,6 +1,9 @@
 /**
  * ARCHIVO: static/js/admin_albaran_cargar.js
- * ACTUALIZADO: 17/11/2026
+ * ACTUALIZADO: 18/11/2026
+ *   - Espera Total (HH:MM) se carga desde tiempo_espera (igual que en el panel del
+ *     taxista). hora_total ya no se muestra en pantalla.
+ *   17/11/2026
  *   - Vista y edición comparten el MISMO HTML; este mapper rellena ambos.
  *     En vista (body[data-mode="view"]) los date/time se convierten a texto
  *     y se muestran como dd/mm/yyyy y HH:mm.
@@ -140,8 +143,7 @@ function populateForm(data) {
     setTime('espera_ini', get('espera_ini'));
     setTime('espera_fin', get('espera_fin'));
 
-    const horaTotal = parseInt(get('hora_total'), 10) || 0;
-    setText('hora_total', horaTotal > 0 ? horaTotal : (isView ? '0' : ''));
+    setTime('tiempo_espera', get('tiempo_espera'));
 
     // ─── 4. KILOMETRAJE ─────────────────────────────────────────────────────
     setNum('km_ini',             get('km_ini'));

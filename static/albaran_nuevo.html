@@ -113,16 +113,16 @@
                         <input type="text" name="destino" required class="input-field" placeholder="Lugar de llegada">
                     </div>
                     <div class="md:col-span-4">
-                        <label class="label-style">Espera Total (HH.mm)</label>
-                        <input type="text" inputmode="decimal" name="hora_total" class="input-field font-bold text-orange-600" placeholder="0.00">
-                    </div>
-                    <div class="md:col-span-4">
                         <label class="label-style">Espera Inicio</label>
-                        <input type="time" name="espera_ini" class="input-field">
+                        <input type="time" name="espera_ini" id="espera_ini" class="input-field">
                     </div>
                     <div class="md:col-span-4">
                         <label class="label-style">Espera Fin</label>
-                        <input type="time" name="espera_fin" class="input-field">
+                        <input type="time" name="espera_fin" id="espera_fin" class="input-field">
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="label-style text-orange-600 font-black">Espera Total (HH:MM)</label>
+                        <input type="time" name="tiempo_espera" id="tiempo_espera" class="input-field font-bold text-orange-600">
                     </div>
                 </div>
             </div>

@@ -1,7 +1,12 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 18/11/2026
+ * ACTUALIZADO: 18/11/2026 (b)
+ *   - ESPERA TOTAL: tiempo_espera (HH:MM) lo introduce el taxista y ahora SÍ se
+ *     guarda (faltaba en INSERT y UPDATE). Se guarda como "fecha HH:MM:00".
+ *     hora_total se rellena a partir de tiempo_espera en MINUTOS enteros
+ *     (ej. 01:42 -> 102), igual que lo guardaba el admin desde el 17/11/2026.
+ *   18/11/2026
  *   - FIX HORAS: formatDateTimeWithOffset ya NO convierte a UTC. Las horas
  *     (hora, hora_ini, hora_fin, espera_ini, espera_fin) se guardan tal cual las
  *     introduce el taxista (hora local). Antes se guardaba 1h menos (2h en verano).
@@ -246,6 +251,23 @@ func cleanAlbaranMap(input map[string]interface{}, original models.Albaran) map[
 		}
 	}
 	return clean
+}
+
+// ---------------------------------------------------------------------
+// sincronizarHoraTotal: si viene tiempo_espera ("YYYY-MM-DD HH:MM:SS"),
+// rellena hora_total en MINUTOS enteros (01:42 -> 102).
+// Si tiempo_espera viene vacío no toca hora_total (albaranes antiguos).
+// ---------------------------------------------------------------------
+func sincronizarHoraTotal(clean map[string]interface{}) {
+	s, ok := clean["TiempoEspera"].(string)
+	if !ok || len(s) < 16 {
+		return
+	}
+	t, err := time.Parse("15:04", s[11:16])
+	if err != nil {
+		return
+	}
+	clean["HoraTotal"] = float64(t.Hour()*60 + t.Minute())
 }
 
 // ---------------------------------------------------------------------
@@ -568,18 +590,19 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 
 	albaran := models.Albaran{}
 	cleanInput := cleanAlbaranMap(input, albaran)
+	sincronizarHoraTotal(cleanInput)
 
 	query := `INSERT INTO albaranes (
         numero_albaran, fecha, licencia_ref, empresa_ref, licencia, empresa_nombre,
         referencia, asalariado, hora, hora_ini, hora_fin, hora_total, espera_ini, 
-        espera_fin, dni_pasajero, tlf_pasajero, matricula, cliente, origen, parada, 
+        espera_fin, tiempo_espera, dni_pasajero, tlf_pasajero, matricula, cliente, origen, parada, 
         destino, urbano, diurno, noct_fest, km_ini, km_fin, km_totales, km_nacionales, km_internacionales,
         importe_suplidos, importe_total, autorizado_por, remolque, num_plazas, 
         observaciones, adjuntos, adjuntos_ref, finalizado, festivo,
         cobrado, pagado, num_factura, fecha_cobro, fecha_pago,
         estado, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, 0, NOW(), NOW())`
+        ?, ?, ?, ?, ?, ?, 0, NOW(), NOW())`
 
 	err := db.Exec(query,
 		strFromInterface(cleanInput["NumeroAlbaran"]),
@@ -596,6 +619,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		floatOrZero(cleanInput, "HoraTotal"),
 		cleanInput["EsperaIni"],
 		cleanInput["EsperaFin"],
+		cleanInput["TiempoEspera"],
 		strPtrOrNil(cleanInput, "DNIPasajero"),
 		strOrEmpty(cleanInput, "TlfPasajero"),
 		strPtrOrNil(cleanInput, "Matricula"),
@@ -713,6 +737,7 @@ func UpdateAlbaranAdmin(c *gin.Context, db *gorm.DB) {
 	}
 
 	cleanInput := cleanAlbaranMap(input, albaran)
+	sincronizarHoraTotal(cleanInput)
 	if err := execUpdateSQL(db, cleanInput, albaran.ID, 0, true); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -748,6 +773,7 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 	delete(input, "numero_albaran")
 	delete(input, "licencia_ref")
 	cleanInput := cleanAlbaranMap(input, albaran)
+	sincronizarHoraTotal(cleanInput)
 
 	if err := execUpdateSQL(db, cleanInput, albaran.ID, licID, false); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar"})
@@ -771,6 +797,7 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
             importe_total = IF(?, ?, importe_total),
             importe_suplidos = IF(?, ?, importe_suplidos),
             hora_total = IF(?, ?, hora_total),
+            tiempo_espera = IF(?, ?, tiempo_espera),
             num_plazas = IF(?, ?, num_plazas),
             urbano = ?, diurno = ?, noct_fest = ?,
             remolque = ?,
@@ -817,6 +844,7 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		has("ImporteTotal"), floatOrZero(cleanInput, "ImporteTotal"),
 		has("ImporteSuplidos"), floatOrZero(cleanInput, "ImporteSuplidos"),
 		has("HoraTotal"), floatOrZero(cleanInput, "HoraTotal"),
+		has("TiempoEspera"), cleanInput["TiempoEspera"],
 		has("NumPlazas"), intOrZero(cleanInput, "NumPlazas"),
 		boolOrFalse(cleanInput, "Urbano"),
 		boolOrFalse(cleanInput, "Diurno"),

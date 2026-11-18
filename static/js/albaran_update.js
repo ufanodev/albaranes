@@ -1,7 +1,10 @@
 /**
  * ARCHIVO: static/js/albaran_update.js
  * DESCRIPCIÓN: Lógica de actualización para usuarios (Titulares).
- * ACTUALIZADO: 12/11/2026
+ * ACTUALIZADO: 18/11/2026
+ *   - Espera Total (HH:MM) -> tiempo_espera, la introduce el taxista. hora_total ya no
+ *     se envía: lo rellena el servidor a partir de tiempo_espera.
+ *   12/11/2026
  *   - FIX: se envían km_nacionales y km_internacionales (antes faltaban y el backend los ponía a 0).
  *   - FIX: adjuntos (bool) y adjuntos_ref (texto) con los nombres que espera el backend.
  *   - FIX: si un input no existe en el HTML, el campo no se envía (no rompe ni pone a 0).
@@ -39,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.AlbaranLoader.populateForm(data);
             }
 
-            // 4. Inicializar formateadores para lógica sexagesimal (.59 máx)
+            // 4. Inicializar formateadores numéricos
             initUpdateFormatters();
             
             console.log("%c✅ [UPDATE] Datos cargados con ajuste local.", "color: #10B981; font-weight: bold;");
@@ -60,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
  */
 function initUpdateFormatters() {
     const fields = ['importe_suplidos', 'importe_total', 'km_totales',
-                    'km_nacionales', 'km_internacionales', 'hora_total'];
+                    'km_nacionales', 'km_internacionales'];
     fields.forEach(name => {
         const input = document.querySelector(`[name="${name}"]`);
         if (input) {
@@ -69,14 +72,7 @@ function initUpdateFormatters() {
                 let val = parseFloat(rawVal);
                 if (isNaN(val)) { input.value = "0.00"; return; }
                 
-                if (name === 'hora_total') {
-                    let horas = Math.floor(val);
-                    let minutos = Math.round((val - horas) * 100);
-                    if (minutos > 59) minutos = 59;
-                    input.value = `${horas}.${minutos < 10 ? '0' + minutos : minutos}`;
-                } else {
-                    input.value = val.toFixed(2);
-                }
+                input.value = val.toFixed(2);
             });
         }
     });
@@ -136,6 +132,7 @@ async function handleFormSubmit(e) {
         "hora_fin":         getTimeValue('hora_fin'),
         "espera_ini":       getTimeValue('espera_ini'),
         "espera_fin":       getTimeValue('espera_fin'),
+        "tiempo_espera":    getTimeValue('tiempo_espera'),
         "nombre_pasajero":  txt('nombre_pasajero'),
         "referencia":       txt('referencia'),
         "origen":           txt('origen'),
@@ -159,7 +156,6 @@ async function handleFormSubmit(e) {
         "km_internacionales": num('km_internacionales'),
         "importe_total":    num('importe_total'),
         "importe_suplidos": num('importe_suplidos'),
-        "hora_total":       num('hora_total'),
         "num_plazas":       parseInt(txt('num_plazas')) || 4,
 
         // Booleanos
