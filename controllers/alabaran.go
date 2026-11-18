@@ -28,6 +28,7 @@ package controllers
 import (
 	"albaranes/models"
 	"albaranes/utils"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -306,6 +307,62 @@ func fechaCorta(row map[string]interface{}) string {
 	return ""
 }
 
+// empresaFromRow devuelve el nombre de la empresa del albarán.
+// La columna empresa_nombre puede estar vacía (se borraba al editar, ver execUpdateSQL);
+// en ese caso se usa la empresa precargada (EmpresaData) si viene en la fila.
+func empresaFromRow(row map[string]interface{}) string {
+	if s := strings.TrimSpace(strFromInterface(row["empresa_nombre"])); s != "" {
+		return s
+	}
+	for _, k := range []string{"EmpresaData", "empresa_data", "empresaData", "empresa"} {
+		m, ok := row[k].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for _, campo := range []string{"nombre", "Nombre", "empresa", "Empresa", "empresa_nombre",
+			"nombre_empresa", "razon_social", "RazonSocial"} {
+			if s := strings.TrimSpace(strFromInterface(m[campo])); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// empresasDesdeBD lee de la BD el nombre de empresa de los albaranes recibidos
+// (solo los de la licencia indicada). Se usa como respaldo si el navegador no lo envía.
+// Pasa por JSON para reutilizar empresaFromRow sin depender de los nombres del modelo.
+func empresasDesdeBD(db *gorm.DB, licID uint, data []map[string]interface{}) map[uint]string {
+	res := map[uint]string{}
+	var ids []uint
+	for _, row := range data {
+		if id := uint(floatFromInterface(row["id"])); id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 || licID == 0 {
+		return res
+	}
+	var albs []models.Albaran
+	if err := db.Preload("EmpresaData").
+		Where("id IN ? AND licencia_ref = ?", ids, licID).Find(&albs).Error; err != nil {
+		return res
+	}
+	for _, a := range albs {
+		b, err := json.Marshal(a)
+		if err != nil {
+			continue
+		}
+		var m map[string]interface{}
+		if json.Unmarshal(b, &m) == nil {
+			if s := empresaFromRow(m); s != "" {
+				res[a.ID] = s
+			}
+		}
+	}
+	return res
+}
+
 // fechaDMY devuelve la fecha del albarán como DD/MM/YYYY (igual que la pantalla).
 func fechaDMY(row map[string]interface{}) string {
 	f := fechaCorta(row) // "2026-11-12"
@@ -335,7 +392,7 @@ func ExportAlbaranesPDF(c *gin.Context, db *gorm.DB) {
 			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
 			"FECHA":      fechaDMY(row),
 			"LICENCIA":   strFromInterface(row["licencia_numero"]),
-			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
+			"EMPRESA":    empresaFromRow(row),
 			"REF.":       strFromInterface(row["referencia"]),
 			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
 			"ESTADO":     estadoFromRow(row),
@@ -365,7 +422,7 @@ func ExportAlbaranesXLSX(c *gin.Context, db *gorm.DB) {
 			"Nº ALBARÁN": strFromInterface(row["numero_albaran"]),
 			"FECHA":      fechaCorta(row),
 			"LICENCIA":   strFromInterface(row["licencia_numero"]),
-			"EMPRESA":    strFromInterface(row["empresa_nombre"]),
+			"EMPRESA":    empresaFromRow(row),
 			"REF.":       strFromInterface(row["referencia"]),
 			"IMPORTE":    fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
 			"ESTADO":     estadoFromRow(row),
@@ -394,16 +451,23 @@ func ExportAlbaranesTitularPDF(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
+	// Respaldo: nombre de empresa leído de la BD (solo albaranes de su licencia)
+	empresasBD := empresasDesdeBD(db, getUintFromContext(c, "licencia_id"), body.Data)
+
 	var lista []utils.TitularData
 	for _, row := range body.Data {
+		empresa := empresaFromRow(row)
+		if empresa == "" {
+			empresa = empresasBD[uint(floatFromInterface(row["id"]))]
+		}
+		// Sin columna ESTADO en el informe del titular
 		lista = append(lista, utils.TitularData{
 			"Nº ALBARÁN":    strFromInterface(row["numero_albaran"]),
 			"FECHA":         fechaDMY(row),
-			"EMPRESA":       strFromInterface(row["empresa_nombre"]),
+			"EMPRESA":       empresa,
 			"REF.":          strFromInterface(row["referencia"]),
 			"CONDUCTOR":     strFromInterface(row["asalariado"]),
 			"IMPORTE":       fmt.Sprintf("%.2f", floatFromInterface(row["importe_total"])),
-			"ESTADO":        estadoFromRow(row),
 			"OBSERVACIONES": strings.TrimSpace(strFromInterface(row["observaciones"])),
 		})
 	}
@@ -691,7 +755,7 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
             fecha = ?, hora_ini = ?, hora_fin = ?, espera_ini = ?, espera_fin = ?, 
             referencia = ?, asalariado = ?, dni_pasajero = ?, tlf_pasajero = ?,
             matricula = ?, cliente = ?, origen = ?, parada = ?, destino = ?, 
-            empresa_ref = IF(?, ?, empresa_ref), empresa_nombre = ?,
+            empresa_ref = IF(?, ?, empresa_ref), empresa_nombre = IF(?, ?, empresa_nombre),
             km_ini = IF(?, ?, km_ini),
             km_fin = IF(?, ?, km_fin),
             km_totales = IF(?, ?, km_totales),
@@ -737,7 +801,7 @@ func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licI
 		strPtrOrNil(cleanInput, "Parada"),
 		strPtrOrNil(cleanInput, "Destino"),
 		has("EmpresaRef"), intOrZero(cleanInput, "EmpresaRef"),
-		strOrEmpty(cleanInput, "EmpresaNombre"),
+		has("EmpresaNombre"), strOrEmpty(cleanInput, "EmpresaNombre"),
 		has("KmIni"), floatOrZero(cleanInput, "KmIni"),
 		has("KmFin"), floatOrZero(cleanInput, "KmFin"),
 		has("KmTotales"), floatOrZero(cleanInput, "KmTotales"),
