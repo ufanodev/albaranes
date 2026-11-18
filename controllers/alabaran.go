@@ -1,7 +1,11 @@
 /**
  * ARCHIVO: controllers/albaran.go
  * DESCRIPCIÓN: Gestión integral de albaranes con mapeo tipado.
- * ACTUALIZADO: 17/11/2026 (b)
+ * ACTUALIZADO: 18/11/2026
+ *   - FIX HORAS: formatDateTimeWithOffset ya NO convierte a UTC. Las horas
+ *     (hora, hora_ini, hora_fin, espera_ini, espera_fin) se guardan tal cual las
+ *     introduce el taxista (hora local). Antes se guardaba 1h menos (2h en verano).
+ *   17/11/2026 (b)
  *   - FIX: km_ini y km_fin se guardan (antes no estaban en INSERT ni UPDATE).
  *   - FIX: CreateAlbaran guarda cobrado, pagado, num_factura, fecha_cobro y fecha_pago.
  *   - FIX: execUpdateSQL conserva adjuntos / adjuntos_ref si no vienen en el payload.
@@ -56,29 +60,32 @@ func parseDatePtr(dateStr string) (*time.Time, error) {
 	return &t, nil
 }
 
+// formatDateTimeWithOffset une fecha + hora y la devuelve TAL CUAL la introduce
+// el usuario (hora local), como string "YYYY-MM-DD HH:MM:SS".
+// Se devuelve string (no time.Time) para que ni Go ni el driver MySQL apliquen
+// ninguna conversión de zona horaria al guardar.
+// (Se mantiene el nombre de la función para no tocar el resto del código.)
 func formatDateTimeWithOffset(dateBase, timeStr string) interface{} {
-	if strings.TrimSpace(timeStr) == "" {
+	timeStr = strings.TrimSpace(timeStr)
+	if timeStr == "" {
 		return nil
 	}
-	if len(timeStr) == 5 {
+	// Por si llega "2026-11-18T12:00" o "2026-11-18 12:00:00": quedarse con la hora
+	if i := strings.LastIndexAny(timeStr, "T "); i != -1 {
+		timeStr = timeStr[i+1:]
+	}
+	if len(timeStr) == 5 { // "12:00"
 		timeStr += ":00"
+	}
+	if len(timeStr) > 8 { // "12:00:00.000" o "12:00:00Z"
+		timeStr = timeStr[:8]
 	}
 
 	full := fmt.Sprintf("%s %s", dateBase, timeStr)
-
-	loc, err := time.LoadLocation("Europe/Madrid")
-	if err != nil {
-		t, _ := time.Parse("2006-01-02 15:04:05", full)
-		return t.Add(-2 * time.Hour).Format("2006-01-02 15:04:05")
+	if _, err := time.Parse("2006-01-02 15:04:05", full); err != nil {
+		return nil // fecha u hora no válida
 	}
-
-	tMadrid, err := time.ParseInLocation("2006-01-02 15:04:05", full, loc)
-	if err != nil {
-		return nil
-	}
-
-	tUTC := tMadrid.UTC()
-	return tUTC.Format("2006-01-02 15:04:05")
+	return full
 }
 
 func preloadAlbaran(db *gorm.DB) *gorm.DB {
@@ -625,7 +632,7 @@ func CreateAlbaran(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado con corrección horaria"})
+	c.JSON(http.StatusCreated, gin.H{"message": "✅ Albarán creado"})
 }
 
 func UpdateAlbaran(c *gin.Context, db *gorm.DB) {
@@ -746,7 +753,7 @@ func UpdateAlbaranUser(c *gin.Context, db *gorm.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "✅ Actualizado con corrección horaria"})
+	c.JSON(http.StatusOK, gin.H{"message": "✅ Albarán actualizado"})
 }
 
 func execUpdateSQL(db *gorm.DB, cleanInput map[string]interface{}, id uint, licID uint, isAdmin bool) error {
